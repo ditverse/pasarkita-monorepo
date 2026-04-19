@@ -136,7 +136,7 @@ pasarkita/
 │   ├── types/              # TypeScript types
 │   └── package.json
 │
-├── backend/                # Express.js — REST API
+├── backend/                # Express.js — REST API (deploy ke Vercel)
 │   ├── api/
 │   │   └── index.js        # Serverless entry point
 │   ├── src/
@@ -144,9 +144,12 @@ pasarkita/
 │   │   ├── middlewares/    # auth, validate, errorHandler
 │   │   ├── integrations/   # smartbank, logistikita
 │   │   └── utils/          # fee, response
-│   ├── mock/               # Mock server (lokal only)
-│   │   ├── smartbank/      # Mock SmartBank :4001
-│   │   └── logistikita/    # Mock LogistiKita :4002
+│   ├── vercel.json         # Konfigurasi Vercel routing
+│   └── package.json
+│
+├── mock/                   # Dev tool — lokal only, tidak di-deploy
+│   ├── smartbank/          # Mock SmartBank :4001
+│   ├── logistikita/        # Mock LogistiKita :4002
 │   └── package.json
 │
 └── README.md

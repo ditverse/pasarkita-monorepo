@@ -77,11 +77,6 @@ pasarkita/                          ← root repo
 │   │   └── utils/
 │   │       ├── response.js         # Standarisasi format response
 │   │       └── fee.js              # Kalkulasi fee marketplace
-│   ├── mock/                       # Mock server — lokal only, tidak di-deploy
-│   │   ├── package.json
-│   │   ├── server.js
-│   │   ├── smartbank/
-│   │   └── logistikita/
 │   ├── vercel.json                 # Konfigurasi Vercel routing
 │   ├── package.json
 │   └── .env.example

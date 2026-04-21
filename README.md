@@ -54,31 +54,31 @@ graph TD
 
 ```mermaid
 graph TD
-    subgraph REPO["pasarkita/ — 1 repo GitHub"]
+    subgraph REPO["📁 pasarkita/ — 1 repo GitHub"]
         subgraph FE_DIR["frontend/"]
             FE["Next.js 16.2\nApp Router · TypeScript\nTailwind · shadcn/ui"]
         end
         subgraph BE_DIR["backend/"]
             BE["Express.js\nserverless-http"]
-            subgraph MOCK_DIR["mock/ (lokal only)"]
-                MSB["Mock SmartBank\n:4001"]
-                MLK["Mock LogistiKita\n:4002"]
-            end
+        end
+        subgraph MOCK_DIR["mock/ (lokal only)"]
+            MSB["Mock SmartBank\n:4001"]
+            MLK["Mock LogistiKita\n:4002"]
         end
     end
-
-    subgraph VERCEL["Vercel"]
+ 
+    subgraph VERCEL["☁️ Vercel"]
         V1["pasarkita.vercel.app\nRoot Dir: frontend"]
         V2["pasarkita-api.vercel.app\nRoot Dir: backend"]
     end
-
+ 
     DB[("Supabase\nPostgreSQL")]
-
+ 
     FE_DIR -->|deploy| V1
     BE_DIR -->|deploy| V2
     V2 <--> DB
     V1 -->|"NEXT_PUBLIC_API_URL"| V2
-
+ 
     style REPO fill:#fafafa,stroke:#d9d9d9,stroke-width:1px
     style MOCK_DIR fill:#fff1f0,stroke:#ffa39e,stroke-width:1px,stroke-dasharray:5 5
 ```

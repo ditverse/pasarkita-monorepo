@@ -17,4 +17,6 @@ if (!envParsed.success) {
   process.exit(1);
 }
 
+console.log("✅ Environment variables loaded. Supabase URL:", envParsed.data.SUPABASE_URL);
+
 module.exports = envParsed.data;

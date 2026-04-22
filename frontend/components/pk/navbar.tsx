@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import Logo from './logo';
 import Icon from './icon';
 import Avatar from './avatar';
+import { useAuthStore } from '@/store/auth';
 
 const NAV_LINKS = [
   { href: '/products', label: 'Browse' },
@@ -12,9 +13,19 @@ const NAV_LINKS = [
   { href: '/seller/products', label: 'Jual Produk' },
 ];
 
-export function NavbarDesktop({ loggedIn = true }: { loggedIn?: boolean }) {
+export function NavbarDesktop() {
   const pathname = usePathname();
   const active = NAV_LINKS.find((l) => pathname.startsWith(l.href))?.href ?? '';
+
+  const { isAuthenticated, user, _hasHydrated } = useAuthStore();
+
+  // Filter nav links based on auth state
+  // "Jual Produk" stays visible for everyone — middleware handles redirect for non-sellers
+  // "Pesanan Saya" only for logged-in users
+  const visibleLinks = NAV_LINKS.filter((l) => {
+    if (l.href === '/orders') return isAuthenticated;
+    return true;
+  });
 
   return (
     <header
@@ -34,7 +45,7 @@ export function NavbarDesktop({ loggedIn = true }: { loggedIn?: boolean }) {
         <Logo />
       </Link>
       <nav style={{ flex: 1, display: 'flex', justifyContent: 'center', gap: 32 }}>
-        {NAV_LINKS.map((l) => (
+        {visibleLinks.map((l) => (
           <Link
             key={l.href}
             href={l.href}
@@ -55,13 +66,21 @@ export function NavbarDesktop({ loggedIn = true }: { loggedIn?: boolean }) {
         ))}
       </nav>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button
-          className="pk-btn pk-btn-ghost pk-btn-sm"
-          style={{ height: 36, padding: '0 10px' }}
-        >
-          <Icon name="bell" size={18} />
-        </button>
-        {loggedIn ? (
+        {/* Bell notification — only for logged-in users */}
+        {_hasHydrated && isAuthenticated && (
+          <button
+            className="pk-btn pk-btn-ghost pk-btn-sm"
+            style={{ height: 36, padding: '0 10px' }}
+          >
+            <Icon name="bell" size={18} />
+          </button>
+        )}
+
+        {/* Auth section */}
+        {!_hasHydrated ? (
+          /* Skeleton while hydrating to prevent flash */
+          <div style={{ width: 100, height: 36, borderRadius: 999, background: 'var(--pk-bg-subtle)' }} />
+        ) : isAuthenticated && user ? (
           <div
             style={{
               display: 'flex',
@@ -70,10 +89,16 @@ export function NavbarDesktop({ loggedIn = true }: { loggedIn?: boolean }) {
               padding: '4px 10px 4px 4px',
               border: '1px solid var(--pk-border)',
               borderRadius: 999,
+              cursor: 'pointer',
             }}
           >
-            <Avatar name="Rani Kusuma" size={28} />
-            <span style={{ fontSize: 13, fontWeight: 500 }}>Rani K.</span>
+            <Avatar name={user.name} size={28} />
+            <span style={{ fontSize: 13, fontWeight: 500 }}>
+              {user.name.split(' ')[0]}
+              {user.name.split(' ').length > 1
+                ? ` ${user.name.split(' ')[1][0]}.`
+                : ''}
+            </span>
           </div>
         ) : (
           <Link href="/auth/login" className="pk-btn pk-btn-primary pk-btn-sm">
@@ -92,6 +117,8 @@ export function NavbarMobile({
   onOpenMenu?: () => void;
   showCart?: boolean;
 }) {
+  const { isAuthenticated, _hasHydrated } = useAuthStore();
+
   return (
     <header
       style={{
@@ -111,7 +138,7 @@ export function NavbarMobile({
         <Icon name="menu" size={22} />
       </button>
       <Logo size={15} />
-      {showCart ? (
+      {showCart && _hasHydrated && isAuthenticated ? (
         <Icon name="bell" size={20} />
       ) : (
         <span style={{ width: 22 }} />

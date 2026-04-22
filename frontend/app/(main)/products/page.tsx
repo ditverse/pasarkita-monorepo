@@ -6,26 +6,33 @@ import Icon from '@/components/pk/icon';
 import Placeholder from '@/components/pk/placeholder';
 import { formatIDR } from '@/lib/format';
 import { api } from '@/lib/api';
+import { useDebounce } from '@/lib/hooks/useDebounce';
 
 const CATEGORIES = ['Fashion', 'Makanan', 'Kerajinan', 'Elektronik', 'Kecantikan', 'Rumah', 'Buku', 'Olahraga'];
 
 export default function BrowseProductsPage() {
-  const [cat, setCat] = useState<Set<string>>(new Set());
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [priceMax, setPriceMax] = useState(15000000);
   const [sort, setSort] = useState('relevant');
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Debounce search query — wait 400ms after user stops typing
+  const debouncedSearch = useDebounce(searchQuery, 400);
+
   useEffect(() => {
     async function loadProducts() {
       try {
         setLoading(true);
-        // Bisa pakai parameter jika backend mendukung atau ambil semua lalu filter di client
-        // Di sini kita kombinasikan: Backend sorting/fetching
         let url = `/products?limit=100`;
         if (sort === 'high') url += '&sort=price_desc';
         if (sort === 'low') url += '&sort=price_asc';
+        
+        // Use backend search if debounced search query exists
+        if (debouncedSearch.trim()) {
+          url += `&search=${encodeURIComponent(debouncedSearch.trim())}`;
+        }
         
         const res = await api.get(url);
         setProducts(res.data?.data || []);
@@ -36,22 +43,21 @@ export default function BrowseProductsPage() {
       }
     }
     loadProducts();
-  }, [sort]);
+  }, [sort, debouncedSearch]);
 
-  // Client side complex filtering for realtime UX
+  // Client-side filtering for category + price (multi-category not supported by backend)
   const filtered = useMemo(() => {
     return products.filter(
       (p) => 
-        (cat.size === 0 || cat.has(p.category)) && 
-        p.price <= priceMax &&
-        (searchQuery === '' || p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.seller?.name?.toLowerCase().includes(searchQuery.toLowerCase()))
+        (selectedCategories.length === 0 || selectedCategories.includes(p.category)) && 
+        p.price <= priceMax
     );
-  }, [products, cat, priceMax, searchQuery]);
+  }, [products, selectedCategories, priceMax]);
 
-  const toggle = (c: string) => {
-    const next = new Set(cat);
-    next.has(c) ? next.delete(c) : next.add(c);
-    setCat(next);
+  const toggleCategory = (c: string) => {
+    setSelectedCategories((prev) =>
+      prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]
+    );
   };
 
   return (
@@ -84,20 +90,21 @@ export default function BrowseProductsPage() {
               }}
             >
               <span
-                onClick={() => toggle(c)}
+                onClick={() => toggleCategory(c)}
                 style={{
                   width: 16,
                   height: 16,
                   borderRadius: 4,
-                  border: '1.5px solid ' + (cat.has(c) ? 'var(--pk-text)' : 'var(--pk-border-strong)'),
-                  background: cat.has(c) ? 'var(--pk-text)' : '#fff',
+                  border: '1.5px solid ' + (selectedCategories.includes(c) ? 'var(--pk-text)' : 'var(--pk-border-strong)'),
+                  background: selectedCategories.includes(c) ? 'var(--pk-text)' : '#fff',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   flexShrink: 0,
+                  transition: 'all 150ms ease',
                 }}
               >
-                {cat.has(c) && (
+                {selectedCategories.includes(c) && (
                   <Icon name="check" size={12} style={{ color: '#fff' }} stroke={3} />
                 )}
               </span>
@@ -105,6 +112,49 @@ export default function BrowseProductsPage() {
             </label>
           ))}
         </div>
+
+        {/* Active category tags */}
+        {selectedCategories.length > 0 && (
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+              {selectedCategories.map((c) => (
+                <span
+                  key={c}
+                  onClick={() => toggleCategory(c)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    padding: '4px 10px',
+                    borderRadius: 999,
+                    fontSize: 12,
+                    fontWeight: 500,
+                    background: 'var(--pk-accent-soft)',
+                    color: 'var(--pk-accent)',
+                    cursor: 'pointer',
+                    transition: 'opacity 150ms ease',
+                  }}
+                >
+                  {c}
+                  <Icon name="x" size={12} stroke={2.5} />
+                </span>
+              ))}
+            </div>
+            <button
+              onClick={() => setSelectedCategories([])}
+              style={{
+                fontSize: 12,
+                color: 'var(--pk-text-hint)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                textDecoration: 'underline',
+              }}
+            >
+              Hapus semua filter
+            </button>
+          </div>
+        )}
 
         <div
           style={{
@@ -177,6 +227,7 @@ export default function BrowseProductsPage() {
             borderRadius: 8,
             height: 44,
             marginBottom: 20,
+            transition: 'border-color 150ms ease, box-shadow 150ms ease',
           }}
         >
           <Icon name="search" size={16} style={{ color: 'var(--pk-text-hint)' }} />
@@ -192,7 +243,24 @@ export default function BrowseProductsPage() {
               background: 'transparent',
             }}
           />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              style={{
+                border: 'none',
+                background: 'none',
+                cursor: 'pointer',
+                padding: 4,
+                color: 'var(--pk-text-hint)',
+                display: 'flex',
+              }}
+            >
+              <Icon name="x" size={14} />
+            </button>
+          )}
         </div>
+
+        {/* Debounce indicator removed as requested */}
 
         <div
           style={{
@@ -206,6 +274,7 @@ export default function BrowseProductsPage() {
             Menampilkan{' '}
             <span style={{ color: 'var(--pk-text)', fontWeight: 500 }}>{filtered.length}</span> produk 
             {loading && ' (memuat data...)'}
+            {selectedCategories.length > 0 && ` · Kategori: ${selectedCategories.join(', ')}`}
           </div>
         </div>
 
@@ -243,12 +312,12 @@ export default function BrowseProductsPage() {
             {!loading && (
               <>
                 <div style={{ fontSize: 14, color: 'var(--pk-text-secondary)', maxWidth: 380, marginBottom: 20 }}>
-                  Coba perlebar batas harga maksimal atau hapus kata kunci.
+                  Coba perlebar batas harga maksimal, hapus kata kunci, atau pilih kategori lain.
                 </div>
                 <button
                   className="pk-btn pk-btn-primary pk-btn-sm"
                   onClick={() => {
-                    setCat(new Set());
+                    setSelectedCategories([]);
                     setPriceMax(15000000);
                     setSearchQuery('');
                   }}

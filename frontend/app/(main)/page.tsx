@@ -1,30 +1,77 @@
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Icon from '@/components/pk/icon';
 import Placeholder from '@/components/pk/placeholder';
 import { formatIDR } from '@/lib/format';
+import { api } from '@/lib/api';
+import { useDebounce } from '@/lib/hooks/useDebounce';
 
 const CATEGORIES = ['Fashion', 'Makanan', 'Kerajinan', 'Elektronik', 'Kecantikan', 'Rumah', 'Buku', 'Olahraga'];
+const POPULAR_TAGS = ['Fashion Pria', 'Snack', 'Handphone', 'Sepatu'];
 
-export const dynamic = 'force-dynamic'; // Selalu ambil dari database terkini untuk demonstrasi
+export default function HomePage() {
+  const router = useRouter();
+  const [products, setProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeCategory, setActiveCategory] = useState('Semua');
 
-async function getProducts() {
-  try {
-    const url = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
-    const res = await fetch(`${url}/products`, { cache: 'no-store' });
-    if (!res.ok) {
-      console.error("Failed to fetch products:", res.status);
-      return [];
+  // Debounce search — wait 400ms after user stops typing
+  const debouncedSearch = useDebounce(searchQuery, 400);
+
+  // Fetch products (no category in API call, we'll filter locally)
+  const fetchProducts = useCallback(async (search?: string) => {
+    try {
+      setLoading(true);
+      let url = `/products?limit=50`;
+      if (search && search.trim()) {
+        url += `&search=${encodeURIComponent(search.trim())}`;
+      }
+      const res = await api.get(url);
+      setProducts(res.data?.data || []);
+    } catch (err) {
+      console.error("Error fetching products:", err);
+      setProducts([]);
+    } finally {
+      setLoading(false);
     }
-    const json = await res.json();
-    return json.data || [];
-  } catch (err) {
-    console.error("Error fetching products:", err);
-    return [];
-  }
-}
+  }, []);
 
-export default async function HomePage() {
-  const PRODUCTS = await getProducts();
+  // Initial load or search load
+  useEffect(() => {
+    fetchProducts(debouncedSearch);
+  }, [debouncedSearch, fetchProducts]);
+
+  // Client-side filtering for category
+  const filteredProducts = activeCategory === 'Semua' 
+    ? products 
+    : products.filter(p => p.category === activeCategory);
+
+  // Handle category click
+  const handleCategoryClick = (category: string) => {
+    setActiveCategory(category);
+  };
+
+  // Handle popular tag click — fill search bar and trigger search
+  const handlePopularClick = (tag: string) => {
+    setSearchQuery(tag);
+  };
+
+  // Handle search submit (button click or Enter)
+  const handleSearchSubmit = () => {
+    if (searchQuery.trim()) {
+      router.push(`/products?search=${encodeURIComponent(searchQuery.trim())}`);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleSearchSubmit();
+    }
+  };
 
   return (
     <div>
@@ -87,10 +134,14 @@ export default async function HomePage() {
             borderRadius: 999,
             padding: '6px 6px 6px 18px',
             boxShadow: 'var(--pk-shadow-sm)',
+            transition: 'border-color 150ms ease, box-shadow 150ms ease',
           }}
         >
           <Icon name="search" size={18} style={{ color: 'var(--pk-text-hint)' }} />
           <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={handleKeyDown}
             placeholder="Cari produk impianmu..."
             style={{
               flex: 1,
@@ -101,7 +152,26 @@ export default async function HomePage() {
               padding: '12px 0',
             }}
           />
-          <button className="pk-btn pk-btn-primary" style={{ borderRadius: 999, height: 40 }}>
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              style={{
+                border: 'none',
+                background: 'none',
+                cursor: 'pointer',
+                padding: 4,
+                color: 'var(--pk-text-hint)',
+                display: 'flex',
+              }}
+            >
+              <Icon name="x" size={16} />
+            </button>
+          )}
+          <button
+            className="pk-btn pk-btn-primary"
+            style={{ borderRadius: 999, height: 40 }}
+            onClick={handleSearchSubmit}
+          >
             Cari
           </button>
         </div>
@@ -116,8 +186,20 @@ export default async function HomePage() {
           }}
         >
           <span>Populer:</span>
-          {['Fashion Pria', 'Snack', 'Handphone', 'Sepatu'].map((t) => (
-            <a key={t} style={{ color: 'var(--pk-text-secondary)', cursor: 'pointer' }}>
+          {POPULAR_TAGS.map((t) => (
+            <a
+              key={t}
+              onClick={() => handlePopularClick(t)}
+              style={{
+                color: 'var(--pk-text-secondary)',
+                cursor: 'pointer',
+                transition: 'color 150ms ease',
+                textDecoration: searchQuery === t ? 'underline' : 'none',
+                fontWeight: searchQuery === t ? 600 : 400,
+              }}
+              onMouseEnter={(e) => { (e.target as HTMLElement).style.color = 'var(--pk-accent)'; }}
+              onMouseLeave={(e) => { (e.target as HTMLElement).style.color = 'var(--pk-text-secondary)'; }}
+            >
               {t}
             </a>
           ))}
@@ -130,20 +212,22 @@ export default async function HomePage() {
           className="pk-scroll"
           style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}
         >
-          {['Semua', ...CATEGORIES].map((c, i) => (
+          {['Semua', ...CATEGORIES].map((c) => (
             <button
               key={c}
+              onClick={() => handleCategoryClick(c)}
               style={{
                 height: 36,
                 padding: '0 16px',
                 borderRadius: 999,
-                border: '1px solid ' + (i === 0 ? 'var(--pk-text)' : 'var(--pk-border)'),
-                background: i === 0 ? 'var(--pk-text)' : '#fff',
-                color: i === 0 ? '#fff' : 'var(--pk-text)',
+                border: '1px solid ' + (activeCategory === c ? 'var(--pk-text)' : 'var(--pk-border)'),
+                background: activeCategory === c ? 'var(--pk-text)' : '#fff',
+                color: activeCategory === c ? '#fff' : 'var(--pk-text)',
                 fontSize: 13,
                 fontWeight: 500,
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
+                transition: 'all 150ms ease',
               }}
             >
               {c}
@@ -163,14 +247,14 @@ export default async function HomePage() {
           }}
         >
           <h2 style={{ fontSize: 20, fontWeight: 600, margin: 0, letterSpacing: '-0.02em' }}>
-            Pilihan untuk Anda
+            {activeCategory !== 'Semua' ? activeCategory : (debouncedSearch ? `Hasil pencarian "${debouncedSearch}"` : 'Pilihan untuk Anda')}
           </h2>
           <Link href="/products" style={{ fontSize: 13, color: 'var(--pk-accent)' }}>
             Lihat semua →
           </Link>
         </div>
         
-        {PRODUCTS.length > 0 ? (
+        {loading ? (
           <div
             style={{
               display: 'grid',
@@ -178,7 +262,26 @@ export default async function HomePage() {
               gap: 20,
             }}
           >
-            {PRODUCTS.map((p: any) => (
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="pk-card" style={{ overflow: 'hidden' }}>
+                <div className="pk-skel" style={{ height: 200 }} />
+                <div style={{ padding: 14 }}>
+                  <div className="pk-skel" style={{ height: 16, width: '80%', marginBottom: 8 }} />
+                  <div className="pk-skel" style={{ height: 12, width: '50%', marginBottom: 12 }} />
+                  <div className="pk-skel" style={{ height: 18, width: '40%' }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : filteredProducts.length > 0 ? (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4, 1fr)',
+              gap: 20,
+            }}
+          >
+            {filteredProducts.map((p: any) => (
               <Link
                 key={p.id}
                 href={`/products/${p.id}`}
@@ -221,7 +324,42 @@ export default async function HomePage() {
           </div>
         ) : (
           <div style={{ textAlign: 'center', padding: '40px 0', border: '1px dashed var(--pk-border)', borderRadius: 12 }}>
-            <p style={{ color: 'var(--pk-text-hint)' }}>Belum ada produk dari database.</p>
+            <div
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 12,
+                background: 'var(--pk-bg-subtle)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--pk-text-hint)',
+                marginInline: 'auto',
+                marginBottom: 16,
+              }}
+            >
+              <Icon name="search" size={24} />
+            </div>
+            <p style={{ color: 'var(--pk-text-secondary)', fontWeight: 500, marginBottom: 4 }}>
+              Tidak ada produk ditemukan
+            </p>
+            <p style={{ color: 'var(--pk-text-hint)', fontSize: 13 }}>
+              {debouncedSearch
+                ? `Tidak ditemukan produk untuk "${debouncedSearch}"`
+                : 'Belum ada produk dari database.'}
+            </p>
+            {(debouncedSearch || activeCategory !== 'Semua') && (
+              <button
+                className="pk-btn pk-btn-primary pk-btn-sm"
+                style={{ marginTop: 16 }}
+                onClick={() => {
+                  setSearchQuery('');
+                  setActiveCategory('Semua');
+                }}
+              >
+                Reset Pencarian
+              </button>
+            )}
           </div>
         )}
       </section>

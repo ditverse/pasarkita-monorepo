@@ -1,14 +1,21 @@
-export default function AuthLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+import Logo from '@/components/pk/logo';
+
+export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex flex-col min-h-screen items-center justify-center bg-gray-50 p-4">
-      <div className="w-full max-w-md bg-white p-8 border border-gray-200 rounded-xl shadow-sm">
-        <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">PasarKita</h1>
-          <p className="text-sm text-gray-500 mt-2">Selamat datang kembali</p>
+    <div
+      className="pk"
+      style={{
+        minHeight: '100vh',
+        background: 'var(--pk-bg-subtle)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 80,
+      }}
+    >
+      <div className="pk-card" style={{ width: 400, padding: 40, background: '#fff' }}>
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <Logo />
         </div>
         {children}
       </div>

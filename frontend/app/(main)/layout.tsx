@@ -1,32 +1,20 @@
-export default function MainLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+import { NavbarDesktop } from '@/components/pk/navbar';
+
+export default function MainLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="font-bold text-xl tracking-tight">PasarKita</div>
-          <nav className="hidden md:flex gap-6 text-sm font-medium text-gray-600">
-            <a href="/" className="hover:text-black">Browse</a>
-            <a href="/orders" className="hover:text-black">Pesanan Saya</a>
-            <a href="/seller/products" className="hover:text-black">Jual Produk</a>
-          </nav>
-          <div>
-            <a href="/auth/login" className="bg-black text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-gray-800">Masuk</a>
-          </div>
-        </div>
-      </header>
-      
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 py-8">
+    <div className="pk" style={{ minHeight: '100vh', background: 'var(--pk-bg)', display: 'flex', flexDirection: 'column' }}>
+      <NavbarDesktop />
+      <main style={{ flex: 1 }}>
         {children}
       </main>
-
-      <footer className="bg-white border-t border-gray-200 mt-auto">
-        <div className="max-w-7xl mx-auto px-4 py-8 text-center text-sm text-gray-500">
-          © {new Date().getFullYear()} PasarKita Marketplace. All rights reserved.
+      <footer style={{ borderTop: '1px solid var(--pk-border)', padding: '32px 80px', display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--pk-text-hint)' }}>
+        <div style={{ display: 'flex', gap: 24 }}>
+          <span>© {new Date().getFullYear()} PasarKita</span>
+          <a style={{ color: 'var(--pk-text-secondary)', cursor: 'pointer' }}>Tentang</a>
+          <a style={{ color: 'var(--pk-text-secondary)', cursor: 'pointer' }}>Bantuan</a>
+          <a style={{ color: 'var(--pk-text-secondary)', cursor: 'pointer' }}>Kebijakan</a>
         </div>
+        <div>Made in Indonesia · Powered by SmartBank</div>
       </footer>
     </div>
   );

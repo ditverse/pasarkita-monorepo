@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -8,18 +10,19 @@ import { authApi } from '@/lib/api/auth';
 import { useAuthStore } from '@/store/auth';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
+import Icon from '@/components/pk/icon';
 
 const loginSchema = z.object({
   email: z.string().email('Email tidak valid'),
   password: z.string().min(1, 'Password wajib diisi'),
 });
-
 type LoginForm = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
+  const [show, setShow] = useState(false);
   const router = useRouter();
-  const setLogin = useAuthStore(state => state.login);
-  
+  const setLogin = useAuthStore((state) => state.login);
+
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
   });
@@ -30,63 +33,73 @@ export default function LoginPage() {
       const { token, user } = res.data.data;
       setLogin(token, user);
       toast.success('Berhasil masuk!');
-      
-      // Redirect based on role
       setTimeout(() => {
-        if (user.role === 'superadmin') {
-          router.push('/admin');
-        } else if (user.role === 'seller') {
-          router.push('/seller/products');
-        } else {
-          router.push('/');
-        }
-      }, 500); // little delay to let cookie set perfectly
+        if (user.role === 'superadmin') router.push('/admin');
+        else if (user.role === 'seller') router.push('/seller/products');
+        else router.push('/');
+      }, 500);
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.message || 'Login gagal. Periksa kembali data Anda.');
-    }
+    },
   });
 
-  const onSubmit = (data: LoginForm) => {
-    mutation.mutate(data);
-  };
-
   return (
-    <div>
-      <h2 className="text-xl font-bold mb-4 text-center">Masuk ke Akun Anda</h2>
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium mb-1">Email</label>
-          <input 
-            {...register('email')} 
-            type="email"
-            className="w-full border p-2 rounded" 
-            placeholder="budi@example.com"
-          />
-          {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
-        </div>
+    <>
+      <h2 style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.02em', margin: '0 0 6px', textAlign: 'center' }}>
+        Masuk ke PasarKita
+      </h2>
+      <p style={{ fontSize: 14, color: 'var(--pk-text-secondary)', textAlign: 'center', margin: '0 0 28px' }}>
+        Gunakan email dan password untuk melanjutkan.
+      </p>
 
-        <div>
-          <label className="block text-sm font-medium mb-1">Password</label>
-          <input 
-            {...register('password')} 
-            type="password"
-            className="w-full border p-2 rounded" 
-          />
-          {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
+      <form onSubmit={handleSubmit((d) => mutation.mutate(d))}>
+        <div style={{ marginBottom: 16 }}>
+          <label className="pk-label">Email</label>
+          <input {...register('email')} className="pk-input" placeholder="nama@email.com" />
+          {errors.email && <div style={{ fontSize: 12, color: 'var(--pk-danger)', marginTop: 4 }}>{errors.email.message}</div>}
         </div>
-
-        <button 
-          type="submit" 
-          disabled={mutation.isPending}
-          className="w-full bg-black text-white p-2 rounded font-medium hover:bg-gray-800 disabled:bg-gray-400"
-        >
-          {mutation.isPending ? 'Memproses...' : 'Masuk sekarang'}
+        <div style={{ marginBottom: 8 }}>
+          <label className="pk-label">Password</label>
+          <div style={{ position: 'relative' }}>
+            <input
+              {...register('password')}
+              className="pk-input"
+              type={show ? 'text' : 'password'}
+              placeholder="••••••••"
+              style={{ paddingRight: 40 }}
+            />
+            <button
+              type="button"
+              onClick={() => setShow(!show)}
+              style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--pk-text-hint)', padding: 4 }}
+            >
+              <Icon name={show ? 'eyeOff' : 'eye'} size={16} />
+            </button>
+          </div>
+          {errors.password && <div style={{ fontSize: 12, color: 'var(--pk-danger)', marginTop: 4 }}>{errors.password.message}</div>}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
+          <a style={{ fontSize: 12, color: 'var(--pk-accent)', cursor: 'pointer' }}>Lupa password?</a>
+        </div>
+        <button type="submit" className="pk-btn pk-btn-primary pk-btn-block" disabled={mutation.isPending}>
+          {mutation.isPending ? 'Memproses...' : 'Masuk'}
         </button>
       </form>
-      <div className="mt-4 text-center text-sm">
-        Belum punya akun? <a href="/auth/register" className="text-blue-600 font-medium hover:underline">Daftar dulu</a>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '24px 0' }}>
+        <div style={{ flex: 1, height: 1, background: 'var(--pk-border)' }} />
+        <span style={{ fontSize: 12, color: 'var(--pk-text-hint)' }}>atau</span>
+        <div style={{ flex: 1, height: 1, background: 'var(--pk-border)' }} />
       </div>
-    </div>
+      <button className="pk-btn pk-btn-secondary pk-btn-block">Masuk dengan SmartBank ID</button>
+
+      <div style={{ textAlign: 'center', marginTop: 24, fontSize: 13, color: 'var(--pk-text-secondary)' }}>
+        Belum punya akun?{' '}
+        <Link href="/auth/register" style={{ color: 'var(--pk-accent)', fontWeight: 500 }}>
+          Daftar sekarang
+        </Link>
+      </div>
+    </>
   );
 }

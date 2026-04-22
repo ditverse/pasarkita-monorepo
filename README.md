@@ -308,10 +308,10 @@ Dokumentasi lengkap di [`backend/PRD_Backend_PasarKita.md`](./backend/PRD_Backen
 
 | Dokumen | Path | Deskripsi |
 |---|---|---|
-| PRD General | `PRD_v3_Marketplace_PasarKita.md` | Gambaran besar sistem |
-| PRD Backend | `backend/PRD_Backend_PasarKita.md` | Spesifikasi API & database |
-| PRD Frontend | `frontend/PRD_Frontend_PasarKita.md` | Design system & komponen |
-| PRD Mock Server | `backend/mock/PRD_MockServer_PasarKita.md` | Setup & handler mock |
+| PRD General | `README.md` | Gambaran besar sistem |
+| PRD Backend | `backend/prd-backend.md` | Spesifikasi API & database |
+| PRD Frontend | `frontend/prd-frontend.md` | Design system & komponen |
+| PRD Mock Server | `backend/mock/prd-mock.md` | Setup & handler mock |
 
 ---
 
@@ -319,8 +319,8 @@ Dokumentasi lengkap di [`backend/PRD_Backend_PasarKita.md`](./backend/PRD_Backen
 
 | Nama | Npm | Role |
 |---|---|---|
-| Ridwan Hakim Ramadhan | — | — |
-| Raditya Rizki Raharja | 714240041 | — |
+| Raditya Rizki Raharja| 714240041 | Fullstack |
+| Ridwan Hakim Ramadhan  |  | — |
 | Muhammad Rashid Al Savero | — | — |
 
 ---

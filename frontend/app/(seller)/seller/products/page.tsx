@@ -1,19 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/pk/icon';
 import Placeholder from '@/components/pk/placeholder';
 import { formatIDR } from '@/lib/format';
-
-const INITIAL_PRODUCTS = [
-  { id: 'p1', name: 'Batik Tulis Pekalongan', cat: 'Fashion', price: 285000, stock: 12, active: true },
-  { id: 'p2', name: 'Keripik Singkong Balado', cat: 'Makanan', price: 18500, stock: 48, active: true },
-  { id: 'p3', name: 'Tas Rotan Handwoven', cat: 'Kerajinan', price: 145000, stock: 7, active: false },
-  { id: 'p4', name: 'Speaker Bluetooth Mini', cat: 'Elektronik', price: 220000, stock: 23, active: true },
-  { id: 'p5', name: 'Kopi Arabika Gayo 250g', cat: 'Makanan', price: 89000, stock: 34, active: true },
-  { id: 'p6', name: 'Kemeja Linen Pria', cat: 'Fashion', price: 189000, stock: 15, active: true },
-];
+import { api } from '@/lib/api';
+import { useAuthStore } from '@/store/auth';
 
 function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -21,7 +14,7 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void 
       onClick={() => onChange(!on)}
       style={{
         width: 36, height: 20, borderRadius: 999,
-        background: on ? 'var(--pk-text)' : 'var(--pk-border-strong)',
+        background: on ? 'var(--pk-success)' : 'var(--pk-border-strong)',
         border: 'none', position: 'relative', cursor: 'pointer',
         transition: 'background 150ms ease', padding: 0,
       }}
@@ -36,13 +29,47 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void 
 }
 
 export default function SellerProductsPage() {
-  const [products, setProducts] = useState(INITIAL_PRODUCTS);
+  const [products, setProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const user = useAuthStore((state) => state.user);
 
-  const toggleActive = (id: string, v: boolean) => {
-    setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, active: v } : p)));
+  useEffect(() => {
+    async function loadSellerProducts() {
+      if (!user?.id) return;
+      try {
+        setLoading(true);
+        // Menggunakan library axios `api` yang meng-inject Bearer Token
+        const res = await api.get(`/products?seller_id=${user.id}`);
+        setProducts(res.data.data || []);
+      } catch (err) {
+        console.error("Gagal get seller products", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadSellerProducts();
+  }, [user]);
+
+  const toggleActive = async (id: string, currentStatus: boolean) => {
+    try {
+      const newStatus = !currentStatus;
+      // Optimistic update
+      setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, is_active: newStatus } : p)));
+      
+      // Update di backend 
+      await api.put(`/products/${id}`, { is_active: newStatus });
+    } catch (err) {
+      console.error("Gagal merubah status produk:", err);
+      // Revert upon failure
+      setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, is_active: currentStatus } : p)));
+    }
   };
 
-  const activeCount = products.filter((p) => p.active).length;
+  const activeCount = products.filter((p) => p.is_active).length;
+
+  if (loading) {
+     return <div style={{ padding: '40px', color: 'var(--pk-text-hint)' }}>Memuat etalase produk Anda...</div>;
+  }
 
   return (
     <div>
@@ -84,21 +111,28 @@ export default function SellerProductsPage() {
             </tr>
           </thead>
           <tbody>
+            {products.length === 0 && (
+              <tr>
+                <td colSpan={5} style={{ padding: '30px', textAlign: 'center', color: 'var(--pk-text-hint)' }}>
+                  Catatan: Anda belum memiliki produk di database. Tambah sekarang!
+                </td>
+              </tr>
+            )}
             {products.map((p) => (
               <tr key={p.id} style={{ borderBottom: '1px solid var(--pk-border)' }}>
                 <td style={{ padding: '14px 20px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <Placeholder label="" height={40} style={{ width: 40, borderRadius: 6, fontSize: 9 }} />
+                    <Placeholder label="img" height={40} style={{ width: 40, borderRadius: 6, fontSize: 9 }} />
                     <div>
                       <div style={{ fontSize: 14, fontWeight: 500 }}>{p.name}</div>
-                      <div style={{ fontSize: 12, color: 'var(--pk-text-hint)' }}>{p.cat}</div>
+                      <div style={{ fontSize: 12, color: 'var(--pk-text-hint)' }}>{p.category || 'Belanja'}</div>
                     </div>
                   </div>
                 </td>
                 <td style={{ padding: '14px 20px', fontSize: 14, fontWeight: 500 }}>{formatIDR(p.price)}</td>
                 <td style={{ padding: '14px 20px', fontSize: 14 }}>{p.stock}</td>
                 <td style={{ padding: '14px 20px' }}>
-                  <Toggle on={p.active} onChange={(v) => toggleActive(p.id, v)} />
+                  <Toggle on={p.is_active} onChange={(v) => toggleActive(p.id, v)} />
                 </td>
                 <td style={{ padding: '14px 20px', textAlign: 'right' }}>
                   <a style={{ fontSize: 13, color: 'var(--pk-accent)', cursor: 'pointer', fontWeight: 500 }}>Edit</a>

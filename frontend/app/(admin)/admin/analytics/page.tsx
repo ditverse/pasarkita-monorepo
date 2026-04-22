@@ -1,28 +1,20 @@
+'use client';
+
+import { useState, useEffect } from 'react';
 import StatusBadge from '@/components/pk/status-badge';
 import Icon from '@/components/pk/icon';
+import { formatIDR } from '@/lib/format';
+import { api } from '@/lib/api';
 
-const BREAKDOWN = [
-  { key: 'paid', label: 'Dibayar', count: 842, pct: 47 },
-  { key: 'shipped', label: 'Dikirim', count: 401, pct: 23 },
-  { key: 'delivered', label: 'Selesai', count: 389, pct: 22 },
-  { key: 'pending', label: 'Pending', count: 84, pct: 5 },
-  { key: 'payment_failed', label: 'Gagal', count: 48, pct: 3 },
-];
-
-const TOP_PRODUCTS = [
-  { rank: 1, name: 'Kopi Arabika Gayo 250g', seller: 'Kopi Rakyat', sold: 1284 },
-  { rank: 2, name: 'Batik Tulis Pekalongan', seller: 'Batik Nusantara', sold: 892 },
-  { rank: 3, name: 'Keripik Singkong Balado', seller: 'Warung Bu Sari', sold: 714 },
-  { rank: 4, name: 'Tas Rotan Handwoven', seller: 'Kriya Bali', sold: 548 },
-  { rank: 5, name: 'Madu Hutan Flores 500ml', seller: 'Kopi Rakyat', sold: 411 },
-];
-
-function MetricCard({ label, value, delta }: { label: string; value: string; delta?: string }) {
+function MetricCard({ label, value, loading }: { label: string; value: string; loading?: boolean }) {
   return (
     <div className="pk-card" style={{ padding: 20, background: '#fff' }}>
       <div style={{ fontSize: 13, color: 'var(--pk-text-secondary)', marginBottom: 10 }}>{label}</div>
-      <div style={{ fontSize: 28, fontWeight: 600, letterSpacing: '-0.025em', lineHeight: 1 }}>{value}</div>
-      {delta && <div style={{ fontSize: 12, color: 'var(--pk-success)', marginTop: 10 }}>{delta}</div>}
+      {loading ? (
+        <div style={{ width: '80%', height: 28, background: 'var(--pk-bg-subtle)', borderRadius: 4, animation: 'pk-pulse 1.5s infinite' }} />
+      ) : (
+        <div style={{ fontSize: 28, fontWeight: 600, letterSpacing: '-0.025em', lineHeight: 1 }}>{value}</div>
+      )}
     </div>
   );
 }
@@ -36,6 +28,27 @@ const barColor: Record<string, string> = {
 };
 
 export default function AdminAnalyticsPage() {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const res = await api.get('/admin/analytics');
+        setData(res.data);
+      } catch(err) {
+        console.error("Gagal get analytics admin", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, []);
+
+  const m = data?.metrics || { total_orders: 0, total_revenue: 0, marketplace_fee: 0, new_users: 0 };
+  const breakdown = data?.orders_by_status || [];
+  const topProducts = data?.top_products || []; // We left this empty physically in backend, but will map if exist
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
@@ -45,24 +58,25 @@ export default function AdminAnalyticsPage() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px', height: 36, border: '1px solid var(--pk-border)', borderRadius: 8, background: '#fff', fontSize: 13 }}>
           <Icon name="clipboard" size={14} style={{ color: 'var(--pk-text-hint)' }} />
-          <span>1 Apr – 22 Apr 2026</span>
+          <span>Keseluruhan Waktu</span>
           <Icon name="chevronDown" size={14} style={{ color: 'var(--pk-text-hint)' }} />
         </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 28 }}>
-        <MetricCard label="Total Orders" value="1.764" delta="+14.2% MoM" />
-        <MetricCard label="Revenue" value="Rp 484M" delta="+18.7% MoM" />
-        <MetricCard label="Fee Marketplace" value="Rp 9,68M" delta="+18.7% MoM" />
-        <MetricCard label="New Users" value="2.109" delta="+6.4% MoM" />
+        <MetricCard label="Total Orders Transaksi" value={m.total_orders.toString()} loading={loading} />
+        <MetricCard label="Total Revenue Transaksi" value={formatIDR(m.total_revenue)} loading={loading} />
+        <MetricCard label="Revenue Admin (Fee)" value={formatIDR(m.marketplace_fee)} loading={loading} />
+        <MetricCard label="Total Users" value={m.new_users.toString()} loading={loading} />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
         <div className="pk-card" style={{ padding: 24, background: '#fff' }}>
           <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Order by Status</div>
-          <div style={{ fontSize: 12, color: 'var(--pk-text-hint)', marginBottom: 20 }}>Distribusi order 30 hari terakhir</div>
+          <div style={{ fontSize: 12, color: 'var(--pk-text-hint)', marginBottom: 20 }}>Distribusi order seluruh waktu</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {BREAKDOWN.map((b) => (
+            {!loading && breakdown.length === 0 && <div style={{ color: 'var(--pk-text-hint)' }}>Belum ada transaksi di platform.</div>}
+            {breakdown.map((b: any) => (
               <div key={b.key}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -82,7 +96,7 @@ export default function AdminAnalyticsPage() {
         <div className="pk-card" style={{ padding: 0, background: '#fff', overflow: 'hidden' }}>
           <div style={{ padding: 24, paddingBottom: 16 }}>
             <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Top 5 Products</div>
-            <div style={{ fontSize: 12, color: 'var(--pk-text-hint)' }}>Berdasarkan jumlah terjual</div>
+            <div style={{ fontSize: 12, color: 'var(--pk-text-hint)' }}>Berdasarkan jumlah terjual (Membutuhkan complex query)</div>
           </div>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
@@ -93,7 +107,10 @@ export default function AdminAnalyticsPage() {
               </tr>
             </thead>
             <tbody>
-              {TOP_PRODUCTS.map((t) => (
+              {topProducts.length === 0 && (
+                <tr><td colSpan={3} style={{ padding: '24px', textAlign: 'center', color: 'var(--pk-text-hint)' }}>{loading ? 'Memuat...' : 'Data belum tersedia (Backend RPC Required)'}</td></tr>
+              )}
+              {topProducts.map((t: any) => (
                 <tr key={t.rank} style={{ borderTop: '1px solid var(--pk-border)' }}>
                   <td style={{ padding: '14px 24px', width: 40 }}>
                     <div style={{

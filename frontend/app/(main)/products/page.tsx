@@ -1,36 +1,52 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/pk/icon';
 import Placeholder from '@/components/pk/placeholder';
 import { formatIDR } from '@/lib/format';
+import { api } from '@/lib/api';
 
 const CATEGORIES = ['Fashion', 'Makanan', 'Kerajinan', 'Elektronik', 'Kecantikan', 'Rumah', 'Buku', 'Olahraga'];
 
-const PRODUCTS = [
-  { id: 'p1',  name: 'Batik Tulis Pekalongan',    seller: 'Batik Nusantara',  price: 285000, stock: 12, cat: 'Fashion' },
-  { id: 'p2',  name: 'Keripik Singkong Balado',    seller: 'Warung Bu Sari',   price: 18500,  stock: 48, cat: 'Makanan' },
-  { id: 'p3',  name: 'Tas Rotan Handwoven',        seller: 'Kriya Bali',       price: 145000, stock: 7,  cat: 'Kerajinan' },
-  { id: 'p4',  name: 'Speaker Bluetooth Mini',     seller: 'Toko Elektro ID',  price: 220000, stock: 23, cat: 'Elektronik' },
-  { id: 'p5',  name: 'Kopi Arabika Gayo 250g',     seller: 'Kopi Rakyat',      price: 89000,  stock: 34, cat: 'Makanan' },
-  { id: 'p6',  name: 'Kemeja Linen Pria',          seller: 'Tenun Modern',     price: 189000, stock: 15, cat: 'Fashion' },
-  { id: 'p7',  name: 'Gerabah Kasongan Set',       seller: 'Kriya Bali',       price: 95000,  stock: 9,  cat: 'Kerajinan' },
-  { id: 'p8',  name: 'Madu Hutan Flores 500ml',    seller: 'Kopi Rakyat',      price: 125000, stock: 22, cat: 'Makanan' },
-  { id: 'p9',  name: 'Sepatu Kulit Handmade',      seller: 'Tenun Modern',     price: 495000, stock: 4,  cat: 'Fashion' },
-  { id: 'p10', name: 'Wayang Kulit Mini',          seller: 'Kriya Bali',       price: 75000,  stock: 16, cat: 'Kerajinan' },
-  { id: 'p11', name: 'Teh Hijau Tambi 200g',       seller: 'Warung Bu Sari',   price: 42000,  stock: 40, cat: 'Makanan' },
-  { id: 'p12', name: 'Powerbank 10.000 mAh',       seller: 'Toko Elektro ID',  price: 165000, stock: 31, cat: 'Elektronik' },
-];
-
 export default function BrowseProductsPage() {
   const [cat, setCat] = useState<Set<string>>(new Set());
-  const [priceMax, setPriceMax] = useState(500000);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [priceMax, setPriceMax] = useState(15000000);
   const [sort, setSort] = useState('relevant');
+  const [products, setProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filtered = PRODUCTS.filter(
-    (p) => (cat.size === 0 || cat.has(p.cat)) && p.price <= priceMax,
-  );
+  useEffect(() => {
+    async function loadProducts() {
+      try {
+        setLoading(true);
+        // Bisa pakai parameter jika backend mendukung atau ambil semua lalu filter di client
+        // Di sini kita kombinasikan: Backend sorting/fetching
+        let url = `/products?limit=100`;
+        if (sort === 'high') url += '&sort=price_desc';
+        if (sort === 'low') url += '&sort=price_asc';
+        
+        const res = await api.get(url);
+        setProducts(res.data?.data || []);
+      } catch (err) {
+        console.error("Gagal mendapatkan produk dinamis:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadProducts();
+  }, [sort]);
+
+  // Client side complex filtering for realtime UX
+  const filtered = useMemo(() => {
+    return products.filter(
+      (p) => 
+        (cat.size === 0 || cat.has(p.category)) && 
+        p.price <= priceMax &&
+        (searchQuery === '' || p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.seller?.name?.toLowerCase().includes(searchQuery.toLowerCase()))
+    );
+  }, [products, cat, priceMax, searchQuery]);
 
   const toggle = (c: string) => {
     const next = new Set(cat);
@@ -106,8 +122,8 @@ export default function BrowseProductsPage() {
           <input
             type="range"
             min="0"
-            max="500000"
-            step="10000"
+            max="15000000"
+            step="100000"
             value={priceMax}
             onChange={(e) => setPriceMax(+e.target.value)}
             style={{ width: '100%', accentColor: 'var(--pk-text)' }}
@@ -143,8 +159,7 @@ export default function BrowseProductsPage() {
           value={sort}
           onChange={(e) => setSort(e.target.value)}
         >
-          <option value="relevant">Paling relevan</option>
-          <option value="newest">Terbaru</option>
+          <option value="relevant">Paling relevan (Terbaru)</option>
           <option value="low">Harga terendah</option>
           <option value="high">Harga tertinggi</option>
         </select>
@@ -166,7 +181,9 @@ export default function BrowseProductsPage() {
         >
           <Icon name="search" size={16} style={{ color: 'var(--pk-text-hint)' }} />
           <input
-            placeholder="Cari produk, seller, kategori..."
+            placeholder="Cari nama produk, brand, atau kategori e.g. Kopi, Tas..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             style={{
               flex: 1,
               border: 'none',
@@ -187,7 +204,8 @@ export default function BrowseProductsPage() {
         >
           <div style={{ fontSize: 14, color: 'var(--pk-text-secondary)' }}>
             Menampilkan{' '}
-            <span style={{ color: 'var(--pk-text)', fontWeight: 500 }}>{filtered.length}</span> produk
+            <span style={{ color: 'var(--pk-text)', fontWeight: 500 }}>{filtered.length}</span> produk 
+            {loading && ' (memuat data...)'}
           </div>
         </div>
 
@@ -220,34 +238,32 @@ export default function BrowseProductsPage() {
               <Icon name="search" size={24} />
             </div>
             <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>
-              Tidak ada produk ditemukan
+              {loading ? 'Sistem sedang memuat data...' : 'Tidak ada produk ditemukan'}
             </div>
-            <div
-              style={{
-                fontSize: 14,
-                color: 'var(--pk-text-secondary)',
-                maxWidth: 380,
-                marginBottom: 20,
-              }}
-            >
-              Coba ubah filter atau kata kunci pencarian.
-            </div>
-            <button
-              className="pk-btn pk-btn-primary pk-btn-sm"
-              onClick={() => {
-                setCat(new Set());
-                setPriceMax(500000);
-              }}
-            >
-              Reset Filter
-            </button>
+            {!loading && (
+              <>
+                <div style={{ fontSize: 14, color: 'var(--pk-text-secondary)', maxWidth: 380, marginBottom: 20 }}>
+                  Coba perlebar batas harga maksimal atau hapus kata kunci.
+                </div>
+                <button
+                  className="pk-btn pk-btn-primary pk-btn-sm"
+                  onClick={() => {
+                    setCat(new Set());
+                    setPriceMax(15000000);
+                    setSearchQuery('');
+                  }}
+                >
+                  Reset Filter
+                </button>
+              </>
+            )}
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
             {filtered.map((p) => (
               <Link key={p.id} href={`/products/${p.id}`} style={{ textDecoration: 'none' }}>
                 <div className="pk-card pk-card-hover" style={{ cursor: 'pointer', overflow: 'hidden' }}>
-                  <Placeholder label={p.cat.toLowerCase()} height={160} style={{ borderRadius: 0 }} />
+                  <Placeholder label={p.category || 'produk'} height={160} style={{ borderRadius: 0 }} />
                   <div style={{ padding: 14 }}>
                     <div
                       style={{
@@ -263,7 +279,7 @@ export default function BrowseProductsPage() {
                       {p.name}
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--pk-text-hint)', marginBottom: 10 }}>
-                      {p.seller}
+                      {p.seller?.name || 'Toko Anonim'}
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--pk-text)' }}>
@@ -282,7 +298,7 @@ export default function BrowseProductsPage() {
           </div>
         )}
 
-        {/* Pagination */}
+        {/* Pagination Dummy UX */}
         <div
           style={{
             display: 'flex',
@@ -295,7 +311,7 @@ export default function BrowseProductsPage() {
           <button className="pk-btn pk-btn-secondary pk-btn-sm">
             <Icon name="chevronLeft" size={14} />
           </button>
-          {[1, 2, 3, 4, 5].map((n) => (
+          {[1].map((n) => (
             <button
               key={n}
               className="pk-btn pk-btn-sm"

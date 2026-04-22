@@ -1,16 +1,12 @@
 'use client';
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Icon from '@/components/pk/icon';
 import Placeholder from '@/components/pk/placeholder';
 import { formatIDR } from '@/lib/format';
-
-const ORDER_ITEMS = [
-  { name: 'Kopi Arabika Gayo 250g', qty: 2, price: 89000 },
-  { name: 'Madu Hutan Flores 500ml', qty: 1, price: 125000 },
-];
+import { api } from '@/lib/api';
+import { useAuthStore } from '@/store/auth';
 
 function Spinner({ size = 14 }: { size?: number }) {
   return (
@@ -31,17 +27,79 @@ function Row({ label, value, bold, muted }: { label: string; value: string; bold
 }
 
 export default function CheckoutPage() {
-  const [loading, setLoading] = useState(false);
   const router = useRouter();
-  const sub = ORDER_ITEMS.reduce((s, i) => s + i.qty * i.price, 0);
-  const fee = Math.round(sub * 0.02);
+  const searchParams = useSearchParams();
+  const user = useAuthStore(state => state.user);
+  
+  const productId = searchParams.get('productId');
+  const qtyUrl = parseInt(searchParams.get('qty') || '1');
+  
+  const [loading, setLoading] = useState(false);
+  const [initLoad, setInitLoad] = useState(true);
+  const [product, setProduct] = useState<any>(null);
+  
+  const [address, setAddress] = useState('Jl. Kemang Raya No. 42, RT 03/RW 04, Bangka, Jakarta Selatan');
 
-  const handlePay = () => {
+  useEffect(() => {
+    async function loadProduct() {
+      if (!productId) {
+        setInitLoad(false);
+        return;
+      }
+      try {
+        const url = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+        const res = await fetch(`${url}/products/${productId}`);
+        if(res.ok) {
+          const json = await res.json();
+          setProduct(json.data);
+        }
+      } catch (err) {
+        console.error("Gagal load produk di checkout", err);
+      } finally {
+        setInitLoad(false);
+      }
+    }
+    loadProduct();
+  }, [productId]);
+
+  if (initLoad) {
+    return <div style={{ padding: 100, textAlign: 'center' }}><Spinner size={24} /></div>;
+  }
+
+  if (!productId || !product) {
+    return (
+      <div style={{ padding: '64px', textAlign: 'center' }}>
+        <h2>Produk tidak valid untuk di checkout.</h2>
+        <button className="pk-btn pk-btn-primary" onClick={() => router.push('/')}>Kembali Belanja</button>
+      </div>
+    );
+  }
+
+  const sub = product.price * qtyUrl;
+  const adminFee = Math.round(sub * 0.02);
+  const shippingFee = 15000;
+  const total = sub + adminFee + shippingFee;
+
+  const handlePay = async () => {
+    if (!user) {
+      alert("Anda harus login sebagai pembeli terlebih dahulu!");
+      router.push('/auth/login');
+      return;
+    }
+    
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      await api.post('/checkout', {
+        productId: product.id,
+        quantity: qtyUrl,
+        shippingAddress: address
+      });
       router.push('/orders');
-    }, 2000);
+    } catch (err: any) {
+      alert("Checkout gagal: " + (err.response?.data?.error || err.message));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -57,25 +115,23 @@ export default function CheckoutPage() {
               Ringkasan Pesanan
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {ORDER_ITEMS.map((it, i) => (
-                <div key={i} style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-                  <Placeholder label="item" height={64} style={{ width: 64, flexShrink: 0 }} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, fontWeight: 500 }}>{it.name}</div>
-                    <div style={{ fontSize: 12, color: 'var(--pk-text-hint)', marginTop: 2 }}>
-                      Qty {it.qty} × {formatIDR(it.price)}
-                    </div>
+              <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+                <Placeholder label="item" height={64} style={{ width: 64, flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 500 }}>{product.name}</div>
+                  <div style={{ fontSize: 12, color: 'var(--pk-text-hint)', marginTop: 2 }}>
+                    Qty {qtyUrl} × {formatIDR(product.price)}
                   </div>
-                  <div style={{ fontSize: 14, fontWeight: 500 }}>{formatIDR(it.qty * it.price)}</div>
                 </div>
-              ))}
+                <div style={{ fontSize: 14, fontWeight: 500 }}>{formatIDR(sub)}</div>
+              </div>
             </div>
             <div style={{ height: 1, background: 'var(--pk-border)', margin: '20px 0' }} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <Row label="Subtotal" value={formatIDR(sub)} />
-              <Row label="Fee marketplace (2%)" value={formatIDR(fee)} muted />
+              <Row label="Ongkos Kirim" value={formatIDR(shippingFee)} />
+              <Row label="Fee Marketplace (2%)" value={formatIDR(adminFee)} muted />
               <div style={{ height: 1, background: 'var(--pk-border)', margin: '4px 0' }} />
-              <Row label="Total" value={formatIDR(sub + fee)} bold />
+              <Row label="Total" value={formatIDR(total)} bold />
             </div>
           </div>
         </div>
@@ -86,16 +142,13 @@ export default function CheckoutPage() {
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--pk-text-hint)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 16 }}>
               Alamat Pengiriman
             </div>
-            <label className="pk-label">Nama penerima</label>
-            <input className="pk-input" defaultValue="Rani Kusuma" style={{ marginBottom: 14 }} />
             <label className="pk-label">Alamat lengkap</label>
             <textarea
               className="pk-textarea"
               rows={4}
-              defaultValue="Jl. Kemang Raya No. 42, RT 03/RW 04, Bangka, Mampang Prapatan, Jakarta Selatan, 12730"
+              value={address}
+              onChange={e => setAddress(e.target.value)}
             />
-            <label className="pk-label" style={{ marginTop: 14 }}>No. Telepon</label>
-            <input className="pk-input" defaultValue="+62 812-3456-7890" />
           </div>
 
           <div className="pk-card" style={{ padding: 24 }}>
@@ -114,7 +167,7 @@ export default function CheckoutPage() {
             </div>
             <div style={{ background: 'var(--pk-accent-soft)', border: '1px solid rgba(37,99,235,0.2)', borderRadius: 8, padding: '10px 12px', marginTop: 16, fontSize: 12, color: 'var(--pk-accent)', display: 'flex', gap: 8 }}>
               <Icon name="bell" size={14} style={{ flexShrink: 0, marginTop: 2 }} />
-              <div>Anda akan diarahkan ke SmartBank untuk menyelesaikan pembayaran. Transaksi aman dengan escrow.</div>
+              <div>Anda akan diarahkan ke simulasi SmartBank. Saldo terpotong dari dummy sistem.</div>
             </div>
           </div>
 
@@ -128,7 +181,7 @@ export default function CheckoutPage() {
                 <Spinner /> Memproses...
               </>
             ) : (
-              `Bayar ${formatIDR(sub + fee)}`
+              `Bayar ${formatIDR(total)}`
             )}
           </button>
         </div>

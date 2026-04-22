@@ -1,24 +1,46 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/pk/icon';
 import Placeholder from '@/components/pk/placeholder';
 import Avatar from '@/components/pk/avatar';
 import { formatIDR } from '@/lib/format';
-
-const PRODUCT = {
-  id: 'p1',
-  name: 'Batik Tulis Pekalongan',
-  seller: 'Batik Nusantara',
-  price: 285000,
-  stock: 12,
-  cat: 'Fashion',
-};
+import { useParams } from 'next/navigation';
 
 export default function ProductDetailPage() {
+  const { id } = useParams();
   const [qty, setQty] = useState(1);
-  const p = PRODUCT;
+  const [product, setProduct] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchProduct() {
+      try {
+        const url = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+        const res = await fetch(`${url}/products/${id}`);
+        if (res.ok) {
+          const json = await res.json();
+          setProduct(json.data);
+        }
+      } catch (err) {
+        console.error("Gagal mendapatkan produk:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchProduct();
+  }, [id]);
+
+  if (loading) {
+    return <div style={{ padding: '80px', textAlign: 'center', color: 'var(--pk-text-hint)' }}>Memuat produk...</div>;
+  }
+
+  if (!product) {
+    return <div style={{ padding: '80px', textAlign: 'center', color: 'var(--pk-text-hint)' }}>Produk tidak ditemukan</div>;
+  }
+
+  const p = product;
   const subtotal = p.price * qty;
   const fee = Math.round(subtotal * 0.02);
 
@@ -27,7 +49,7 @@ export default function ProductDetailPage() {
       <div style={{ fontSize: 13, color: 'var(--pk-text-hint)', marginBottom: 16 }}>
         <Link href="/" style={{ color: 'inherit', textDecoration: 'none' }}>Beranda</Link>
         <span style={{ margin: '0 6px' }}>/</span>
-        <Link href="/products" style={{ color: 'inherit', textDecoration: 'none' }}>Fashion</Link>
+        <Link href="/products" style={{ color: 'inherit', textDecoration: 'none' }}>{p.category || 'Belanja'}</Link>
         <span style={{ margin: '0 6px' }}>/</span>
         <span style={{ color: 'var(--pk-text)' }}>{p.name}</span>
       </div>
@@ -54,7 +76,7 @@ export default function ProductDetailPage() {
         {/* Info */}
         <div>
           <span className="pk-badge pk-badge-neutral" style={{ marginBottom: 12 }}>
-            {p.cat}
+            {p.category || 'Belanja'}
           </span>
           <h1
             style={{
@@ -88,20 +110,18 @@ export default function ProductDetailPage() {
               borderBottom: '1px solid var(--pk-border)',
             }}
           >
-            <Avatar name="Batik Nusantara" size={40} bg="#F3F4F6" color="#111827" />
+            <Avatar name={p.seller?.name || "Toko"} size={40} bg="#F3F4F6" color="#111827" />
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 500 }}>{p.seller}</div>
-              <div style={{ fontSize: 12, color: 'var(--pk-text-hint)' }}>Pekalongan · Bergabung 2024</div>
+              <div style={{ fontSize: 14, fontWeight: 500 }}>{p.seller?.name || "Toko Anonim"}</div>
+              <div style={{ fontSize: 12, color: 'var(--pk-text-hint)' }}>Penjual terverifikasi</div>
             </div>
             <button className="pk-btn pk-btn-secondary pk-btn-sm">Kunjungi toko</button>
           </div>
 
           <div style={{ marginTop: 24 }}>
             <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Deskripsi</div>
-            <p style={{ fontSize: 14, color: 'var(--pk-text-secondary)', lineHeight: 1.65, margin: 0 }}>
-              Batik tulis motif Jlamprang khas Pekalongan, dikerjakan langsung oleh pembatik lokal dengan
-              pewarna alami. Bahan katun primis 2.15m × 1.05m. Setiap lembar memiliki variasi motif unik —
-              tidak ada yang identik. Cocok untuk acara formal maupun kasual.
+            <p style={{ fontSize: 14, color: 'var(--pk-text-secondary)', lineHeight: 1.65, margin: 0, whiteSpace: 'pre-wrap' }}>
+              {p.description || "Tidak ada rincian yang diberikan oleh penjual."}
             </p>
           </div>
 
@@ -180,12 +200,17 @@ export default function ProductDetailPage() {
             <Row label="Total" value={formatIDR(subtotal + fee)} bold />
           </div>
 
-          <Link href="/checkout" style={{ textDecoration: 'none' }}>
+          <Link href={`/checkout?productId=${p.id}&qty=${qty}`} style={{ textDecoration: 'none' }}>
             <button
               className="pk-btn pk-btn-primary pk-btn-lg pk-btn-block"
               style={{ marginTop: 20 }}
+              disabled={p.stock < 1}
             >
-              Checkout Sekarang <Icon name="arrowRight" size={16} />
+              {p.stock > 0 ? (
+                <>Checkout Sekarang <Icon name="arrowRight" size={16} /></>
+              ) : (
+                'Stok Habis'
+              )}
             </button>
           </Link>
           <div style={{ fontSize: 12, color: 'var(--pk-text-hint)', textAlign: 'center', marginTop: 12 }}>

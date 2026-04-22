@@ -5,18 +5,27 @@ import { formatIDR } from '@/lib/format';
 
 const CATEGORIES = ['Fashion', 'Makanan', 'Kerajinan', 'Elektronik', 'Kecantikan', 'Rumah', 'Buku', 'Olahraga'];
 
-const PRODUCTS = [
-  { id: 'p1', name: 'Batik Tulis Pekalongan', seller: 'Batik Nusantara', price: 285000, stock: 12, cat: 'Fashion' },
-  { id: 'p2', name: 'Keripik Singkong Balado', seller: 'Warung Bu Sari', price: 18500, stock: 48, cat: 'Makanan' },
-  { id: 'p3', name: 'Tas Rotan Handwoven', seller: 'Kriya Bali', price: 145000, stock: 7, cat: 'Kerajinan' },
-  { id: 'p4', name: 'Speaker Bluetooth Mini', seller: 'Toko Elektro ID', price: 220000, stock: 23, cat: 'Elektronik' },
-  { id: 'p5', name: 'Kopi Arabika Gayo 250g', seller: 'Kopi Rakyat', price: 89000, stock: 34, cat: 'Makanan' },
-  { id: 'p6', name: 'Kemeja Linen Pria', seller: 'Tenun Modern', price: 189000, stock: 15, cat: 'Fashion' },
-  { id: 'p7', name: 'Gerabah Kasongan Set', seller: 'Kriya Bali', price: 95000, stock: 9, cat: 'Kerajinan' },
-  { id: 'p8', name: 'Madu Hutan Flores 500ml', seller: 'Kopi Rakyat', price: 125000, stock: 22, cat: 'Makanan' },
-];
+export const dynamic = 'force-dynamic'; // Selalu ambil dari database terkini untuk demonstrasi
 
-export default function HomePage() {
+async function getProducts() {
+  try {
+    const url = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+    const res = await fetch(`${url}/products`, { cache: 'no-store' });
+    if (!res.ok) {
+      console.error("Failed to fetch products:", res.status);
+      return [];
+    }
+    const json = await res.json();
+    return json.data || [];
+  } catch (err) {
+    console.error("Error fetching products:", err);
+    return [];
+  }
+}
+
+export default async function HomePage() {
+  const PRODUCTS = await getProducts();
+
   return (
     <div>
       {/* Hero */}
@@ -82,7 +91,7 @@ export default function HomePage() {
         >
           <Icon name="search" size={18} style={{ color: 'var(--pk-text-hint)' }} />
           <input
-            placeholder="Cari batik, kopi, kerajinan, ..."
+            placeholder="Cari produk impianmu..."
             style={{
               flex: 1,
               border: 'none',
@@ -107,7 +116,7 @@ export default function HomePage() {
           }}
         >
           <span>Populer:</span>
-          {['Batik tulis', 'Kopi lokal', 'Tas rotan', 'Keripik'].map((t) => (
+          {['Fashion Pria', 'Snack', 'Handphone', 'Sepatu'].map((t) => (
             <a key={t} style={{ color: 'var(--pk-text-secondary)', cursor: 'pointer' }}>
               {t}
             </a>
@@ -160,54 +169,61 @@ export default function HomePage() {
             Lihat semua →
           </Link>
         </div>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(4, 1fr)',
-            gap: 20,
-          }}
-        >
-          {PRODUCTS.map((p) => (
-            <Link
-              key={p.id}
-              href={`/products/${p.id}`}
-              style={{ textDecoration: 'none' }}
-            >
-              <div className="pk-card pk-card-hover" style={{ cursor: 'pointer', overflow: 'hidden' }}>
-                <Placeholder label={p.cat.toLowerCase()} height={200} style={{ borderRadius: 0 }} />
-                <div style={{ padding: 14 }}>
-                  <div
-                    style={{
-                      fontSize: 14,
-                      fontWeight: 500,
-                      letterSpacing: '-0.01em',
-                      marginBottom: 4,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      color: 'var(--pk-text)',
-                    }}
-                  >
-                    {p.name}
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--pk-text-hint)', marginBottom: 10 }}>
-                    {p.seller}
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--pk-text)' }}>
-                      {formatIDR(p.price)}
+        
+        {PRODUCTS.length > 0 ? (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4, 1fr)',
+              gap: 20,
+            }}
+          >
+            {PRODUCTS.map((p: any) => (
+              <Link
+                key={p.id}
+                href={`/products/${p.id}`}
+                style={{ textDecoration: 'none' }}
+              >
+                <div className="pk-card pk-card-hover" style={{ cursor: 'pointer', overflow: 'hidden' }}>
+                  <Placeholder label={p.category || 'produk'} height={200} style={{ borderRadius: 0 }} />
+                  <div style={{ padding: 14 }}>
+                    <div
+                      style={{
+                        fontSize: 14,
+                        fontWeight: 500,
+                        letterSpacing: '-0.01em',
+                        marginBottom: 4,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        color: 'var(--pk-text)',
+                      }}
+                    >
+                      {p.name}
                     </div>
-                    {p.stock <= 5 && (
-                      <span className="pk-badge pk-badge-neutral" style={{ fontSize: 11 }}>
-                        Sisa {p.stock}
-                      </span>
-                    )}
+                    <div style={{ fontSize: 12, color: 'var(--pk-text-hint)', marginBottom: 10 }}>
+                      {p.seller?.name || 'Toko Anonim'}
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--pk-text)' }}>
+                        {formatIDR(p.price)}
+                      </div>
+                      {p.stock <= 5 && (
+                        <span className="pk-badge pk-badge-neutral" style={{ fontSize: 11 }}>
+                          Sisa {p.stock}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            </Link>
-          ))}
-        </div>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '40px 0', border: '1px dashed var(--pk-border)', borderRadius: 12 }}>
+            <p style={{ color: 'var(--pk-text-hint)' }}>Belum ada produk dari database.</p>
+          </div>
+        )}
       </section>
 
       {/* CTA banner */}
@@ -259,22 +275,24 @@ export default function HomePage() {
               Gratis biaya langganan. Hanya 2% fee per transaksi. Dapat pelanggan dari seluruh Indonesia.
             </p>
           </div>
-          <button
-            style={{
-              background: '#fff',
-              color: 'var(--pk-text)',
-              border: 'none',
-              borderRadius: 8,
-              padding: '0 22px',
-              height: 48,
-              fontSize: 15,
-              fontWeight: 500,
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            Mulai Berjualan →
-          </button>
+          <Link href="/seller/products" style={{ textDecoration: 'none' }}>
+            <button
+              style={{
+                background: '#fff',
+                color: 'var(--pk-text)',
+                border: 'none',
+                borderRadius: 8,
+                padding: '0 22px',
+                height: 48,
+                fontSize: 15,
+                fontWeight: 500,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Mulai Berjualan →
+            </button>
+          </Link>
         </div>
       </section>
     </div>

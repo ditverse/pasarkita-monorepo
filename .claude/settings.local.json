@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:api.anthropic.com)",
+      "Read(//c/Users/Dit/.claude/projects/D--Documents-Semester-4-Rekayasa-Perangkat-Lunak-II-pasarkita-monorepo/fee708df-dc0e-4121-b7b9-577c06a72e7c/tool-results/**)",
+      "Bash(gunzip -c webfetch-1776829177369-es5e90.bin)",
+      "Read(//tmp/**)",
+      "Bash(mkdir -p design_bundle)",
+      "Bash(tar -xf \"/C/Users/Dit/.claude/projects/D--Documents-Semester-4-Rekayasa-Perangkat-Lunak-II-pasarkita-monorepo/fee708df-dc0e-4121-b7b9-577c06a72e7c/tool-results/webfetch-1776829177369-es5e90.bin\" -C design_bundle)",
+      "Bash(npx tsc *)",
+      "Bash(xargs grep *)"
+    ]
+  }
+}

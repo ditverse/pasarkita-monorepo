@@ -36,7 +36,7 @@ export default function LoginPage() {
       setTimeout(() => {
         if (user.role === 'superadmin') router.push('/admin');
         else if (user.role === 'seller') router.push('/seller/products');
-        else router.push('/');
+        else router.push('/orders');
       }, 500);
     },
     onError: (error: any) => {

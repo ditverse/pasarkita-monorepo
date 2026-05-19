@@ -22,11 +22,30 @@ export function middleware(request: NextRequest) {
   const token = request.cookies.get('token')?.value;
   const { pathname } = request.nextUrl;
 
+  // Handle specific URL redirects to avoid 404s
+  if (pathname === '/login') {
+    return NextResponse.redirect(new URL('/auth/login', request.url));
+  }
+  
+  if (pathname === '/seller') {
+    return NextResponse.redirect(new URL('/seller/products', request.url));
+  }
+
   const isAuthRoute = pathname.startsWith('/auth');
 
   if (isAuthRoute) {
     if (token) {
-      return NextResponse.redirect(new URL('/', request.url));
+      // Decode the token to get the role and redirect properly
+      const payload = decodeJwtPayload(token);
+      const role = payload?.role as string | undefined;
+      
+      if (role === 'superadmin') {
+        return NextResponse.redirect(new URL('/admin', request.url));
+      } else if (role === 'seller') {
+        return NextResponse.redirect(new URL('/seller/products', request.url));
+      } else {
+        return NextResponse.redirect(new URL('/orders', request.url));
+      }
     }
     return NextResponse.next();
   }
@@ -74,6 +93,7 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
+    '/login',
     '/auth/:path*', 
     '/checkout/:path*', 
     '/orders/:path*', 

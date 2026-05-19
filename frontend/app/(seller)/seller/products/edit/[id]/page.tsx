@@ -1,16 +1,17 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import Icon from '@/components/pk/icon';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
 
 const CATEGORIES = ['Fashion', 'Makanan', 'Kerajinan', 'Elektronik', 'Kecantikan', 'Rumah', 'Buku', 'Olahraga'];
 
-export default function AddProductPage() {
+export default function EditProductPage() {
   const router = useRouter();
+  const { id } = useParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [form, setForm] = useState({
@@ -23,6 +24,32 @@ export default function AddProductPage() {
   
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(true);
+
+  useEffect(() => {
+    async function fetchProduct() {
+      try {
+        const res = await api.get(`/products/${id}`);
+        const product = res.data.data || res.data;
+        setForm({
+          name: product.name || '',
+          description: product.description || '',
+          category: product.category || '',
+          price: product.price?.toString() || '',
+          stock: product.stock?.toString() || '',
+        });
+        if (product.image_url) {
+          setImagePreview(product.image_url);
+        }
+      } catch (err) {
+        toast.error('Gagal mengambil data produk');
+        router.push('/seller/products');
+      } finally {
+        setFetching(false);
+      }
+    }
+    if (id) fetchProduct();
+  }, [id, router]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -56,29 +83,32 @@ export default function AddProductPage() {
         stock: parseInt(form.stock),
       };
 
-      await api.post('/products', payload);
-      toast.success('Produk berhasil ditambahkan!');
+      await api.put(`/products/${id}`, payload);
+      toast.success('Produk berhasil diperbarui!');
       router.push('/seller/products');
       router.refresh();
     } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Gagal menyimpan produk');
+      toast.error(err.response?.data?.message || 'Gagal menyimpan perubahan');
     } finally {
       setLoading(false);
     }
   };
+
+  if (fetching) {
+    return <div style={{ padding: '40px', color: 'var(--pk-text-hint)' }}>Memuat data produk...</div>;
+  }
 
   return (
     <div>
       <Link href="/seller/products" style={{ fontSize: 13, color: 'var(--pk-text-secondary)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 12, textDecoration: 'none' }}>
         <Icon name="arrowLeft" size={14} /> Kembali
       </Link>
-      <h1 style={{ fontSize: 24, fontWeight: 600, letterSpacing: '-0.02em', margin: '0 0 4px' }}>Tambah Produk Baru</h1>
+      <h1 style={{ fontSize: 24, fontWeight: 600, letterSpacing: '-0.02em', margin: '0 0 4px' }}>Edit Produk</h1>
       <p style={{ fontSize: 14, color: 'var(--pk-text-secondary)', margin: '0 0 32px' }}>
-        Isi detail produk di bawah. Semua field wajib kecuali yang ditandai opsional.
+        Perbarui detail produk Anda.
       </p>
 
       <div className="pk-card" style={{ padding: 32, maxWidth: 640, background: '#fff' }}>
-
         <div style={{ marginBottom: 20 }}>
           <label className="pk-label">Nama Produk</label>
           <input 
@@ -192,7 +222,7 @@ export default function AddProductPage() {
             onClick={handleSubmit}
             disabled={loading}
           >
-            {loading ? 'Menyimpan...' : 'Simpan Produk'}
+            {loading ? 'Menyimpan...' : 'Simpan Perubahan'}
           </button>
         </div>
       </div>

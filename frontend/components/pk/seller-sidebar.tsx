@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import Logo from './logo';
 import Icon from './icon';
 import Avatar from './avatar';
+import { useAuthStore } from '@/store/auth';
 
 const items = [
   { id: 'products', href: '/seller/products', label: 'Produk', icon: 'box' as const },
@@ -13,6 +14,10 @@ const items = [
 
 export default function SellerSidebar() {
   const pathname = usePathname();
+  const user = useAuthStore((state) => state.user);
+  
+  const sellerName = user?.name || 'Seller';
+
   return (
     <aside
       style={{
@@ -79,9 +84,9 @@ export default function SellerSidebar() {
           gap: 10,
         }}
       >
-        <Avatar name="Warung Bu Sari" size={28} bg="#F3F4F6" color="#111827" />
+        <Avatar name={sellerName} size={28} bg="#F3F4F6" color="#111827" />
         <div style={{ lineHeight: 1.2 }}>
-          <div style={{ fontSize: 12, fontWeight: 600 }}>Warung Bu Sari</div>
+          <div style={{ fontSize: 12, fontWeight: 600 }}>{sellerName}</div>
           <div style={{ fontSize: 11, color: 'var(--pk-text-hint)' }}>Seller</div>
         </div>
       </div>

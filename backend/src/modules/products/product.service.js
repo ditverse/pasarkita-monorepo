@@ -8,8 +8,11 @@ const getProducts = async (query) => {
 
   let supaQuery = supabase
     .from('products')
-    .select('*, seller:users(id, name)', { count: 'exact' })
-    .eq('is_active', true);
+    .select('*, seller:users(id, name)', { count: 'exact' });
+
+  if (query.all_status !== 'true') {
+    supaQuery = supaQuery.eq('is_active', true);
+  }
 
   if (query.category) {
     supaQuery = supaQuery.eq('category', query.category);
@@ -86,7 +89,7 @@ const createProduct = async (sellerId, payload) => {
   const { data, error } = await supabase
     .from('products')
     .insert([
-      { ...payload, seller_id: sellerId, is_active: true }
+      { ...payload, seller_id: sellerId, is_active: payload.stock > 0 }
     ])
     .select()
     .single();
@@ -102,6 +105,10 @@ const updateProduct = async (user, productId, payload) => {
   
   if (prod.seller_id !== user.id && user.role !== 'superadmin') {
     throw { status: 403, code: 'FORBIDDEN', message: 'Akses ditolak' };
+  }
+
+  if (payload.stock !== undefined && payload.stock <= 0) {
+    payload.is_active = false;
   }
 
   const { data, error } = await supabase

@@ -64,9 +64,15 @@ const processCheckout = async (buyerId, payload) => {
   }
 
   // 5. Kurangi stok produk
+  const newStock = product.stock - payload.quantity;
+  const updatePayload = { stock: newStock };
+  if (newStock <= 0) {
+    updatePayload.is_active = false;
+  }
+
   await supabase
     .from('products')
-    .update({ stock: product.stock - payload.quantity })
+    .update(updatePayload)
     .eq('id', product.id);
 
   return { success: true, order_id: order.id, payment_status: 'SUCCESS' };

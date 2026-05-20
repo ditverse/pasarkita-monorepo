@@ -4,7 +4,7 @@ import { useState, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/pk/icon';
-import { api } from '@/lib/api';
+import { productsApi } from '@/lib/api/products';
 import { toast } from 'sonner';
 
 const CATEGORIES = ['Fashion', 'Makanan', 'Kerajinan', 'Elektronik', 'Kecantikan', 'Rumah', 'Buku', 'Olahraga'];
@@ -48,20 +48,19 @@ export default function AddProductPage() {
 
     try {
       setLoading(true);
-      const payload = {
+      await productsApi.create({
         name: form.name,
         description: form.description,
         category: form.category,
         price: parseInt(form.price),
         stock: parseInt(form.stock),
-      };
-
-      await api.post('/products', payload);
+      });
       toast.success('Produk berhasil ditambahkan!');
       router.push('/seller/products');
       router.refresh();
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Gagal menyimpan produk');
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string } } };
+      toast.error(axiosErr.response?.data?.message ?? 'Gagal menyimpan produk');
     } finally {
       setLoading(false);
     }
@@ -164,6 +163,7 @@ export default function AddProductPage() {
             onClick={() => fileInputRef.current?.click()}
           >
             {imagePreview ? (
+              // eslint-disable-next-line @next/next/no-img-element
               <img src={imagePreview} alt="Preview" style={{ width: '100%', maxHeight: 240, objectFit: 'contain', borderRadius: 6 }} />
             ) : (
               <>

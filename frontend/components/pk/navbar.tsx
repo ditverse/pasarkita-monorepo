@@ -1,10 +1,12 @@
 'use client';
 
+import { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Logo from './logo';
 import Icon from './icon';
 import Avatar from './avatar';
+import NotificationDropdown, { type Notification } from './notification-dropdown';
 import { useAuthStore } from '@/store/auth';
 
 const NAV_LINKS = [
@@ -13,15 +15,23 @@ const NAV_LINKS = [
   { href: '/seller/products', label: 'Jual Produk' },
 ];
 
+// Notifikasi kosong by default — akan diisi saat backend notifikasi tersedia
+const INITIAL_NOTIFICATIONS: Notification[] = [];
+
 export function NavbarDesktop() {
   const pathname = usePathname();
   const active = NAV_LINKS.find((l) => pathname.startsWith(l.href))?.href ?? '';
-
   const { isAuthenticated, user, _hasHydrated } = useAuthStore();
 
-  // Filter nav links based on auth state
-  // "Jual Produk" stays visible for everyone — middleware handles redirect for non-sellers
-  // "Pesanan Saya" only for logged-in users
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>(INITIAL_NOTIFICATIONS);
+
+  const unreadCount = notifications.filter((n) => n.unread).length;
+
+  const handleMarkAllRead = useCallback(() => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
+  }, []);
+
   const visibleLinks = NAV_LINKS.filter((l) => {
     if (l.href === '/orders') return isAuthenticated;
     return true;
@@ -44,6 +54,7 @@ export function NavbarDesktop() {
       <Link href="/" style={{ flex: '0 0 auto', textDecoration: 'none' }}>
         <Logo />
       </Link>
+
       <nav style={{ flex: 1, display: 'flex', justifyContent: 'center', gap: 32 }}>
         {visibleLinks.map((l) => (
           <Link
@@ -65,41 +76,69 @@ export function NavbarDesktop() {
           </Link>
         ))}
       </nav>
+
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        {/* Bell notification — only for logged-in users */}
+        {/* Bell — hanya untuk user yang sudah login */}
         {_hasHydrated && isAuthenticated && (
-          <button
-            className="pk-btn pk-btn-ghost pk-btn-sm"
-            style={{ height: 36, padding: '0 10px' }}
-          >
-            <Icon name="bell" size={18} />
-          </button>
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setNotifOpen((v) => !v)}
+              className="pk-btn pk-btn-ghost pk-btn-sm"
+              style={{ height: 36, padding: '0 10px', position: 'relative' }}
+              aria-label="Notifikasi"
+            >
+              <Icon name="bell" size={18} />
+              {/* Badge unread */}
+              {unreadCount > 0 && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: 6,
+                    right: 6,
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    background: 'var(--pk-danger)',
+                    border: '2px solid #fff',
+                  }}
+                />
+              )}
+            </button>
+
+            {notifOpen && (
+              <NotificationDropdown
+                notifications={notifications}
+                onMarkAllRead={handleMarkAllRead}
+                onClose={() => setNotifOpen(false)}
+              />
+            )}
+          </div>
         )}
 
         {/* Auth section */}
         {!_hasHydrated ? (
-          /* Skeleton while hydrating to prevent flash */
           <div style={{ width: 100, height: 36, borderRadius: 999, background: 'var(--pk-bg-subtle)' }} />
         ) : isAuthenticated && user ? (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              padding: '4px 10px 4px 4px',
-              border: '1px solid var(--pk-border)',
-              borderRadius: 999,
-              cursor: 'pointer',
-            }}
-          >
-            <Avatar name={user.name} size={28} />
-            <span style={{ fontSize: 13, fontWeight: 500 }}>
-              {user.name.split(' ')[0]}
-              {user.name.split(' ').length > 1
-                ? ` ${user.name.split(' ')[1][0]}.`
-                : ''}
-            </span>
-          </div>
+          <Link href="/profile" style={{ textDecoration: 'none' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '4px 10px 4px 4px',
+                border: '1px solid var(--pk-border)',
+                borderRadius: 999,
+                cursor: 'pointer',
+                transition: 'border-color 150ms ease',
+              }}
+            >
+              <Avatar name={user.name} size={28} />
+              <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--pk-text)' }}>
+                {user.name.split(' ')[0]}
+                {user.name.split(' ').length > 1 ? ` ${user.name.split(' ')[1][0]}.` : ''}
+              </span>
+            </div>
+          </Link>
         ) : (
           <Link href="/auth/login" className="pk-btn pk-btn-primary pk-btn-sm">
             Masuk

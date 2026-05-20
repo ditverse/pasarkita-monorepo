@@ -5,10 +5,11 @@ import Link from 'next/link';
 import Icon from '@/components/pk/icon';
 import Placeholder from '@/components/pk/placeholder';
 import { formatIDR } from '@/lib/format';
-import { api } from '@/lib/api';
+import { productsApi } from '@/lib/api/products';
 import { useAuthStore } from '@/store/auth';
 import { toast } from 'sonner';
 import { useDebounce } from '@/lib/hooks/useDebounce';
+import { Product } from '@/types/api';
 
 function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -31,26 +32,25 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void 
 }
 
 export default function SellerProductsPage() {
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('Semua');
   const user = useAuthStore((state) => state.user);
-  
+
   const debouncedSearch = useDebounce(search, 400);
 
   const loadSellerProducts = useCallback(async () => {
     if (!user?.id) return;
     try {
       setLoading(true);
-      let url = `/products?seller_id=${user.id}&all_status=true`;
-      if (debouncedSearch) {
-        url += `&search=${encodeURIComponent(debouncedSearch)}`;
-      }
-      const res = await api.get(url);
-      setProducts(res.data.data || []);
+      const res = await productsApi.getAll({
+        seller_id: user.id,
+        search: debouncedSearch || undefined,
+      });
+      setProducts(res.data.data ?? []);
     } catch (err) {
-      console.error("Gagal get seller products", err);
+      console.error('Gagal get seller products', err);
     } finally {
       setLoading(false);
     }
@@ -67,17 +67,13 @@ export default function SellerProductsPage() {
     }
 
     try {
-      // Optimistic update
       setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, is_active: newStatus } : p)));
-      
-      // Update di backend 
-      await api.put(`/products/${id}`, { is_active: newStatus });
+      await productsApi.update(id, { is_active: newStatus });
       toast.success(`Produk berhasil di${newStatus ? 'aktifkan' : 'nonaktifkan'}`);
-    } catch (err: any) {
-      console.error("Gagal merubah status produk:", err);
-      // Revert upon failure
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string } } };
       setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, is_active: !newStatus } : p)));
-      toast.error(err.response?.data?.message || 'Gagal mengubah status produk');
+      toast.error(axiosErr.response?.data?.message ?? 'Gagal mengubah status produk');
     }
   };
 

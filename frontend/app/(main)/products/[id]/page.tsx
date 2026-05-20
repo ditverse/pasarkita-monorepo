@@ -7,29 +7,21 @@ import Placeholder from '@/components/pk/placeholder';
 import Avatar from '@/components/pk/avatar';
 import { formatIDR } from '@/lib/format';
 import { useParams } from 'next/navigation';
+import { productsApi } from '@/lib/api/products';
+import { Product } from '@/types/api';
 
 export default function ProductDetailPage() {
   const { id } = useParams();
   const [qty, setQty] = useState(1);
-  const [product, setProduct] = useState<any>(null);
+  const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchProduct() {
-      try {
-        const url = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
-        const res = await fetch(`${url}/products/${id}`);
-        if (res.ok) {
-          const json = await res.json();
-          setProduct(json.data);
-        }
-      } catch (err) {
-        console.error("Gagal mendapatkan produk:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchProduct();
+    if (!id) return;
+    productsApi.getById(id as string)
+      .then((res) => setProduct(res.data.data))
+      .catch((err) => console.error('Gagal mendapatkan produk:', err))
+      .finally(() => setLoading(false));
   }, [id]);
 
   if (loading) {

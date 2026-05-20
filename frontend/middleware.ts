@@ -50,11 +50,12 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const isProtectedRoute = 
-    pathname.startsWith('/checkout') || 
-    pathname.startsWith('/orders') || 
-    pathname.startsWith('/seller') || 
-    pathname.startsWith('/admin');
+  const isProtectedRoute =
+    pathname.startsWith('/checkout') ||
+    pathname.startsWith('/orders') ||
+    pathname.startsWith('/seller') ||
+    pathname.startsWith('/admin') ||
+    pathname.startsWith('/profile');
 
   // 1. Redirect guests from protected routes (including unauthorized page)
   if (isProtectedRoute && !token) {
@@ -94,10 +95,12 @@ export function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     '/login',
-    '/auth/:path*', 
-    '/checkout/:path*', 
-    '/orders/:path*', 
-    '/seller/:path*', 
-    '/admin/:path*'
+    '/auth/:path*',
+    '/checkout/:path*',
+    '/orders/:path*',
+    '/seller/:path*',
+    '/admin/:path*',
+    '/profile/:path*',
+    '/profile',
   ],
 };

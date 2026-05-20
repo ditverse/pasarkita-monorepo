@@ -4,7 +4,33 @@ import { useState, useEffect } from 'react';
 import StatusBadge from '@/components/pk/status-badge';
 import Icon from '@/components/pk/icon';
 import { formatIDR } from '@/lib/format';
-import { api } from '@/lib/api';
+import { adminApi } from '@/lib/api/admin';
+
+interface Metrics {
+  total_orders: number;
+  total_revenue: number;
+  marketplace_fee: number;
+  new_users: number;
+}
+
+interface StatusBreakdown {
+  key: string;
+  count: number;
+  pct: number;
+}
+
+interface TopProduct {
+  rank: number;
+  name: string;
+  seller: string;
+  sold: number;
+}
+
+interface AnalyticsData {
+  metrics: Metrics;
+  orders_by_status: StatusBreakdown[];
+  top_products: TopProduct[];
+}
 
 function MetricCard({ label, value, loading }: { label: string; value: string; loading?: boolean }) {
   return (
@@ -28,16 +54,17 @@ const barColor: Record<string, string> = {
 };
 
 export default function AdminAnalyticsPage() {
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadData() {
       try {
-        const res = await api.get('/admin/analytics');
-        setData(res.data);
-      } catch(err) {
-        console.error("Gagal get analytics admin", err);
+        const res = await adminApi.getAnalytics();
+        // Backend: { success, message, data: { metrics, orders_by_status, top_products } }
+        setData(res.data.data as unknown as AnalyticsData);
+      } catch (err) {
+        console.error('Gagal get analytics admin', err);
       } finally {
         setLoading(false);
       }
@@ -45,9 +72,9 @@ export default function AdminAnalyticsPage() {
     loadData();
   }, []);
 
-  const m = data?.metrics || { total_orders: 0, total_revenue: 0, marketplace_fee: 0, new_users: 0 };
-  const breakdown = data?.orders_by_status || [];
-  const topProducts = data?.top_products || []; // We left this empty physically in backend, but will map if exist
+  const m: Metrics = data?.metrics ?? { total_orders: 0, total_revenue: 0, marketplace_fee: 0, new_users: 0 };
+  const breakdown: StatusBreakdown[] = data?.orders_by_status ?? [];
+  const topProducts: TopProduct[] = data?.top_products ?? [];
 
   return (
     <div>
@@ -64,10 +91,10 @@ export default function AdminAnalyticsPage() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 28 }}>
-        <MetricCard label="Total Orders Transaksi" value={m.total_orders.toString()} loading={loading} />
-        <MetricCard label="Total Revenue Transaksi" value={formatIDR(m.total_revenue)} loading={loading} />
+        <MetricCard label="Total Orders" value={m.total_orders.toLocaleString('id-ID')} loading={loading} />
+        <MetricCard label="Total Revenue" value={formatIDR(m.total_revenue)} loading={loading} />
         <MetricCard label="Revenue Admin (Fee)" value={formatIDR(m.marketplace_fee)} loading={loading} />
-        <MetricCard label="Total Users" value={m.new_users.toString()} loading={loading} />
+        <MetricCard label="Total Users" value={m.new_users.toLocaleString('id-ID')} loading={loading} />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
@@ -75,8 +102,10 @@ export default function AdminAnalyticsPage() {
           <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Order by Status</div>
           <div style={{ fontSize: 12, color: 'var(--pk-text-hint)', marginBottom: 20 }}>Distribusi order seluruh waktu</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {!loading && breakdown.length === 0 && <div style={{ color: 'var(--pk-text-hint)' }}>Belum ada transaksi di platform.</div>}
-            {breakdown.map((b: any) => (
+            {!loading && breakdown.length === 0 && (
+              <div style={{ color: 'var(--pk-text-hint)' }}>Belum ada transaksi di platform.</div>
+            )}
+            {breakdown.map((b) => (
               <div key={b.key}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -96,7 +125,7 @@ export default function AdminAnalyticsPage() {
         <div className="pk-card" style={{ padding: 0, background: '#fff', overflow: 'hidden' }}>
           <div style={{ padding: 24, paddingBottom: 16 }}>
             <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Top 5 Products</div>
-            <div style={{ fontSize: 12, color: 'var(--pk-text-hint)' }}>Berdasarkan jumlah terjual (Membutuhkan complex query)</div>
+            <div style={{ fontSize: 12, color: 'var(--pk-text-hint)' }}>Berdasarkan jumlah terjual</div>
           </div>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
@@ -108,9 +137,13 @@ export default function AdminAnalyticsPage() {
             </thead>
             <tbody>
               {topProducts.length === 0 && (
-                <tr><td colSpan={3} style={{ padding: '24px', textAlign: 'center', color: 'var(--pk-text-hint)' }}>{loading ? 'Memuat...' : 'Data belum tersedia (Backend RPC Required)'}</td></tr>
+                <tr>
+                  <td colSpan={3} style={{ padding: '24px', textAlign: 'center', color: 'var(--pk-text-hint)' }}>
+                    {loading ? 'Memuat...' : 'Belum ada data produk terjual.'}
+                  </td>
+                </tr>
               )}
-              {topProducts.map((t: any) => (
+              {topProducts.map((t) => (
                 <tr key={t.rank} style={{ borderTop: '1px solid var(--pk-border)' }}>
                   <td style={{ padding: '14px 24px', width: 40 }}>
                     <div style={{

@@ -34,8 +34,9 @@ export default function RegisterPage() {
       toast.success('Registrasi berhasil! Silakan login.');
       router.push('/auth/login');
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Registrasi gagal');
+    onError: (error: unknown) => {
+      const axiosErr = error as { response?: { data?: { message?: string } } };
+      toast.error(axiosErr.response?.data?.message ?? 'Registrasi gagal');
     },
   });
 

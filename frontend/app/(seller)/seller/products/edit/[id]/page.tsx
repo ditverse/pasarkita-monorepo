@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
 import Icon from '@/components/pk/icon';
-import { api } from '@/lib/api';
+import { productsApi } from '@/lib/api/products';
 import { toast } from 'sonner';
 
 const CATEGORIES = ['Fashion', 'Makanan', 'Kerajinan', 'Elektronik', 'Kecantikan', 'Rumah', 'Buku', 'Olahraga'];
@@ -27,28 +27,23 @@ export default function EditProductPage() {
   const [fetching, setFetching] = useState(true);
 
   useEffect(() => {
-    async function fetchProduct() {
-      try {
-        const res = await api.get(`/products/${id}`);
-        const product = res.data.data || res.data;
+    if (!id) return;
+    productsApi.getById(id as string)
+      .then((res) => {
+        const product = res.data.data;
         setForm({
-          name: product.name || '',
-          description: product.description || '',
-          category: product.category || '',
-          price: product.price?.toString() || '',
-          stock: product.stock?.toString() || '',
+          name: product.name ?? '',
+          description: product.description ?? '',
+          category: product.category ?? '',
+          price: product.price?.toString() ?? '',
+          stock: product.stock?.toString() ?? '',
         });
-        if (product.image_url) {
-          setImagePreview(product.image_url);
-        }
-      } catch (err) {
+      })
+      .catch(() => {
         toast.error('Gagal mengambil data produk');
         router.push('/seller/products');
-      } finally {
-        setFetching(false);
-      }
-    }
-    if (id) fetchProduct();
+      })
+      .finally(() => setFetching(false));
   }, [id, router]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -75,20 +70,19 @@ export default function EditProductPage() {
 
     try {
       setLoading(true);
-      const payload = {
+      await productsApi.update(id as string, {
         name: form.name,
         description: form.description,
         category: form.category,
         price: parseInt(form.price),
         stock: parseInt(form.stock),
-      };
-
-      await api.put(`/products/${id}`, payload);
+      });
       toast.success('Produk berhasil diperbarui!');
       router.push('/seller/products');
       router.refresh();
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Gagal menyimpan perubahan');
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string } } };
+      toast.error(axiosErr.response?.data?.message ?? 'Gagal menyimpan perubahan');
     } finally {
       setLoading(false);
     }
@@ -194,6 +188,7 @@ export default function EditProductPage() {
             onClick={() => fileInputRef.current?.click()}
           >
             {imagePreview ? (
+              // eslint-disable-next-line @next/next/no-img-element
               <img src={imagePreview} alt="Preview" style={{ width: '100%', maxHeight: 240, objectFit: 'contain', borderRadius: 6 }} />
             ) : (
               <>

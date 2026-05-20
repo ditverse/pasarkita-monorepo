@@ -31,13 +31,13 @@ export default function LoginPage() {
     mutationFn: (data: LoginForm) => authApi.login(data),
     onSuccess: (res) => {
       const { token, user } = res.data.data;
+      // Set cookie dulu sebelum store update agar middleware tidak bounce
+      document.cookie = `token=${token}; path=/; max-age=86400; SameSite=Strict`;
       setLogin(token, user);
       toast.success('Berhasil masuk!');
-      setTimeout(() => {
-        if (user.role === 'superadmin') router.push('/admin');
-        else if (user.role === 'seller') router.push('/seller/products');
-        else router.push('/orders');
-      }, 500);
+      if (user.role === 'superadmin') router.push('/admin');
+      else if (user.role === 'seller') router.push('/seller/products');
+      else router.push('/');
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.message || 'Login gagal. Periksa kembali data Anda.');

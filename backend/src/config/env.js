@@ -7,6 +7,8 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(1, "JWT_SECRET is required"),
   GATEWAY_BASE_URL: z.string().optional(),
   GATEWAY_API_KEY: z.string().optional(),
+  SMARTBANK_URL: z.string().optional(),
+  LOGISTIKITA_URL: z.string().optional(),
   PORT: z.string().transform(Number).default("3001"),
 });
 

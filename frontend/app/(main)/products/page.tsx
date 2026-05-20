@@ -5,8 +5,9 @@ import Link from 'next/link';
 import Icon from '@/components/pk/icon';
 import Placeholder from '@/components/pk/placeholder';
 import { formatIDR } from '@/lib/format';
-import { api } from '@/lib/api';
+import { productsApi } from '@/lib/api/products';
 import { useDebounce } from '@/lib/hooks/useDebounce';
+import { Product } from '@/types/api';
 
 const CATEGORIES = ['Fashion', 'Makanan', 'Kerajinan', 'Elektronik', 'Kecantikan', 'Rumah', 'Buku', 'Olahraga'];
 
@@ -15,29 +16,23 @@ export default function BrowseProductsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [priceMax, setPriceMax] = useState(15000000);
   const [sort, setSort] = useState('relevant');
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Debounce search query — wait 400ms after user stops typing
   const debouncedSearch = useDebounce(searchQuery, 400);
 
   useEffect(() => {
     async function loadProducts() {
       try {
         setLoading(true);
-        let url = `/products?limit=100`;
-        if (sort === 'high') url += '&sort=price_desc';
-        if (sort === 'low') url += '&sort=price_asc';
-        
-        // Use backend search if debounced search query exists
-        if (debouncedSearch.trim()) {
-          url += `&search=${encodeURIComponent(debouncedSearch.trim())}`;
-        }
-        
-        const res = await api.get(url);
-        setProducts(res.data?.data || []);
+        const params: { limit: number; sort?: string; search?: string } = { limit: 100 };
+        if (sort === 'high') params.sort = 'price_desc';
+        if (sort === 'low') params.sort = 'price_asc';
+        if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
+        const res = await productsApi.getAll(params);
+        setProducts(res.data.data ?? []);
       } catch (err) {
-        console.error("Gagal mendapatkan produk dinamis:", err);
+        console.error('Gagal mendapatkan produk dinamis:', err);
       } finally {
         setLoading(false);
       }

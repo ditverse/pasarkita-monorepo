@@ -7,7 +7,8 @@ import Icon from '@/components/pk/icon';
 import StatusBadge from '@/components/pk/status-badge';
 import Placeholder from '@/components/pk/placeholder';
 import { formatIDR } from '@/lib/format';
-import { api } from '@/lib/api';
+import { ordersApi } from '@/lib/api/orders';
+import { Order } from '@/types/api';
 
 const STEPS_MAP: Record<string, number> = {
   pending: 0,
@@ -29,22 +30,15 @@ function Row({ label, value, bold, muted }: { label: string; value: string; bold
 
 export default function OrderDetailPage() {
   const { id } = useParams();
-  const [o, setOrder] = useState<any>(null);
+  const [o, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadOrder() {
-      try {
-        setLoading(true);
-        const res = await api.get(`/orders/${id}`);
-        setOrder(res.data.data || res.data); // Support both nested data or flat
-      } catch (err) {
-        console.error("Gagal get order detail:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadOrder();
+    if (!id) return;
+    ordersApi.getById(id as string)
+      .then((res) => setOrder(res.data.data))
+      .catch((err) => console.error('Gagal get order detail:', err))
+      .finally(() => setLoading(false));
   }, [id]);
 
   if (loading) {
@@ -61,12 +55,12 @@ export default function OrderDetailPage() {
   }
 
   const items = o.items || [];
-  const sub = items.reduce((s: number, i: any) => s + (i.quantity * i.price_at_time), 0);
-  const fee = o.app_fee || Math.round(sub * 0.02);
-  const dateStr = new Date(o.created_at).toLocaleString('id-ID', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit' });
+  const dateStr = new Date(o.created_at).toLocaleString('id-ID', {
+    year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
 
   const activeIdx = STEPS_MAP[o.status] ?? 0;
-  
+
   const STEPS = [
     { label: 'Pending', date: dateStr },
     { label: 'Dibayar', date: o.status !== 'pending' ? dateStr : '-' },
@@ -137,16 +131,16 @@ export default function OrderDetailPage() {
             Item Pesanan
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {items.map((it: any, i: number) => (
-              <div key={it.id || i} style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+            {items.map((it, i) => (
+              <div key={i} style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
                 <Placeholder label="item" height={56} style={{ width: 56, flexShrink: 0 }} />
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 14, fontWeight: 500 }}>{it.product?.name || "Produk Dihapus"}</div>
+                  <div style={{ fontSize: 14, fontWeight: 500 }}>{it.product_name}</div>
                   <div style={{ fontSize: 12, color: 'var(--pk-text-hint)', marginTop: 2 }}>
-                    Qty {it.quantity} · {formatIDR(it.price_at_time)} per item
+                    Qty {it.qty} · {formatIDR(it.price_at_purchase)} per item
                   </div>
                 </div>
-                <div style={{ fontSize: 14, fontWeight: 500 }}>{formatIDR(it.quantity * it.price_at_time)}</div>
+                <div style={{ fontSize: 14, fontWeight: 500 }}>{formatIDR(it.qty * it.price_at_purchase)}</div>
               </div>
             ))}
           </div>
@@ -167,11 +161,10 @@ export default function OrderDetailPage() {
               Pembayaran
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <Row label="Subtotal" value={formatIDR(sub)} />
-              <Row label="Ongkos Kirim" value={formatIDR(o.shipping_fee)} />
-              <Row label="Fee marketplace" value={formatIDR(fee)} muted />
+              <Row label="Subtotal" value={formatIDR(o.subtotal)} />
+              <Row label="Fee marketplace (2%)" value={formatIDR(o.fee_marketplace)} muted />
               <div style={{ height: 1, background: 'var(--pk-border)', margin: '4px 0' }} />
-              <Row label="Total" value={formatIDR(o.total_amount)} bold />
+              <Row label="Total" value={formatIDR(o.total)} bold />
             </div>
             <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--pk-border)' }}>
               <div style={{ fontSize: 11, color: 'var(--pk-text-hint)', marginBottom: 2 }}>Order ID</div>

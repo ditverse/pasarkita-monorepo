@@ -6,34 +6,32 @@ import { useRouter } from 'next/navigation';
 import Icon from '@/components/pk/icon';
 import Placeholder from '@/components/pk/placeholder';
 import { formatIDR } from '@/lib/format';
-import { api } from '@/lib/api';
+import { productsApi } from '@/lib/api/products';
 import { useDebounce } from '@/lib/hooks/useDebounce';
+import { Product } from '@/types/api';
 
 const CATEGORIES = ['Fashion', 'Makanan', 'Kerajinan', 'Elektronik', 'Kecantikan', 'Rumah', 'Buku', 'Olahraga'];
 const POPULAR_TAGS = ['Fashion Pria', 'Snack', 'Handphone', 'Sepatu'];
 
 export default function HomePage() {
   const router = useRouter();
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('Semua');
 
-  // Debounce search — wait 400ms after user stops typing
   const debouncedSearch = useDebounce(searchQuery, 400);
 
-  // Fetch products (no category in API call, we'll filter locally)
   const fetchProducts = useCallback(async (search?: string) => {
     try {
       setLoading(true);
-      let url = `/products?limit=50`;
-      if (search && search.trim()) {
-        url += `&search=${encodeURIComponent(search.trim())}`;
-      }
-      const res = await api.get(url);
-      setProducts(res.data?.data || []);
+      const res = await productsApi.getAll({
+        limit: 50,
+        search: search?.trim() || undefined,
+      });
+      setProducts(res.data.data ?? []);
     } catch (err) {
-      console.error("Error fetching products:", err);
+      console.error('Error fetching products:', err);
       setProducts([]);
     } finally {
       setLoading(false);
@@ -281,7 +279,7 @@ export default function HomePage() {
               gap: 20,
             }}
           >
-            {filteredProducts.map((p: any) => (
+            {filteredProducts.map((p) => (
               <Link
                 key={p.id}
                 href={`/products/${p.id}`}

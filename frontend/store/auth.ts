@@ -38,12 +38,10 @@ export const useAuthStore = create<AuthStore>()(
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);
-        // Sync with cookie strictly to prevent desync bugs
+        // Hanya bersihkan cookie stale jika localStorage tidak punya token
+        // Jangan logout paksa — biarkan middleware yang handle proteksi route
         if (typeof document !== 'undefined' && state) {
-          const hasTokenCookie = document.cookie.includes('token=');
-          if (state.isAuthenticated && !hasTokenCookie) {
-            state.logout();
-          } else if (!state.isAuthenticated && hasTokenCookie) {
+          if (!state.isAuthenticated) {
             document.cookie = 'token=; path=/; max-age=0';
           }
         }

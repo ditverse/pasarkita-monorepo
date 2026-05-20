@@ -3,12 +3,12 @@
     {
       "tracking_id": "SHP-MOCK-1779213937262",
       "order_id": "test-123",
-      "status": "created",
+      "status": "delivered",
       "from_address": "Gudang PasarKita",
       "to_address": "Jl. Merdeka No. 1, Jakarta Pusat",
       "items_count": 1,
       "created_at": "2026-05-19T18:05:37.262Z",
-      "updated_at": "2026-05-19T18:05:37.262Z"
+      "updated_at": "2026-05-20T03:49:40.043Z"
     }
   ]
 }

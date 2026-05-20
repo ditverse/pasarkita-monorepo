@@ -7,18 +7,18 @@ const DB_PATH = path.join(__dirname, 'db.json');
 const readDb = () => JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
 const writeDb = (data) => fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
 
-// Saldo default untuk user baru — lebih besar dari ekosistem asli agar testing tidak terhambat
 const DEFAULT_BALANCE = 500_000;
 
-// In-memory tracker — reset saat server restart
+// In-memory tracker
 const lastTransaction = {};
 const dailyCount = {};
 
-/**
- * POST /smartbank/payment
- * Body: { from_user, amount, metadata: { order_id } }
- * Header: Authorization: Bearer <token>
- */
+// ── Dashboard ────────────────────────────────────────────────
+router.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dashboard.html'));
+});
+
+// ── Payment ──────────────────────────────────────────────────
 router.post('/payment', (req, res) => {
   const { from_user, amount, metadata } = req.body;
 
@@ -29,7 +29,6 @@ router.post('/payment', (req, res) => {
     });
   }
 
-  // Simulasi JWT check — cukup pastikan header ada
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) {
     return res.status(401).json({
@@ -40,7 +39,7 @@ router.post('/payment', (req, res) => {
 
   const now = Date.now();
 
-  // Simulasi cooldown 10 detik
+  // Cooldown 10 detik
   if (lastTransaction[from_user] && now - lastTransaction[from_user] < 10_000) {
     const retryAfter = Math.ceil((10_000 - (now - lastTransaction[from_user])) / 1000);
     return res.status(429).json({
@@ -50,7 +49,7 @@ router.post('/payment', (req, res) => {
     });
   }
 
-  // Simulasi limit harian 10 transaksi
+  // Limit harian 10 transaksi
   const today = new Date().toDateString();
   if (!dailyCount[from_user] || dailyCount[from_user].date !== today) {
     dailyCount[from_user] = { date: today, count: 0 };
@@ -63,7 +62,6 @@ router.post('/payment', (req, res) => {
     });
   }
 
-  // Baca DB — inisialisasi saldo jika user baru
   const db = readDb();
   if (db.balances[from_user] === undefined) {
     db.balances[from_user] = DEFAULT_BALANCE;
@@ -71,7 +69,6 @@ router.post('/payment', (req, res) => {
 
   const balance = db.balances[from_user];
 
-  // Simulasi saldo tidak cukup
   if (balance < amount) {
     return res.status(402).json({
       success: false,
@@ -80,7 +77,6 @@ router.post('/payment', (req, res) => {
     });
   }
 
-  // Sukses — kurangi saldo, catat transaksi
   db.balances[from_user] = balance - amount;
   lastTransaction[from_user] = now;
   dailyCount[from_user].count++;
@@ -104,9 +100,7 @@ router.post('/payment', (req, res) => {
   });
 });
 
-/**
- * GET /smartbank/balance/:userId
- */
+// ── Balance ──────────────────────────────────────────────────
 router.get('/balance/:userId', (req, res) => {
   const db = readDb();
   const userId = req.params.userId;
@@ -122,10 +116,41 @@ router.get('/balance/:userId', (req, res) => {
   });
 });
 
-/**
- * POST /smartbank/debug/reset
- * Body: { user_id, amount? }
- */
+// ── Debug: state lengkap untuk dashboard ────────────────────
+router.get('/debug/state', (req, res) => {
+  const db = readDb();
+  const now = Date.now();
+
+  // Gabungkan cooldown + daily count per user
+  const allUsers = new Set([
+    ...Object.keys(db.balances),
+    ...Object.keys(lastTransaction),
+    ...Object.keys(dailyCount),
+  ]);
+
+  const cooldowns = {};
+  for (const uid of allUsers) {
+    const last = lastTransaction[uid];
+    const today = new Date().toDateString();
+    const dc = dailyCount[uid];
+    const todayCount = dc && dc.date === today ? dc.count : 0;
+
+    if (last || todayCount > 0) {
+      cooldowns[uid] = {
+        lastTxn: last ?? 0,
+        remainingMs: last ? Math.max(0, 10_000 - (now - last)) : 0,
+        todayCount,
+      };
+    }
+  }
+
+  return res.json({
+    success: true,
+    data: { balances: db.balances, transactions: db.transactions, cooldowns },
+  });
+});
+
+// ── Debug: set saldo ─────────────────────────────────────────
 router.post('/debug/reset', (req, res) => {
   const { user_id, amount } = req.body;
 
@@ -140,18 +165,47 @@ router.post('/debug/reset', (req, res) => {
   db.balances[user_id] = amount ?? DEFAULT_BALANCE;
   writeDb(db);
 
-  console.log(`[Mock SmartBank] Balance reset — user=${user_id} balance=${db.balances[user_id]}`);
+  console.log(`[Mock SmartBank] Balance set — user=${user_id} balance=${db.balances[user_id]}`);
 
   return res.json({
     success: true,
-    message: `Saldo ${user_id} direset ke ${db.balances[user_id]}`,
+    message: `Saldo ${user_id} diset ke ${db.balances[user_id]}`,
   });
 });
 
-/**
- * POST /smartbank/debug/reset-all
- * Reset semua state
- */
+// ── Debug: reset cooldown per user ───────────────────────────
+router.post('/debug/reset-cooldown', (req, res) => {
+  const { user_id } = req.body;
+
+  if (!user_id) {
+    return res.status(400).json({
+      success: false,
+      error: { code: 'VALIDATION_ERROR', details: 'user_id wajib diisi' },
+    });
+  }
+
+  delete lastTransaction[user_id];
+  if (dailyCount[user_id]) {
+    dailyCount[user_id].count = 0;
+  }
+
+  console.log(`[Mock SmartBank] Cooldown reset — user=${user_id}`);
+
+  return res.json({ success: true, message: `Cooldown ${user_id} direset` });
+});
+
+// ── Debug: hapus semua transaksi ─────────────────────────────
+router.post('/debug/clear-transactions', (req, res) => {
+  const db = readDb();
+  db.transactions = [];
+  writeDb(db);
+
+  console.log('[Mock SmartBank] Transactions cleared');
+
+  return res.json({ success: true, message: 'Semua transaksi dihapus' });
+});
+
+// ── Debug: reset semua state ─────────────────────────────────
 router.post('/debug/reset-all', (req, res) => {
   writeDb({ balances: {}, transactions: [] });
   Object.keys(lastTransaction).forEach((k) => delete lastTransaction[k]);

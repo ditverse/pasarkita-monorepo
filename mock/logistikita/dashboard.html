@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LogistiKita Mock — Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --pk-bg: #FFFFFF;
+      --pk-bg-subtle: #F9FAFB;
+      --pk-text: #111827;
+      --pk-text-secondary: #4B5563;
+      --pk-text-hint: #9CA3AF;
+      --pk-border: #E5E7EB;
+      --pk-border-strong: #D1D5DB;
+      --pk-accent: #2563EB;
+      --pk-accent-soft: #EFF6FF;
+      --pk-success: #16A34A;
+      --pk-success-soft: #F0FDF4;
+      --pk-warning: #D97706;
+      --pk-warning-soft: #FFFBEB;
+      --pk-danger: #DC2626;
+      --pk-danger-soft: #FEF2F2;
+      --pk-teal: #0D9488;
+      --pk-teal-soft: #F0FDFA;
+    }
+
+    body {
+      font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+      background: var(--pk-bg-subtle);
+      color: var(--pk-text);
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .header {
+      height: 64px; background: #fff;
+      border-bottom: 1px solid var(--pk-border);
+      display: flex; align-items: center; padding: 0 32px; gap: 12px;
+      position: sticky; top: 0; z-index: 10;
+    }
+    .header-logo { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; letter-spacing: -0.02em; }
+    .header-logo-icon {
+      width: 28px; height: 28px; background: var(--pk-teal); color: #fff;
+      border-radius: 7px; display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700;
+    }
+    .header-divider { width: 1px; height: 20px; background: var(--pk-border); }
+    .header-title { font-size: 13px; color: var(--pk-text-secondary); font-weight: 500; }
+    .header-badge {
+      margin-left: auto; display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px; border-radius: 999px;
+      background: var(--pk-teal-soft); color: var(--pk-teal);
+      font-size: 12px; font-weight: 500;
+    }
+    .header-badge-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--pk-teal); }
+
+    .container { max-width: 1100px; margin: 0 auto; padding: 32px 24px 64px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+
+    .metric-card { background: #fff; border: 1px solid var(--pk-border); border-radius: 12px; padding: 20px; }
+    .metric-label { font-size: 12px; color: var(--pk-text-secondary); margin-bottom: 8px; }
+    .metric-value { font-size: 26px; font-weight: 600; letter-spacing: -0.025em; line-height: 1; }
+    .metric-sub { font-size: 11px; color: var(--pk-text-hint); margin-top: 6px; }
+
+    .section-title { font-size: 18px; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 16px; }
+
+    .card { background: #fff; border: 1px solid var(--pk-border); border-radius: 12px; }
+    .card-header {
+      padding: 18px 20px 14px; border-bottom: 1px solid var(--pk-border);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .card-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+    .card-subtitle { font-size: 12px; color: var(--pk-text-hint); margin-top: 2px; }
+    .card-body { padding: 20px; }
+
+    .form-row { display: flex; gap: 10px; align-items: flex-end; }
+    .form-group { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+    .form-label { font-size: 12px; font-weight: 500; color: var(--pk-text); }
+    .form-input, .form-select {
+      height: 38px; padding: 0 12px;
+      border: 1px solid var(--pk-border); border-radius: 8px;
+      background: #fff; font-size: 13px; color: var(--pk-text);
+      font-family: inherit; transition: border-color 150ms, box-shadow 150ms;
+    }
+    .form-input:focus, .form-select:focus {
+      outline: none; border-color: var(--pk-teal);
+      box-shadow: 0 0 0 2px rgba(13,148,136,0.15);
+    }
+    .form-input::placeholder { color: var(--pk-text-hint); }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      height: 38px; padding: 0 14px; border-radius: 8px;
+      font-weight: 500; font-size: 13px; border: 1px solid transparent;
+      cursor: pointer; transition: all 150ms; white-space: nowrap;
+      font-family: inherit; letter-spacing: -0.006em;
+    }
+    .btn-primary { background: var(--pk-teal); color: #fff; }
+    .btn-primary:hover { background: #0f766e; }
+    .btn-secondary { background: #fff; color: var(--pk-text); border-color: var(--pk-border); }
+    .btn-secondary:hover { background: var(--pk-bg-subtle); }
+    .btn-danger { background: #fff; color: var(--pk-danger); border-color: var(--pk-border); }
+    .btn-danger:hover { background: var(--pk-danger-soft); border-color: var(--pk-danger); }
+    .btn-sm { height: 30px; padding: 0 10px; font-size: 12px; }
+
+    .table-wrap { overflow: hidden; border-radius: 12px; border: 1px solid var(--pk-border); }
+    table { width: 100%; border-collapse: collapse; background: #fff; }
+    thead tr { background: var(--pk-bg-subtle); }
+    th {
+      text-align: left; padding: 10px 16px;
+      font-size: 11px; font-weight: 500; color: var(--pk-text-hint);
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    td { padding: 12px 16px; font-size: 13px; border-top: 1px solid var(--pk-border); }
+    tr:hover td { background: var(--pk-bg-subtle); }
+
+    .badge {
+      display: inline-flex; align-items: center;
+      height: 20px; padding: 0 7px; border-radius: 4px;
+      font-size: 11px; font-weight: 500;
+    }
+    .badge-created { background: #F3F4F6; color: var(--pk-text-secondary); }
+    .badge-picked_up { background: var(--pk-warning-soft); color: var(--pk-warning); }
+    .badge-in_transit { background: var(--pk-accent-soft); color: var(--pk-accent); }
+    .badge-delivered { background: var(--pk-success-soft); color: var(--pk-success); }
+
+    .mono { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 12px; }
+
+    .toast-container { position: fixed; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 8px; z-index: 999; }
+    .toast { padding: 12px 16px; border-radius: 10px; font-size: 13px; font-weight: 500; box-shadow: 0 4px 12px rgba(0,0,0,0.12); animation: slideIn 200ms ease; max-width: 320px; }
+    .toast-success { background: var(--pk-success); color: #fff; }
+    .toast-error { background: var(--pk-danger); color: #fff; }
+    .toast-info { background: var(--pk-text); color: #fff; }
+    @keyframes slideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    .empty { padding: 40px 24px; text-align: center; color: var(--pk-text-hint); font-size: 13px; }
+
+    .mb-16 { margin-bottom: 16px; }
+    .mb-24 { margin-bottom: 24px; }
+    .mb-32 { margin-bottom: 32px; }
+    .flex { display: flex; }
+    .items-center { align-items: center; }
+    .justify-between { justify-content: space-between; }
+    .gap-8 { gap: 8px; }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-logo">
+    <div class="header-logo-icon">LK</div>
+    LogistiKita
+  </div>
+  <div class="header-divider"></div>
+  <span class="header-title">Mock Dashboard</span>
+  <div class="header-badge">
+    <div class="header-badge-dot"></div>
+    Running on :4002
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Metrics -->
+  <div class="grid-3 mb-32">
+    <div class="metric-card">
+      <div class="metric-label">Total Pengiriman</div>
+      <div class="metric-value" id="m-total">—</div>
+      <div class="metric-sub">Sejak server start</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Sedang Dikirim</div>
+      <div class="metric-value" id="m-transit">—</div>
+      <div class="metric-sub">Status in_transit</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Selesai</div>
+      <div class="metric-value" id="m-delivered">—</div>
+      <div class="metric-sub">Status delivered</div>
+    </div>
+  </div>
+
+  <!-- Update status manual -->
+  <div class="section-title">Update Status Pengiriman</div>
+  <div class="card mb-32">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Ubah Status Manual</div>
+        <div class="card-subtitle">Simulasikan pergerakan status pengiriman</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Tracking ID</label>
+          <input class="form-input" id="upd-tracking" placeholder="SHP-MOCK-..." />
+        </div>
+        <div class="form-group" style="max-width: 180px;">
+          <label class="form-label">Status Baru</label>
+          <select class="form-select" id="upd-status">
+            <option value="created">created</option>
+            <option value="picked_up">picked_up</option>
+            <option value="in_transit">in_transit</option>
+            <option value="delivered">delivered</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" onclick="updateStatus()">Update Status</button>
+        <button class="btn btn-danger" style="margin-left:auto" onclick="resetAll()">Reset Semua</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabel shipments -->
+  <div class="flex justify-between items-center mb-16">
+    <div class="section-title" style="margin-bottom:0">Daftar Pengiriman</div>
+    <span style="font-size:13px; color: var(--pk-text-hint)" id="ship-count">0 pengiriman</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Tracking ID</th>
+          <th>Order ID</th>
+          <th>Alamat Tujuan</th>
+          <th>Status</th>
+          <th>Dibuat</th>
+          <th>Aksi Cepat</th>
+        </tr>
+      </thead>
+      <tbody id="ship-table">
+        <tr><td colspan="6" class="empty">Memuat...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<div class="toast-container" id="toasts"></div>
+
+<script>
+  const BASE = 'http://localhost:4002/logistikita';
+
+  const STATUS_NEXT = {
+    created: 'picked_up',
+    picked_up: 'in_transit',
+    in_transit: 'delivered',
+    delivered: null,
+  };
+
+  const STATUS_LABEL = {
+    created: 'Dibuat',
+    picked_up: 'Diambil',
+    in_transit: 'Dalam Perjalanan',
+    delivered: 'Terkirim',
+  };
+
+  function formatTime(iso) {
+    if (!iso) return '—';
+    return new Date(iso).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  }
+
+  function shortId(id) {
+    if (!id) return '—';
+    if (id.length > 24) return id.slice(0, 12) + '...' + id.slice(-4);
+    return id;
+  }
+
+  function toast(msg, type = 'info') {
+    const el = document.createElement('div');
+    el.className = `toast toast-${type}`;
+    el.textContent = msg;
+    document.getElementById('toasts').appendChild(el);
+    setTimeout(() => el.remove(), 3000);
+  }
+
+  async function loadData() {
+    try {
+      const res = await fetch(`${BASE}/debug/state`);
+      const json = await res.json();
+      const shipments = json.data?.shipments ?? [];
+
+      // Metrics
+      document.getElementById('m-total').textContent = shipments.length;
+      document.getElementById('m-transit').textContent = shipments.filter(s => s.status === 'in_transit').length;
+      document.getElementById('m-delivered').textContent = shipments.filter(s => s.status === 'delivered').length;
+      document.getElementById('ship-count').textContent = `${shipments.length} pengiriman`;
+
+      // Table
+      const tbody = document.getElementById('ship-table');
+      if (shipments.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty">Belum ada pengiriman</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = [...shipments].reverse().map(s => {
+        const next = STATUS_NEXT[s.status];
+        const nextBtn = next
+          ? `<button class="btn btn-secondary btn-sm" onclick="quickAdvance('${s.tracking_id}', '${next}')">→ ${STATUS_LABEL[next]}</button>`
+          : `<span style="font-size:12px; color: var(--pk-text-hint)">Selesai</span>`;
+
+        return `
+          <tr>
+            <td><span class="mono">${shortId(s.tracking_id)}</span></td>
+            <td><span class="mono">${shortId(s.order_id)}</span></td>
+            <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color: var(--pk-text-secondary)">${s.to_address}</td>
+            <td><span class="badge badge-${s.status}">${s.status}</span></td>
+            <td style="color: var(--pk-text-hint)">${formatTime(s.created_at)}</td>
+            <td>${nextBtn}</td>
+          </tr>
+        `;
+      }).join('');
+
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function updateStatus() {
+    const trackingId = document.getElementById('upd-tracking').value.trim();
+    const status = document.getElementById('upd-status').value;
+    if (!trackingId) { toast('Tracking ID wajib diisi', 'error'); return; }
+
+    const res = await fetch(`${BASE}/shipping/${encodeURIComponent(trackingId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    });
+    const json = await res.json();
+    if (json.success) { toast(`Status ${shortId(trackingId)} → ${status}`, 'success'); loadData(); }
+    else toast(json.error?.details ?? 'Gagal', 'error');
+  }
+
+  async function quickAdvance(trackingId, nextStatus) {
+    const res = await fetch(`${BASE}/shipping/${encodeURIComponent(trackingId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: nextStatus }),
+    });
+    const json = await res.json();
+    if (json.success) { toast(`${shortId(trackingId)} → ${nextStatus}`, 'success'); loadData(); }
+    else toast(json.error?.details ?? 'Gagal', 'error');
+  }
+
+  async function resetAll() {
+    if (!confirm('Hapus semua data pengiriman?')) return;
+    const res = await fetch(`${BASE}/debug/reset`, { method: 'POST' });
+    const json = await res.json();
+    if (json.success) { toast('Semua shipment direset', 'info'); loadData(); }
+  }
+
+  loadData();
+  setInterval(loadData, 3000);
+</script>
+</body>
+</html>

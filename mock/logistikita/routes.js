@@ -9,10 +9,12 @@ const writeDb = (data) => fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2
 
 const VALID_STATUSES = ['created', 'picked_up', 'in_transit', 'delivered'];
 
-/**
- * POST /logistikita/shipping
- * Body: { order_id, from_address, to_address, items_count? }
- */
+// ── Dashboard ────────────────────────────────────────────────
+router.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dashboard.html'));
+});
+
+// ── Buat pengiriman ──────────────────────────────────────────
 router.post('/shipping', (req, res) => {
   const { order_id, from_address, to_address, items_count } = req.body;
 
@@ -53,10 +55,7 @@ router.post('/shipping', (req, res) => {
   });
 });
 
-/**
- * PATCH /logistikita/shipping/:trackingId
- * Body: { status }
- */
+// ── Update status ────────────────────────────────────────────
 router.patch('/shipping/:trackingId', (req, res) => {
   const { status } = req.body;
   const { trackingId } = req.params;
@@ -93,9 +92,7 @@ router.patch('/shipping/:trackingId', (req, res) => {
   });
 });
 
-/**
- * GET /logistikita/shipping/:trackingId
- */
+// ── Cek status ───────────────────────────────────────────────
 router.get('/shipping/:trackingId', (req, res) => {
   const db = readDb();
   const shipment = db.shipments.find((s) => s.tracking_id === req.params.trackingId);
@@ -110,9 +107,13 @@ router.get('/shipping/:trackingId', (req, res) => {
   return res.json({ success: true, data: shipment });
 });
 
-/**
- * POST /logistikita/debug/reset
- */
+// ── Debug: state lengkap untuk dashboard ────────────────────
+router.get('/debug/state', (req, res) => {
+  const db = readDb();
+  return res.json({ success: true, data: db });
+});
+
+// ── Debug: reset semua ───────────────────────────────────────
 router.post('/debug/reset', (req, res) => {
   writeDb({ shipments: [] });
   console.log('[Mock LogistiKita] Full reset done');

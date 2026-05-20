@@ -76,6 +76,23 @@ export type AnalyticsSummary = {
   }>;
 };
 
+export type Rating = {
+  id: string;
+  rating: number;
+  comment: string | null;
+  date: string;
+  buyer_name: string;
+};
+
+export type RatingSummary = {
+  summary: {
+    average: number;
+    total: number;
+    distribution: Record<string, number>;
+  };
+  reviews: Rating[];
+};
+
 export type ApiResponse<T> = {
   success: boolean;
   message: string;

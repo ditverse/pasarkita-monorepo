@@ -1,6 +1,30 @@
 {
   "balances": {
-    "test-user": 500000
+    "test-user": 500000,
+    "fa8ba2a8-6282-43e7-93e3-8c5df4b12934": 479600,
+    "ce1305cc-23aa-4d92-860a-33c1f2221781": 484700
   },
-  "transactions": []
+  "transactions": [
+    {
+      "id": "TXN-MOCK-1779250547676",
+      "from_user": "fa8ba2a8-6282-43e7-93e3-8c5df4b12934",
+      "amount": 10200,
+      "order_id": "99fc3beb-0e99-42af-a343-bd6a25e310e8",
+      "created_at": "2026-05-20T04:15:47.676Z"
+    },
+    {
+      "id": "TXN-MOCK-1779253621571",
+      "from_user": "fa8ba2a8-6282-43e7-93e3-8c5df4b12934",
+      "amount": 10200,
+      "order_id": "adf66620-c073-4571-8143-6eafef3e9c28",
+      "created_at": "2026-05-20T05:07:01.571Z"
+    },
+    {
+      "id": "TXN-MOCK-1779253742161",
+      "from_user": "ce1305cc-23aa-4d92-860a-33c1f2221781",
+      "amount": 15300,
+      "order_id": "427ea39b-59a9-4c24-a831-6967eb1b33d9",
+      "created_at": "2026-05-20T05:09:02.161Z"
+    }
+  ]
 }

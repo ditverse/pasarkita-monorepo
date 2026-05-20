@@ -101,3 +101,24 @@ $$ LANGUAGE plpgsql;
 --   ALTER TABLE public.order_items
 --     RENAME COLUMN price_at_time TO price_at_purchase;
 -- ============================================================
+
+-- ── Tabel ratings ─────────────────────────────────────────────
+-- Jalankan di SQL Editor Supabase
+
+CREATE TABLE IF NOT EXISTS public.ratings (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id    UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+  product_id  UUID NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
+  buyer_id    UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  rating      INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  comment     TEXT,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  -- Satu order hanya bisa rating satu produk satu kali
+  CONSTRAINT ratings_order_product_unique UNIQUE (order_id, product_id)
+);
+
+ALTER TABLE public.ratings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "service_role_bypass_ratings" ON public.ratings FOR ALL USING (true);
+
+CREATE INDEX IF NOT EXISTS idx_ratings_product_id ON public.ratings(product_id);
+CREATE INDEX IF NOT EXISTS idx_ratings_buyer_id   ON public.ratings(buyer_id);

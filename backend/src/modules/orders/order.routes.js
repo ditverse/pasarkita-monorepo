@@ -5,6 +5,10 @@ const { verifyToken, requireSuperadmin } = require('../../middlewares/auth');
 
 router.get('/', verifyToken, orderController.getOrders);
 router.get('/:id', verifyToken, orderController.getOrderById);
-router.patch('/:id/status', verifyToken, requireSuperadmin, orderController.updateOrderStatus);
+router.get('/:id/tracking', verifyToken, orderController.getTrackingStatus);
+// Seller bisa update status ke 'shipped', superadmin bisa semua status
+router.patch('/:id/status', verifyToken, orderController.updateOrderStatus);
+// Buyer konfirmasi pesanan diterima → status delivered
+router.post('/:id/confirm', verifyToken, orderController.confirmDelivered);
 
 module.exports = router;

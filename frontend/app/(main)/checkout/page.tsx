@@ -48,6 +48,7 @@ function CheckoutContent() {
   const [initLoad, setInitLoad] = useState(true);
   const [product, setProduct] = useState<Product | null>(null);
   const [address, setAddress] = useState('');
+  const [balance, setBalance] = useState<number | null>(null);
 
   useEffect(() => {
     if (!productId) {
@@ -58,7 +59,16 @@ function CheckoutContent() {
       .then((res) => setProduct(res.data.data))
       .catch((err) => console.error('Gagal load produk di checkout', err))
       .finally(() => setInitLoad(false));
-  }, [productId]);
+
+    // Fetch saldo SmartBank jika user sudah login
+    if (user) {
+      import('@/lib/api').then(({ api }) => {
+        api.get('/smartbank/balance')
+          .then((res) => setBalance(res.data.data?.balance ?? null))
+          .catch(() => setBalance(null));
+      });
+    }
+  }, [productId, user]);
 
   if (initLoad) {
     return (
@@ -188,6 +198,21 @@ function CheckoutContent() {
               </div>
               <Icon name="check" size={16} stroke={2.5} />
             </div>
+            {/* Saldo SmartBank */}
+            {balance !== null && (
+              <div style={{
+                marginTop: 12, padding: '10px 14px', borderRadius: 8,
+                background: balance >= total ? 'var(--pk-success-soft)' : 'var(--pk-danger-soft)',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              }}>
+                <span style={{ fontSize: 12, color: balance >= total ? 'var(--pk-success)' : 'var(--pk-danger)' }}>
+                  Saldo SmartBank
+                </span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: balance >= total ? 'var(--pk-success)' : 'var(--pk-danger)' }}>
+                  {formatIDR(balance)}
+                </span>
+              </div>
+            )}
           </div>
 
           <button

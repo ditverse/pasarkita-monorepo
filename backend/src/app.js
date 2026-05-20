@@ -10,6 +10,8 @@ const checkoutRoutes = require('./modules/checkout/checkout.routes');
 const orderRoutes = require('./modules/orders/order.routes');
 const adminRoutes = require('./modules/admin/admin.routes');
 const feeRoutes = require('./modules/fee/fee.routes');
+const smartbankRoutes = require('./modules/smartbank/smartbank.routes');
+const ratingRoutes = require('./modules/ratings/rating.routes');
 
 const app = express();
 
@@ -27,6 +29,8 @@ app.use('/api/checkout', checkoutRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/fee', feeRoutes);
+app.use('/api/smartbank', smartbankRoutes);
+app.use('/api/ratings', ratingRoutes);
 
 app.use((req, res, next) => {
   res.status(404).json({ success: false, message: 'Endpoint not found' });

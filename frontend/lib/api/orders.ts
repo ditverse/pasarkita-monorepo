@@ -10,4 +10,7 @@ export const ordersApi = {
 
   updateStatus: (id: string, body: { status: string }) =>
     api.patch<ApiResponse<Order>>(`/orders/${id}/status`, body),
+
+  getTracking: (id: string) =>
+    api.get<ApiResponse<{ tracking_id: string | null; status: string | null; to_address?: string }>>(`/orders/${id}/tracking`),
 };

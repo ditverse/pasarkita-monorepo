@@ -11,6 +11,7 @@ import { useAuthStore } from '@/store/auth';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/pk/icon';
+import { getApiErrorMessage } from '@/lib/api-error';
 
 const loginSchema = z.object({
   email: z.string().email('Email tidak valid'),
@@ -39,8 +40,8 @@ export default function LoginPage() {
       else if (user.role === 'seller') router.push('/seller/products');
       else router.push('/');
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Login gagal. Periksa kembali data Anda.');
+    onError: (error: unknown) => {
+      toast.error(getApiErrorMessage(error, 'Login gagal. Periksa kembali data Anda.'));
     },
   });
 

@@ -1,50 +1,48 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Avatar from '@/components/pk/avatar';
 import StatusBadge from '@/components/pk/status-badge';
 import Icon from '@/components/pk/icon';
 import { adminApi } from '@/lib/api/admin';
+import { queryKeys } from '@/lib/query-keys';
 import { User } from '@/types/api';
 
 export default function AdminUsersPage() {
-  const [users, setUsers] = useState<User[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   const [roleFilter, setRoleFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
-  const loadUsers = useCallback(async () => {
-    setLoading(true);
-    try {
+  const usersQuery = useQuery({
+    queryKey: queryKeys.admin.users(roleFilter, statusFilter),
+    queryFn: async () => {
       const params: { role?: string; status?: string } = {};
       if (roleFilter) params.role = roleFilter;
       if (statusFilter) params.status = statusFilter;
 
       const res = await adminApi.getUsers(params);
-      setUsers(res.data.data ?? []);
-      setTotal(res.data.pagination?.total ?? 0);
-    } catch (err) {
-      console.error('Gagal load users', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [roleFilter, statusFilter]);
+      return {
+        users: res.data.data ?? [],
+        total: res.data.pagination?.total ?? 0,
+      };
+    },
+  });
 
-  useEffect(() => {
-    loadUsers();
-  }, [loadUsers]);
+  const updateUserMutation = useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      adminApi.updateUserStatus(id, { is_active: isActive }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+    },
+  });
 
   const handleToggleStatus = async (user: User) => {
     setActionLoading(user.id);
     try {
-      await adminApi.updateUserStatus(user.id, { is_active: !user.is_active });
-      // Update state lokal agar tidak perlu refetch
-      setUsers((prev) =>
-        prev.map((u) => (u.id === user.id ? { ...u, is_active: !u.is_active } : u))
-      );
+      await updateUserMutation.mutateAsync({ id: user.id, isActive: !user.is_active });
     } catch (err) {
       console.error('Gagal update status user', err);
     } finally {
@@ -55,6 +53,11 @@ export default function AdminUsersPage() {
   const formatDate = (iso: string) => {
     return new Date(iso).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
   };
+
+  const users = usersQuery.data?.users ?? [];
+  const total = usersQuery.data?.total ?? 0;
+  const loading = usersQuery.isLoading;
+  const isError = usersQuery.isError;
 
   return (
     <div>
@@ -112,14 +115,21 @@ export default function AdminUsersPage() {
                 </td>
               </tr>
             )}
-            {!loading && users.length === 0 && (
+            {!loading && !isError && users.length === 0 && (
               <tr>
                 <td colSpan={6} style={{ padding: '32px', textAlign: 'center', color: 'var(--pk-text-hint)' }}>
                   Tidak ada user ditemukan.
                 </td>
               </tr>
             )}
-            {users.map((u) => (
+            {!loading && isError && (
+              <tr>
+                <td colSpan={6} style={{ padding: '32px', textAlign: 'center', color: 'var(--pk-text-secondary)' }}>
+                  User gagal dimuat. Periksa koneksi backend dan akses admin.
+                </td>
+              </tr>
+            )}
+            {!isError && users.map((u) => (
               <tr key={u.id} style={{ borderTop: '1px solid var(--pk-border)' }}>
                 <td style={{ padding: '12px 20px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import StatusBadge from '@/components/pk/status-badge';
 import Placeholder from '@/components/pk/placeholder';
 import { formatIDR } from '@/lib/format';
 import { ordersApi } from '@/lib/api/orders';
+import { queryKeys } from '@/lib/query-keys';
 import { useAuthStore } from '@/store/auth';
 import { Order } from '@/types/api';
 
@@ -20,18 +22,16 @@ const TABS = [
 
 export default function OrdersListPage() {
   const [tab, setTab] = useState('all');
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
   const user = useAuthStore((state) => state.user);
 
-  useEffect(() => {
-    if (!user) return;
-    setLoading(true);
-    ordersApi.getAll()
-      .then((res) => setOrders(res.data.data ?? []))
-      .catch((err) => console.error('Gagal mendapatkan daftar order:', err))
-      .finally(() => setLoading(false));
-  }, [user]);
+  const { data: orders = [], isLoading: loading, isError } = useQuery({
+    queryKey: queryKeys.orders.list('buyer'),
+    queryFn: async (): Promise<Order[]> => {
+      const res = await ordersApi.getAll();
+      return res.data.data ?? [];
+    },
+    enabled: Boolean(user),
+  });
 
   if (!user) {
     return <div style={{ padding: '64px', textAlign: 'center' }}>Harap login untuk melihat pesanan.</div>;
@@ -96,8 +96,14 @@ export default function OrdersListPage() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {loading && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--pk-text-hint)' }}>Memuat pesanan...</div>}
+
+        {!loading && isError && (
+          <div style={{ padding: '40px', textAlign: 'center', border: '1px dashed var(--pk-border)', borderRadius: 12, color: 'var(--pk-text-secondary)' }}>
+            Pesanan gagal dimuat. Periksa koneksi backend dan token login.
+          </div>
+        )}
         
-        {!loading && filtered.map((o) => (
+        {!loading && !isError && filtered.map((o) => (
           <div key={o.id} className="pk-card pk-card-hover" style={{ padding: 20 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -133,7 +139,7 @@ export default function OrdersListPage() {
           </div>
         ))}
 
-        {!loading && filtered.length === 0 && (
+        {!loading && !isError && filtered.length === 0 && (
           <div style={{ padding: '64px 24px', textAlign: 'center', border: '1px dashed var(--pk-border)', borderRadius: 12, color: 'var(--pk-text-hint)', fontSize: 14 }}>
             Tidak ada pesanan dalam status ini.
           </div>

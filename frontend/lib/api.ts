@@ -1,8 +1,9 @@
 import axios from 'axios';
 import { useAuthStore } from '@/store/auth';
+import { getApiBaseUrl } from '@/lib/api-base-url';
 
 export const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL,
+  baseURL: getApiBaseUrl(),
   timeout: 10_000,
 });
 

@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import Icon from '@/components/pk/icon';
 
 export default function SellerUnauthorizedPage() {
   return (

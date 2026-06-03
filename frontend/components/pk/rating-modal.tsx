@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Icon from './icon';
 import Placeholder from './placeholder';
 import { ratingsApi } from '@/lib/api/ratings';
@@ -67,17 +67,17 @@ const LABELS: Record<number, string> = {
   5: 'Sangat Bagus',
 };
 
+function createInitialRatings(items: OrderItem[]) {
+  return items.reduce<Record<string, number>>((acc, item) => {
+    acc[item.product_id] = 4;
+    return acc;
+  }, {});
+}
+
 export default function RatingModal({ orderId, items, onClose, onSubmitted }: RatingModalProps) {
-  const [ratings, setRatings] = useState<Record<string, number>>({});
+  const [ratings, setRatings] = useState<Record<string, number>>(() => createInitialRatings(items));
   const [comments, setComments] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
-
-  // Init semua item dengan rating 4
-  useEffect(() => {
-    const init: Record<string, number> = {};
-    items.forEach((item) => { init[item.product_id] = 4; });
-    setRatings(init);
-  }, [items]);
 
   const handleSubmit = async () => {
     setSubmitting(true);

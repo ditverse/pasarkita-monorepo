@@ -1,0 +1,141 @@
+row_type,app_id,kelompok,aplikasi,item_index,kategori,aktivitas_aturan,deskripsi,tanggal,selesai,bukti_catatan_singkat,tanggal_catatan_dosen,catatan_dosen,exported_at
+item,smartbank,Kelompok 1,SmartBank (Core),0,Fitur,Registrasi dan login user,Akun pengguna dan JWT authentication berjalan.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,smartbank,Kelompok 1,SmartBank (Core),1,Fitur,Manajemen saldo dan riwayat,User dapat melihat saldo dan histori transaksi.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,smartbank,Kelompok 1,SmartBank (Core),2,Fitur,Transfer antar user,Debit/kredit antar akun tercatat di ledger.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,smartbank,Kelompok 1,SmartBank (Core),3,Fitur,Pembayaran transaksi,"Memproses payment request dari Marketplace, POS, SupplierHub, dan LogistiKita.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,smartbank,Kelompok 1,SmartBank (Core),4,Fitur,Pinjaman/loan,"Pengajuan, limit, bunga, dan status pinjaman terdokumentasi.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,smartbank,Kelompok 1,SmartBank (Core),5,Fitur,Pajak dan biaya,"Fee bank, pajak sistem, dan potongan layanan dihitung otomatis.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,smartbank,Kelompok 1,SmartBank (Core),6,Fitur,Ledger transaksi,Semua perubahan saldo menghasilkan catatan ledger.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,smartbank,Kelompok 1,SmartBank (Core),7,Fitur,Kontrol money supply,"Saldo awal, reserve bank, stimulus, dan limit pinjaman mengikuti aturan.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,smartbank,Kelompok 1,SmartBank (Core),8,Aturan,Fitur mengikuti pola Input-Proses-Output (IPO),"Setiap fitur memiliki input, proses, dan output yang eksplisit.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,smartbank,Kelompok 1,SmartBank (Core),9,Aturan,Endpoint API jelas dan konsisten,"Method, URL, request JSON, response JSON, dan status code terdokumentasi.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,smartbank,Kelompok 1,SmartBank (Core),10,Aturan,Validasi input diterapkan,"Validasi field wajib, tipe data, nominal, stok, user, dan status transaksi.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,smartbank,Kelompok 1,SmartBank (Core),11,Aturan,JWT/authentication diterapkan,Request antar aplikasi memiliki mekanisme token/otorisasi.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,smartbank,Kelompok 1,SmartBank (Core),12,Aturan,Logging request dan transaksi tersedia,"Log minimal mencatat waktu, endpoint, user/app, status, dan error.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,smartbank,Kelompok 1,SmartBank (Core),13,Aturan,Komunikasi antar aplikasi melalui Gateway,Tidak ada integrasi langsung yang melewati API Gateway/Integrator.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,smartbank,Kelompok 1,SmartBank (Core),14,Aturan,Tidak mengubah saldo di luar SmartBank,Aplikasi non-bank hanya mengirim payment request dan menerima status.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,smartbank,Kelompok 1,SmartBank (Core),15,Dokumentasi,Dokumen desain aplikasi selesai,"Deskripsi aplikasi, use case, arsitektur, API, database, dan mekanisme transaksi tersedia.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,smartbank,Kelompok 1,SmartBank (Core),16,Dokumentasi,Demo integrasi disiapkan,Skenario demo menunjukkan transaksi dari aplikasi ke Gateway sampai SmartBank/ledger.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,smartbank,Kelompok 1,SmartBank (Core),17,Aturan Keuangan,Total money supply maksimal 1.000.000.000,Sistem tidak membuat uang bebas di luar aturan.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,smartbank,Kelompok 1,SmartBank (Core),18,Aturan Keuangan,Saldo awal mahasiswa 50.000,Seeder/data awal mengikuti ketentuan.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,smartbank,Kelompok 1,SmartBank (Core),19,Aturan Keuangan,Bank reserve minimal 98%,Cadangan bank dipantau dan tidak dilanggar.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,smartbank,Kelompok 1,SmartBank (Core),20,Aturan Keuangan,Fee bank 1% dan pajak sistem 2%,Potongan diterapkan pada transaksi yang relevan.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,smartbank,Kelompok 1,SmartBank (Core),21,Aturan Keuangan,Limit pinjaman 100.000/user dan bunga 10%,Loan tidak melebihi batas dan bunga tercatat.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+catatan_dosen,smartbank,Kelompok 1,SmartBank (Core),,,,,,,,2026-06-02,,2026-06-02T05:56:16.009Z
+item,marketplace,Kelompok 2,Marketplace (PasarKita),0,Fitur,Manajemen produk,"Seller dapat menambah, mengubah, menghapus, dan melihat produk.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,marketplace,Kelompok 2,Marketplace (PasarKita),1,Fitur,Browse produk,User dapat melihat daftar dan detail produk.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,marketplace,Kelompok 2,Marketplace (PasarKita),2,Fitur,Keranjang dan checkout,Total belanja dihitung dari produk dan kuantitas.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,marketplace,Kelompok 2,Marketplace (PasarKita),3,Fitur,Integrasi pembayaran,Checkout menghasilkan payment request ke SmartBank via Gateway.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,marketplace,Kelompok 2,Marketplace (PasarKita),4,Fitur,Status order,Status order berubah sesuai hasil pembayaran.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,marketplace,Kelompok 2,Marketplace (PasarKita),5,Fitur,Trigger pengiriman,Order sukses dapat memicu request ke LogistiKita.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,marketplace,Kelompok 2,Marketplace (PasarKita),6,Fitur,Fee marketplace,Fee 2% dihitung dan dicatat pada transaksi.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,marketplace,Kelompok 2,Marketplace (PasarKita),7,Aturan,Fitur mengikuti pola Input-Proses-Output (IPO),"Setiap fitur memiliki input, proses, dan output yang eksplisit.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,marketplace,Kelompok 2,Marketplace (PasarKita),8,Aturan,Endpoint API jelas dan konsisten,"Method, URL, request JSON, response JSON, dan status code terdokumentasi.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,marketplace,Kelompok 2,Marketplace (PasarKita),9,Aturan,Validasi input diterapkan,"Validasi field wajib, tipe data, nominal, stok, user, dan status transaksi.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,marketplace,Kelompok 2,Marketplace (PasarKita),10,Aturan,JWT/authentication diterapkan,Request antar aplikasi memiliki mekanisme token/otorisasi.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,marketplace,Kelompok 2,Marketplace (PasarKita),11,Aturan,Logging request dan transaksi tersedia,"Log minimal mencatat waktu, endpoint, user/app, status, dan error.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,marketplace,Kelompok 2,Marketplace (PasarKita),12,Aturan,Komunikasi antar aplikasi melalui Gateway,Tidak ada integrasi langsung yang melewati API Gateway/Integrator.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,marketplace,Kelompok 2,Marketplace (PasarKita),13,Aturan,Tidak mengubah saldo di luar SmartBank,Aplikasi non-bank hanya mengirim payment request dan menerima status.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,marketplace,Kelompok 2,Marketplace (PasarKita),14,Dokumentasi,Dokumen desain aplikasi selesai,"Deskripsi aplikasi, use case, arsitektur, API, database, dan mekanisme transaksi tersedia.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,marketplace,Kelompok 2,Marketplace (PasarKita),15,Dokumentasi,Demo integrasi disiapkan,Skenario demo menunjukkan transaksi dari aplikasi ke Gateway sampai SmartBank/ledger.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,marketplace,Kelompok 2,Marketplace (PasarKita),16,Aturan Keuangan,Fee Marketplace 2%,Potongan dihitung dari transaksi penjualan.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,marketplace,Kelompok 2,Marketplace (PasarKita),17,Aturan,Marketplace tidak mengubah saldo langsung,Hanya SmartBank yang melakukan debit/kredit.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,marketplace,Kelompok 2,Marketplace (PasarKita),18,Integrasi,Order sukses terhubung ke LogistiKita,Pengiriman dibuat setelah status pembayaran sukses.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+catatan_dosen,marketplace,Kelompok 2,Marketplace (PasarKita),,,,,,,,2026-06-02,,2026-06-02T05:56:16.009Z
+item,pos,Kelompok 3,POS (WarungPOS),0,Fitur,Input transaksi kasir,Kasir dapat memilih item dan kuantitas.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,pos,Kelompok 3,POS (WarungPOS),1,Fitur,Generate tagihan,Total belanja dan invoice dihitung otomatis.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,pos,Kelompok 3,POS (WarungPOS),2,Fitur,Pembayaran via SmartBank,Tagihan dikirim sebagai payment request via Gateway.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,pos,Kelompok 3,POS (WarungPOS),3,Fitur,Riwayat transaksi,Histori transaksi POS tersimpan.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,pos,Kelompok 3,POS (WarungPOS),4,Fitur,Status pembayaran,Status invoice mengikuti response SmartBank.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,pos,Kelompok 3,POS (WarungPOS),5,Fitur,Fee POS,Fee 1% dihitung dan terdokumentasi.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,pos,Kelompok 3,POS (WarungPOS),6,Aturan,Fitur mengikuti pola Input-Proses-Output (IPO),"Setiap fitur memiliki input, proses, dan output yang eksplisit.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,pos,Kelompok 3,POS (WarungPOS),7,Aturan,Endpoint API jelas dan konsisten,"Method, URL, request JSON, response JSON, dan status code terdokumentasi.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,pos,Kelompok 3,POS (WarungPOS),8,Aturan,Validasi input diterapkan,"Validasi field wajib, tipe data, nominal, stok, user, dan status transaksi.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,pos,Kelompok 3,POS (WarungPOS),9,Aturan,JWT/authentication diterapkan,Request antar aplikasi memiliki mekanisme token/otorisasi.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,pos,Kelompok 3,POS (WarungPOS),10,Aturan,Logging request dan transaksi tersedia,"Log minimal mencatat waktu, endpoint, user/app, status, dan error.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,pos,Kelompok 3,POS (WarungPOS),11,Aturan,Komunikasi antar aplikasi melalui Gateway,Tidak ada integrasi langsung yang melewati API Gateway/Integrator.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,pos,Kelompok 3,POS (WarungPOS),12,Aturan,Tidak mengubah saldo di luar SmartBank,Aplikasi non-bank hanya mengirim payment request dan menerima status.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,pos,Kelompok 3,POS (WarungPOS),13,Dokumentasi,Dokumen desain aplikasi selesai,"Deskripsi aplikasi, use case, arsitektur, API, database, dan mekanisme transaksi tersedia.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,pos,Kelompok 3,POS (WarungPOS),14,Dokumentasi,Demo integrasi disiapkan,Skenario demo menunjukkan transaksi dari aplikasi ke Gateway sampai SmartBank/ledger.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,pos,Kelompok 3,POS (WarungPOS),15,Aturan Keuangan,Fee POS 1%,Biaya transaksi kasir diterapkan.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,pos,Kelompok 3,POS (WarungPOS),16,Aturan,POS tidak mengelola pengiriman,Scope hanya transaksi kasir dan pembayaran.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,pos,Kelompok 3,POS (WarungPOS),17,Aturan,POS tidak mengubah saldo langsung,Pembayaran diproses SmartBank.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+catatan_dosen,pos,Kelompok 3,POS (WarungPOS),,,,,,,,2026-06-02,,2026-06-02T05:56:16.009Z
+item,supplierhub,Kelompok 4,SupplierHub,0,Fitur,Manajemen bahan baku,Supplier dapat mengelola stok dan harga bahan.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,supplierhub,Kelompok 4,SupplierHub,1,Fitur,Order bahan,UMKM dapat memesan bahan baku.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,supplierhub,Kelompok 4,SupplierHub,2,Fitur,Konfirmasi stok,Supplier mengonfirmasi ketersediaan stok.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,supplierhub,Kelompok 4,SupplierHub,3,Fitur,Hitung total biaya,"Harga bahan, kuantitas, dan fee supplier dihitung.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,supplierhub,Kelompok 4,SupplierHub,4,Fitur,Pembayaran via SmartBank,Order bahan menghasilkan payment request via Gateway.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,supplierhub,Kelompok 4,SupplierHub,5,Fitur,Status order bahan,Status order mengikuti stok dan pembayaran.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,supplierhub,Kelompok 4,SupplierHub,6,Fitur,Opsional pengiriman bahan,Order sukses dapat memicu LogistiKita.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,supplierhub,Kelompok 4,SupplierHub,7,Aturan,Fitur mengikuti pola Input-Proses-Output (IPO),"Setiap fitur memiliki input, proses, dan output yang eksplisit.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,supplierhub,Kelompok 4,SupplierHub,8,Aturan,Endpoint API jelas dan konsisten,"Method, URL, request JSON, response JSON, dan status code terdokumentasi.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,supplierhub,Kelompok 4,SupplierHub,9,Aturan,Validasi input diterapkan,"Validasi field wajib, tipe data, nominal, stok, user, dan status transaksi.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,supplierhub,Kelompok 4,SupplierHub,10,Aturan,JWT/authentication diterapkan,Request antar aplikasi memiliki mekanisme token/otorisasi.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,supplierhub,Kelompok 4,SupplierHub,11,Aturan,Logging request dan transaksi tersedia,"Log minimal mencatat waktu, endpoint, user/app, status, dan error.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,supplierhub,Kelompok 4,SupplierHub,12,Aturan,Komunikasi antar aplikasi melalui Gateway,Tidak ada integrasi langsung yang melewati API Gateway/Integrator.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,supplierhub,Kelompok 4,SupplierHub,13,Aturan,Tidak mengubah saldo di luar SmartBank,Aplikasi non-bank hanya mengirim payment request dan menerima status.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,supplierhub,Kelompok 4,SupplierHub,14,Dokumentasi,Dokumen desain aplikasi selesai,"Deskripsi aplikasi, use case, arsitektur, API, database, dan mekanisme transaksi tersedia.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,supplierhub,Kelompok 4,SupplierHub,15,Dokumentasi,Demo integrasi disiapkan,Skenario demo menunjukkan transaksi dari aplikasi ke Gateway sampai SmartBank/ledger.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,supplierhub,Kelompok 4,SupplierHub,16,Aturan Keuangan,Fee Supplier 3%,Margin supplier diterapkan pada transaksi bahan.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,supplierhub,Kelompok 4,SupplierHub,17,Aturan,SupplierHub tidak mengubah saldo langsung,Pembayaran tetap diproses SmartBank.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,supplierhub,Kelompok 4,SupplierHub,18,Integrasi,Pengiriman bahan opsional,"Jika digunakan, pengiriman tetap melalui LogistiKita dan SmartBank.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+catatan_dosen,supplierhub,Kelompok 4,SupplierHub,,,,,,,,2026-06-02,,2026-06-02T05:56:16.009Z
+item,logistikita,Kelompok 5,LogistiKita,0,Fitur,Request pengiriman,Menerima request dari Marketplace atau SupplierHub.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,logistikita,Kelompok 5,LogistiKita,1,Fitur,Hitung ongkir,Ongkir dihitung dari jarak atau aturan flat/percentage.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,logistikita,Kelompok 5,LogistiKita,2,Fitur,Pembayaran logistik,Ongkir dikirim sebagai payment request via Gateway.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,logistikita,Kelompok 5,LogistiKita,3,Fitur,Tracking status,Status pengiriman dapat diperbarui dan dilihat.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,logistikita,Kelompok 5,LogistiKita,4,Fitur,Update aplikasi asal,Status pengiriman dikembalikan ke aplikasi pemesan.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,logistikita,Kelompok 5,LogistiKita,5,Fitur,Fee layanan logistik,Biaya layanan logistik dihitung dan dicatat.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,logistikita,Kelompok 5,LogistiKita,6,Aturan,Fitur mengikuti pola Input-Proses-Output (IPO),"Setiap fitur memiliki input, proses, dan output yang eksplisit.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,logistikita,Kelompok 5,LogistiKita,7,Aturan,Endpoint API jelas dan konsisten,"Method, URL, request JSON, response JSON, dan status code terdokumentasi.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,logistikita,Kelompok 5,LogistiKita,8,Aturan,Validasi input diterapkan,"Validasi field wajib, tipe data, nominal, stok, user, dan status transaksi.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,logistikita,Kelompok 5,LogistiKita,9,Aturan,JWT/authentication diterapkan,Request antar aplikasi memiliki mekanisme token/otorisasi.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,logistikita,Kelompok 5,LogistiKita,10,Aturan,Logging request dan transaksi tersedia,"Log minimal mencatat waktu, endpoint, user/app, status, dan error.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,logistikita,Kelompok 5,LogistiKita,11,Aturan,Komunikasi antar aplikasi melalui Gateway,Tidak ada integrasi langsung yang melewati API Gateway/Integrator.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,logistikita,Kelompok 5,LogistiKita,12,Aturan,Tidak mengubah saldo di luar SmartBank,Aplikasi non-bank hanya mengirim payment request dan menerima status.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,logistikita,Kelompok 5,LogistiKita,13,Dokumentasi,Dokumen desain aplikasi selesai,"Deskripsi aplikasi, use case, arsitektur, API, database, dan mekanisme transaksi tersedia.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,logistikita,Kelompok 5,LogistiKita,14,Dokumentasi,Demo integrasi disiapkan,Skenario demo menunjukkan transaksi dari aplikasi ke Gateway sampai SmartBank/ledger.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,logistikita,Kelompok 5,LogistiKita,15,Aturan Keuangan,Biaya logistik 5% atau flat 5.000,Perhitungan ongkir mengikuti aturan.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,logistikita,Kelompok 5,LogistiKita,16,Aturan,LogistiKita tidak mengubah saldo langsung,Pembayaran ongkir diproses SmartBank.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,logistikita,Kelompok 5,LogistiKita,17,Integrasi,Terhubung dengan Marketplace/SupplierHub,Pengiriman dibuat berdasarkan order yang valid.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+catatan_dosen,logistikita,Kelompok 5,LogistiKita,,,,,,,,2026-06-02,,2026-06-02T05:56:16.009Z
+item,umkminsight,Kelompok 6,UMKM Insight,0,Fitur,Ambil data transaksi,Data diambil dari SmartBank melalui API read-only.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,umkminsight,Kelompok 6,UMKM Insight,1,Fitur,Analisis penjualan,Data transaksi diagregasi per periode/UMKM/kategori.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,umkminsight,Kelompok 6,UMKM Insight,2,Fitur,Analisis cashflow,"Arus masuk, arus keluar, fee, dan pajak ditampilkan.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,umkminsight,Kelompok 6,UMKM Insight,3,Fitur,Dashboard visual,Grafik dan ringkasan performa tersedia.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,umkminsight,Kelompok 6,UMKM Insight,4,Fitur,Laporan,Output laporan dapat difilter dan dibaca dosen/user.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,umkminsight,Kelompok 6,UMKM Insight,5,Fitur,Subscription analytics,Biaya akses premium 10.000/minggu bila diimplementasikan.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,umkminsight,Kelompok 6,UMKM Insight,6,Aturan,Fitur mengikuti pola Input-Proses-Output (IPO),"Setiap fitur memiliki input, proses, dan output yang eksplisit.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,umkminsight,Kelompok 6,UMKM Insight,7,Aturan,Endpoint API jelas dan konsisten,"Method, URL, request JSON, response JSON, dan status code terdokumentasi.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,umkminsight,Kelompok 6,UMKM Insight,8,Aturan,Validasi input diterapkan,"Validasi field wajib, tipe data, nominal, stok, user, dan status transaksi.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,umkminsight,Kelompok 6,UMKM Insight,9,Aturan,JWT/authentication diterapkan,Request antar aplikasi memiliki mekanisme token/otorisasi.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,umkminsight,Kelompok 6,UMKM Insight,10,Aturan,Logging request dan transaksi tersedia,"Log minimal mencatat waktu, endpoint, user/app, status, dan error.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,umkminsight,Kelompok 6,UMKM Insight,11,Aturan,Komunikasi antar aplikasi melalui Gateway,Tidak ada integrasi langsung yang melewati API Gateway/Integrator.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,umkminsight,Kelompok 6,UMKM Insight,12,Aturan,Tidak mengubah saldo di luar SmartBank,Aplikasi non-bank hanya mengirim payment request dan menerima status.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,umkminsight,Kelompok 6,UMKM Insight,13,Dokumentasi,Dokumen desain aplikasi selesai,"Deskripsi aplikasi, use case, arsitektur, API, database, dan mekanisme transaksi tersedia.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,umkminsight,Kelompok 6,UMKM Insight,14,Dokumentasi,Demo integrasi disiapkan,Skenario demo menunjukkan transaksi dari aplikasi ke Gateway sampai SmartBank/ledger.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,umkminsight,Kelompok 6,UMKM Insight,15,Aturan,Analytics hanya read-only,Tidak ada endpoint yang mengubah ledger atau saldo.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,umkminsight,Kelompok 6,UMKM Insight,16,Aturan Keuangan,Subscription 10.000/minggu,"Jika premium digunakan, pembayaran tetap via SmartBank.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,umkminsight,Kelompok 6,UMKM Insight,17,Integrasi,Data berasal dari ledger SmartBank,Dashboard tidak mengambil data transaksi dari sumber liar.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+catatan_dosen,umkminsight,Kelompok 6,UMKM Insight,,,,,,,,2026-06-02,,2026-06-02T05:56:16.009Z
+item,integrator,Kelompok 7,API Gateway / Integrator,0,Fitur,Routing API,Request antar service diarahkan ke aplikasi tujuan.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,integrator,Kelompok 7,API Gateway / Integrator,1,Fitur,Validasi request/JWT,"Token, header, payload, dan permission diperiksa.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,integrator,Kelompok 7,API Gateway / Integrator,2,Fitur,Logging,Semua request dan response penting dicatat.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,integrator,Kelompok 7,API Gateway / Integrator,3,Fitur,Response standar,Format sukses/error konsisten untuk semua aplikasi.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,integrator,Kelompok 7,API Gateway / Integrator,4,Fitur,Rate limiting opsional,Pembatasan request diterapkan bila memungkinkan.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,integrator,Kelompok 7,API Gateway / Integrator,5,Fitur,Biaya layanan integrasi,"Fee Gateway 0,5% dihitung untuk transaksi via API.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,integrator,Kelompok 7,API Gateway / Integrator,6,Fitur,Dokumentasi route,Daftar route antar aplikasi jelas dan bisa diuji.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,integrator,Kelompok 7,API Gateway / Integrator,7,Aturan,Fitur mengikuti pola Input-Proses-Output (IPO),"Setiap fitur memiliki input, proses, dan output yang eksplisit.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,integrator,Kelompok 7,API Gateway / Integrator,8,Aturan,Endpoint API jelas dan konsisten,"Method, URL, request JSON, response JSON, dan status code terdokumentasi.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,integrator,Kelompok 7,API Gateway / Integrator,9,Aturan,Validasi input diterapkan,"Validasi field wajib, tipe data, nominal, stok, user, dan status transaksi.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,integrator,Kelompok 7,API Gateway / Integrator,10,Aturan,JWT/authentication diterapkan,Request antar aplikasi memiliki mekanisme token/otorisasi.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,integrator,Kelompok 7,API Gateway / Integrator,11,Aturan,Logging request dan transaksi tersedia,"Log minimal mencatat waktu, endpoint, user/app, status, dan error.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,integrator,Kelompok 7,API Gateway / Integrator,12,Aturan,Komunikasi antar aplikasi melalui Gateway,Tidak ada integrasi langsung yang melewati API Gateway/Integrator.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,integrator,Kelompok 7,API Gateway / Integrator,13,Aturan,Tidak mengubah saldo di luar SmartBank,Aplikasi non-bank hanya mengirim payment request dan menerima status.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,integrator,Kelompok 7,API Gateway / Integrator,14,Dokumentasi,Dokumen desain aplikasi selesai,"Deskripsi aplikasi, use case, arsitektur, API, database, dan mekanisme transaksi tersedia.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,integrator,Kelompok 7,API Gateway / Integrator,15,Dokumentasi,Demo integrasi disiapkan,Skenario demo menunjukkan transaksi dari aplikasi ke Gateway sampai SmartBank/ledger.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,integrator,Kelompok 7,API Gateway / Integrator,16,Aturan,Semua komunikasi wajib melalui Gateway,Gateway menjadi pintu masuk integrasi.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,integrator,Kelompok 7,API Gateway / Integrator,17,Aturan,Tidak menjalankan bisnis logic transaksi,"Gateway hanya validasi, routing, logging, dan standardisasi.",2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+item,integrator,Kelompok 7,API Gateway / Integrator,18,Aturan Keuangan,"Fee Gateway 0,5%",Biaya infrastruktur dihitung untuk request transaksi.,2026-06-02,FALSE,,,,2026-06-02T05:56:16.009Z
+catatan_dosen,integrator,Kelompok 7,API Gateway / Integrator,,,,,,,,2026-06-02,,2026-06-02T05:56:16.009Z

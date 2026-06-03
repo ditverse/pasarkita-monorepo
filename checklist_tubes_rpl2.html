@@ -1,0 +1,1623 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Checklist Tugas Besar RPL 2 - Ekosistem UMKM</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --surface: #ffffff;
+      --surface-2: #eef3f8;
+      --text: #172033;
+      --muted: #61708a;
+      --line: #d9e1ea;
+      --primary: #1769aa;
+      --primary-2: #dceeff;
+      --green: #16845f;
+      --amber: #b56a00;
+      --red: #ba3333;
+      --ink: #0f172a;
+      --shadow: 0 10px 30px rgba(23, 32, 51, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      letter-spacing: 0;
+    }
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--line);
+      padding: 22px 28px 18px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+      max-width: 1440px;
+      margin: 0 auto;
+    }
+
+    .disclaimer {
+      max-width: 1440px;
+      margin: 16px auto 0;
+      border: 1px solid #b7d8f2;
+      background: linear-gradient(90deg, #e8f4ff 0%, #f7fbff 58%, #eaf8f1 100%);
+      border-radius: 8px;
+      padding: 13px 15px;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 12px;
+      align-items: start;
+      box-shadow: 0 8px 22px rgba(23, 105, 170, 0.10);
+    }
+
+    .disclaimer-mark {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--primary);
+      color: white;
+      font-weight: 760;
+      font-size: 15px;
+      flex: 0 0 auto;
+    }
+
+    .disclaimer strong {
+      display: block;
+      color: var(--ink);
+      font-size: 14px;
+      margin-bottom: 3px;
+    }
+
+    .disclaimer span {
+      display: block;
+      color: #334155;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .disclaimer .highlight {
+      display: inline;
+      color: var(--primary);
+      font-weight: 760;
+    }
+
+    h1 {
+      margin: 0 0 7px;
+      font-size: clamp(22px, 3vw, 34px);
+      line-height: 1.15;
+      font-weight: 760;
+    }
+
+    .subtitle {
+      margin: 0;
+      color: var(--muted);
+      max-width: 920px;
+      line-height: 1.45;
+      font-size: 14px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      min-width: 230px;
+    }
+
+    button {
+      border: 1px solid var(--line);
+      background: var(--surface);
+      color: var(--text);
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      min-height: 38px;
+    }
+
+    button:hover,
+    button:focus-visible {
+      border-color: var(--primary);
+      outline: none;
+    }
+
+    .primary-button {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: white;
+    }
+
+    main {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 18px 28px 32px;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(170px, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .metric {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      box-shadow: var(--shadow);
+      min-height: 92px;
+    }
+
+    .metric-label {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .metric-value {
+      margin-top: 8px;
+      font-size: 28px;
+      font-weight: 760;
+      line-height: 1;
+    }
+
+    .metric-note {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 8px;
+    }
+
+    .global-board {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+
+    .global-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    .global-table th,
+    .global-table td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: middle;
+      font-size: 13px;
+    }
+
+    .global-table th {
+      color: var(--muted);
+      background: #fbfcfe;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .global-table tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .global-table .group-cell {
+      width: 120px;
+      font-weight: 700;
+    }
+
+    .global-table .percent-cell {
+      width: 82px;
+      font-weight: 760;
+    }
+
+    .global-mini-chart {
+      display: grid;
+      grid-template-columns: minmax(120px, 1fr) 54px;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .tabs-shell {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .tabs {
+      display: flex;
+      overflow-x: auto;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcfe;
+    }
+
+    .tab {
+      appearance: none;
+      border: 0;
+      border-right: 1px solid var(--line);
+      border-radius: 0;
+      background: transparent;
+      min-width: 172px;
+      padding: 14px 14px 12px;
+      text-align: left;
+      color: var(--muted);
+      position: relative;
+    }
+
+    .tab strong {
+      display: block;
+      color: inherit;
+      font-size: 13px;
+      margin-bottom: 4px;
+      white-space: nowrap;
+    }
+
+    .tab span {
+      display: block;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .tab.active {
+      color: var(--primary);
+      background: white;
+    }
+
+    .tab.active::after {
+      content: "";
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: 0;
+      height: 3px;
+      background: var(--primary);
+      border-radius: 3px 3px 0 0;
+    }
+
+    .panel {
+      display: none;
+      padding: 18px;
+    }
+
+    .panel.active {
+      display: block;
+    }
+
+    .panel-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .section {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: white;
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 13px 14px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcfe;
+    }
+
+    .section-header h2,
+    .section-header h3 {
+      margin: 0;
+      font-size: 16px;
+      line-height: 1.25;
+    }
+
+    .section-header p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 72px;
+      padding: 6px 9px;
+      border-radius: 999px;
+      background: var(--primary-2);
+      color: var(--primary);
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .app-intro {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      padding: 14px;
+    }
+
+    .info-block {
+      background: var(--surface-2);
+      border-radius: 8px;
+      padding: 12px;
+      min-height: 92px;
+    }
+
+    .info-block label {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 6px;
+    }
+
+    .info-block div {
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .check-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    .check-table th,
+    .check-table td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 12px;
+      vertical-align: top;
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .check-table th {
+      text-align: left;
+      color: var(--muted);
+      font-size: 12px;
+      background: #fbfcfe;
+      font-weight: 700;
+    }
+
+    .check-table tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .check-table .col-check {
+      width: 56px;
+      text-align: center;
+    }
+
+    .check-table .col-type {
+      width: 126px;
+    }
+
+    .check-table .col-date {
+      width: 148px;
+    }
+
+    .check-table .col-evidence {
+      width: 24%;
+    }
+
+    input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
+
+    .type-pill {
+      display: inline-block;
+      padding: 5px 8px;
+      border-radius: 999px;
+      background: #edf2f7;
+      color: #334155;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .chart {
+      padding: 14px;
+    }
+
+    .chart-row {
+      display: grid;
+      grid-template-columns: 120px minmax(0, 1fr) 48px;
+      align-items: center;
+      gap: 10px;
+      min-height: 34px;
+      margin: 8px 0;
+      font-size: 13px;
+    }
+
+    .track {
+      height: 14px;
+      background: #e7edf4;
+      border-radius: 999px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .bar {
+      height: 100%;
+      width: 0%;
+      background: var(--primary);
+      border-radius: inherit;
+      transition: width 160ms ease;
+    }
+
+    .bar.good {
+      background: var(--green);
+    }
+
+    .bar.warn {
+      background: var(--amber);
+    }
+
+    .bar.low {
+      background: var(--red);
+    }
+
+    .status-line {
+      padding: 0 14px 14px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    textarea {
+      display: block;
+      width: 100%;
+      min-height: 210px;
+      resize: vertical;
+      border: 0;
+      padding: 14px;
+      font: 14px/1.5 Arial, Helvetica, sans-serif;
+      color: var(--text);
+      outline: none;
+    }
+
+    .notes-tools {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      padding: 10px 14px;
+      border-top: 1px solid var(--line);
+      background: #fbfcfe;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .notes-date {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      background: white;
+    }
+
+    .notes-date label {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 6px;
+    }
+
+    .inline-input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 8px 9px;
+      font: 13px Arial, Helvetica, sans-serif;
+      color: var(--text);
+      background: white;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .footer-note {
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    @media (max-width: 1040px) {
+      .summary,
+      .panel-grid,
+      .app-intro {
+        grid-template-columns: 1fr;
+      }
+
+      .topbar {
+        flex-direction: column;
+      }
+
+      .actions {
+        justify-content: flex-start;
+      }
+
+      .disclaimer {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 720px) {
+      header,
+      main {
+        padding-left: 14px;
+        padding-right: 14px;
+      }
+
+      .panel {
+        padding: 12px;
+      }
+
+      .check-table,
+      .check-table thead,
+      .check-table tbody,
+      .check-table th,
+      .check-table td,
+      .check-table tr {
+        display: block;
+      }
+
+      .check-table thead {
+        display: none;
+      }
+
+      .check-table tr {
+        border-bottom: 1px solid var(--line);
+        padding: 10px 0;
+      }
+
+      .check-table tr:last-child {
+        border-bottom: 0;
+      }
+
+      .check-table td {
+        border: 0;
+        padding: 6px 12px;
+      }
+
+      .check-table .col-check,
+      .check-table .col-type,
+      .check-table .col-date,
+      .check-table .col-evidence {
+        width: auto;
+        text-align: left;
+      }
+
+      .chart-row {
+        grid-template-columns: 96px minmax(0, 1fr) 42px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="topbar">
+      <div>
+        <h1>Checklist Tugas Besar RPL 2</h1>
+        <p class="subtitle">Monitoring pengerjaan 7 aplikasi ekosistem ekonomi UMKM. Setiap tab merepresentasikan satu kelompok/aplikasi, lengkap dengan checklist aktivitas, pemenuhan aturan, capaian otomatis, catatan tambahan kelompok, dan catatan dosen.</p>
+      </div>
+      <div class="actions" aria-label="Aksi halaman">
+        <button class="primary-button" id="saveCsvBtn" type="button">Simpan CSV</button>
+        <button id="uploadCsvBtn" type="button">Unggah CSV</button>
+        <button class="primary-button" id="printBtn" type="button">Cetak/Rekap</button>
+        <button id="resetBtn" type="button">Reset Semua</button>
+        <input id="csvInput" type="file" accept=".csv,text/csv" multiple hidden>
+      </div>
+    </div>
+    <div class="disclaimer" role="note" aria-label="Disclaimer penggunaan form">
+      <div class="disclaimer-mark">RPL</div>
+      <div>
+        <strong>Disclaimer Laboratorium Rekayasa Perangkat Lunak 2</strong>
+        <span>Form checklist dan auto evaluation ini digunakan dalam lingkup <span class="highlight">Laboratorium Rekayasa Perangkat Lunak 2</span>. Dosen pengampu: <span class="highlight">M. Yusril Helmi Setyawan, S.Kom., M.Kom.</span></span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="summary" aria-label="Ringkasan seluruh kelompok">
+      <div class="metric">
+        <div class="metric-label">Rata-rata capaian</div>
+        <div class="metric-value" id="overallPercent">0%</div>
+        <div class="metric-note">Dihitung dari seluruh checklist</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Item selesai</div>
+        <div class="metric-value" id="overallDone">0</div>
+        <div class="metric-note" id="overallTotal">dari 0 item</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Kelompok terbaik</div>
+        <div class="metric-value" id="bestGroup">-</div>
+        <div class="metric-note" id="bestGroupNote">Belum ada capaian</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Perlu perhatian</div>
+        <div class="metric-value" id="attentionGroup">-</div>
+        <div class="metric-note" id="attentionGroupNote">Belum ada capaian</div>
+      </div>
+    </section>
+
+    <section class="global-board" aria-label="Rekap global semua kelompok">
+      <div class="section-header">
+        <div>
+          <h2>Rekap Global Semua Kelompok</h2>
+          <p>Gabungan data dari checklist manual dan CSV yang diunggah dari tiap kelompok.</p>
+        </div>
+        <span class="badge" id="globalImportStatus">Siap unggah CSV</span>
+      </div>
+      <table class="global-table">
+        <thead>
+          <tr>
+            <th class="group-cell">Kelompok</th>
+            <th>Aplikasi</th>
+            <th>Capaian</th>
+            <th>Fitur</th>
+            <th>Aturan</th>
+            <th>Dok/Integrasi</th>
+            <th>Catatan Kelompok</th>
+            <th>Catatan Dosen</th>
+          </tr>
+        </thead>
+        <tbody id="globalRows"></tbody>
+      </table>
+    </section>
+
+    <section class="tabs-shell">
+      <nav class="tabs" id="tabs" aria-label="Tab aplikasi"></nav>
+      <div id="panels"></div>
+    </section>
+
+    <p class="footer-note">Alur auto evaluation: setiap kelompok membuka aplikasi checklist ini, mengisi tab kelompoknya sendiri, melengkapi Catatan Tambahan Kelompok, lalu menekan Simpan CSV. Dosen dapat memilih banyak file CSV sekaligus melalui Unggah CSV untuk menggabungkan semua data ke Rekap Global Semua Kelompok. File review bernama tanggal_Review_bulan_Tahun.csv dan disarankan disimpan di folder data_review.</p>
+  </main>
+
+  <script>
+    const STORAGE_KEY = "rpl2_umkm_checklist_v1";
+
+    const commonRules = [
+      ["Aturan", "Fitur mengikuti pola Input-Proses-Output (IPO)", "Setiap fitur memiliki input, proses, dan output yang eksplisit."],
+      ["Aturan", "Endpoint API jelas dan konsisten", "Method, URL, request JSON, response JSON, dan status code terdokumentasi."],
+      ["Aturan", "Validasi input diterapkan", "Validasi field wajib, tipe data, nominal, stok, user, dan status transaksi."],
+      ["Aturan", "JWT/authentication diterapkan", "Request antar aplikasi memiliki mekanisme token/otorisasi."],
+      ["Aturan", "Logging request dan transaksi tersedia", "Log minimal mencatat waktu, endpoint, user/app, status, dan error."],
+      ["Aturan", "Komunikasi antar aplikasi melalui Gateway", "Tidak ada integrasi langsung yang melewati API Gateway/Integrator."],
+      ["Aturan", "Tidak mengubah saldo di luar SmartBank", "Aplikasi non-bank hanya mengirim payment request dan menerima status."],
+      ["Dokumentasi", "Dokumen desain aplikasi selesai", "Deskripsi aplikasi, use case, arsitektur, API, database, dan mekanisme transaksi tersedia."],
+      ["Dokumentasi", "Demo integrasi disiapkan", "Skenario demo menunjukkan transaksi dari aplikasi ke Gateway sampai SmartBank/ledger."]
+    ];
+
+    const apps = [
+      {
+        id: "smartbank",
+        group: "Kelompok 1",
+        name: "SmartBank (Core)",
+        role: "Regulator, payment processor, dan single source of truth transaksi keuangan.",
+        input: "payment request, loan request, user_id, amount, metadata",
+        output: "status transaksi, bukti pembayaran, saldo, ledger entry",
+        activities: [
+          ["Fitur", "Registrasi dan login user", "Akun pengguna dan JWT authentication berjalan."],
+          ["Fitur", "Manajemen saldo dan riwayat", "User dapat melihat saldo dan histori transaksi."],
+          ["Fitur", "Transfer antar user", "Debit/kredit antar akun tercatat di ledger."],
+          ["Fitur", "Pembayaran transaksi", "Memproses payment request dari Marketplace, POS, SupplierHub, dan LogistiKita."],
+          ["Fitur", "Pinjaman/loan", "Pengajuan, limit, bunga, dan status pinjaman terdokumentasi."],
+          ["Fitur", "Pajak dan biaya", "Fee bank, pajak sistem, dan potongan layanan dihitung otomatis."],
+          ["Fitur", "Ledger transaksi", "Semua perubahan saldo menghasilkan catatan ledger."],
+          ["Fitur", "Kontrol money supply", "Saldo awal, reserve bank, stimulus, dan limit pinjaman mengikuti aturan."]
+        ],
+        rules: [
+          ["Aturan Keuangan", "Total money supply maksimal 1.000.000.000", "Sistem tidak membuat uang bebas di luar aturan."],
+          ["Aturan Keuangan", "Saldo awal mahasiswa 50.000", "Seeder/data awal mengikuti ketentuan."],
+          ["Aturan Keuangan", "Bank reserve minimal 98%", "Cadangan bank dipantau dan tidak dilanggar."],
+          ["Aturan Keuangan", "Fee bank 1% dan pajak sistem 2%", "Potongan diterapkan pada transaksi yang relevan."],
+          ["Aturan Keuangan", "Limit pinjaman 100.000/user dan bunga 10%", "Loan tidak melebihi batas dan bunga tercatat."]
+        ]
+      },
+      {
+        id: "marketplace",
+        group: "Kelompok 2",
+        name: "Marketplace (PasarKita)",
+        role: "Kanal jual beli produk UMKM dan pemicu arus uang konsumen ke UMKM.",
+        input: "product_id, qty, user_id, alamat",
+        output: "order_id, total biaya, payment request, status order",
+        activities: [
+          ["Fitur", "Manajemen produk", "Seller dapat menambah, mengubah, menghapus, dan melihat produk."],
+          ["Fitur", "Browse produk", "User dapat melihat daftar dan detail produk."],
+          ["Fitur", "Keranjang dan checkout", "Total belanja dihitung dari produk dan kuantitas."],
+          ["Fitur", "Integrasi pembayaran", "Checkout menghasilkan payment request ke SmartBank via Gateway."],
+          ["Fitur", "Status order", "Status order berubah sesuai hasil pembayaran."],
+          ["Fitur", "Trigger pengiriman", "Order sukses dapat memicu request ke LogistiKita."],
+          ["Fitur", "Fee marketplace", "Fee 2% dihitung dan dicatat pada transaksi."]
+        ],
+        rules: [
+          ["Aturan Keuangan", "Fee Marketplace 2%", "Potongan dihitung dari transaksi penjualan."],
+          ["Aturan", "Marketplace tidak mengubah saldo langsung", "Hanya SmartBank yang melakukan debit/kredit."],
+          ["Integrasi", "Order sukses terhubung ke LogistiKita", "Pengiriman dibuat setelah status pembayaran sukses."]
+        ]
+      },
+      {
+        id: "pos",
+        group: "Kelompok 3",
+        name: "POS (WarungPOS)",
+        role: "Kanal transaksi offline/toko fisik untuk simulasi kasir UMKM.",
+        input: "item_id, qty, user_id",
+        output: "total, invoice, status pembayaran",
+        activities: [
+          ["Fitur", "Input transaksi kasir", "Kasir dapat memilih item dan kuantitas."],
+          ["Fitur", "Generate tagihan", "Total belanja dan invoice dihitung otomatis."],
+          ["Fitur", "Pembayaran via SmartBank", "Tagihan dikirim sebagai payment request via Gateway."],
+          ["Fitur", "Riwayat transaksi", "Histori transaksi POS tersimpan."],
+          ["Fitur", "Status pembayaran", "Status invoice mengikuti response SmartBank."],
+          ["Fitur", "Fee POS", "Fee 1% dihitung dan terdokumentasi."]
+        ],
+        rules: [
+          ["Aturan Keuangan", "Fee POS 1%", "Biaya transaksi kasir diterapkan."],
+          ["Aturan", "POS tidak mengelola pengiriman", "Scope hanya transaksi kasir dan pembayaran."],
+          ["Aturan", "POS tidak mengubah saldo langsung", "Pembayaran diproses SmartBank."]
+        ]
+      },
+      {
+        id: "supplierhub",
+        group: "Kelompok 4",
+        name: "SupplierHub",
+        role: "Supply side B2B untuk pemesanan bahan baku UMKM.",
+        input: "item bahan, qty, supplier_id, user_id",
+        output: "order bahan, total biaya, status pembayaran",
+        activities: [
+          ["Fitur", "Manajemen bahan baku", "Supplier dapat mengelola stok dan harga bahan."],
+          ["Fitur", "Order bahan", "UMKM dapat memesan bahan baku."],
+          ["Fitur", "Konfirmasi stok", "Supplier mengonfirmasi ketersediaan stok."],
+          ["Fitur", "Hitung total biaya", "Harga bahan, kuantitas, dan fee supplier dihitung."],
+          ["Fitur", "Pembayaran via SmartBank", "Order bahan menghasilkan payment request via Gateway."],
+          ["Fitur", "Status order bahan", "Status order mengikuti stok dan pembayaran."],
+          ["Fitur", "Opsional pengiriman bahan", "Order sukses dapat memicu LogistiKita."]
+        ],
+        rules: [
+          ["Aturan Keuangan", "Fee Supplier 3%", "Margin supplier diterapkan pada transaksi bahan."],
+          ["Aturan", "SupplierHub tidak mengubah saldo langsung", "Pembayaran tetap diproses SmartBank."],
+          ["Integrasi", "Pengiriman bahan opsional", "Jika digunakan, pengiriman tetap melalui LogistiKita dan SmartBank."]
+        ]
+      },
+      {
+        id: "logistikita",
+        group: "Kelompok 5",
+        name: "LogistiKita",
+        role: "Layanan pengiriman dan cost driver distribusi barang.",
+        input: "order_id, alamat, jarak, asal aplikasi",
+        output: "ongkir, status pengiriman, payment request ongkir",
+        activities: [
+          ["Fitur", "Request pengiriman", "Menerima request dari Marketplace atau SupplierHub."],
+          ["Fitur", "Hitung ongkir", "Ongkir dihitung dari jarak atau aturan flat/percentage."],
+          ["Fitur", "Pembayaran logistik", "Ongkir dikirim sebagai payment request via Gateway."],
+          ["Fitur", "Tracking status", "Status pengiriman dapat diperbarui dan dilihat."],
+          ["Fitur", "Update aplikasi asal", "Status pengiriman dikembalikan ke aplikasi pemesan."],
+          ["Fitur", "Fee layanan logistik", "Biaya layanan logistik dihitung dan dicatat."]
+        ],
+        rules: [
+          ["Aturan Keuangan", "Biaya logistik 5% atau flat 5.000", "Perhitungan ongkir mengikuti aturan."],
+          ["Aturan", "LogistiKita tidak mengubah saldo langsung", "Pembayaran ongkir diproses SmartBank."],
+          ["Integrasi", "Terhubung dengan Marketplace/SupplierHub", "Pengiriman dibuat berdasarkan order yang valid."]
+        ]
+      },
+      {
+        id: "umkminsight",
+        group: "Kelompok 6",
+        name: "UMKM Insight",
+        role: "Observer dan analytics dashboard berbasis ledger SmartBank.",
+        input: "data ledger/read-only API dari SmartBank",
+        output: "dashboard, laporan penjualan, cashflow, performa UMKM",
+        activities: [
+          ["Fitur", "Ambil data transaksi", "Data diambil dari SmartBank melalui API read-only."],
+          ["Fitur", "Analisis penjualan", "Data transaksi diagregasi per periode/UMKM/kategori."],
+          ["Fitur", "Analisis cashflow", "Arus masuk, arus keluar, fee, dan pajak ditampilkan."],
+          ["Fitur", "Dashboard visual", "Grafik dan ringkasan performa tersedia."],
+          ["Fitur", "Laporan", "Output laporan dapat difilter dan dibaca dosen/user."],
+          ["Fitur", "Subscription analytics", "Biaya akses premium 10.000/minggu bila diimplementasikan."]
+        ],
+        rules: [
+          ["Aturan", "Analytics hanya read-only", "Tidak ada endpoint yang mengubah ledger atau saldo."],
+          ["Aturan Keuangan", "Subscription 10.000/minggu", "Jika premium digunakan, pembayaran tetap via SmartBank."],
+          ["Integrasi", "Data berasal dari ledger SmartBank", "Dashboard tidak mengambil data transaksi dari sumber liar."]
+        ]
+      },
+      {
+        id: "integrator",
+        group: "Kelompok 7",
+        name: "API Gateway / Integrator",
+        role: "Middleware, orchestrator, validasi, logging, dan penjaga konsistensi komunikasi.",
+        input: "request dari aplikasi lain",
+        output: "request ter-forward, response standar, log integrasi",
+        activities: [
+          ["Fitur", "Routing API", "Request antar service diarahkan ke aplikasi tujuan."],
+          ["Fitur", "Validasi request/JWT", "Token, header, payload, dan permission diperiksa."],
+          ["Fitur", "Logging", "Semua request dan response penting dicatat."],
+          ["Fitur", "Response standar", "Format sukses/error konsisten untuk semua aplikasi."],
+          ["Fitur", "Rate limiting opsional", "Pembatasan request diterapkan bila memungkinkan."],
+          ["Fitur", "Biaya layanan integrasi", "Fee Gateway 0,5% dihitung untuk transaksi via API."],
+          ["Fitur", "Dokumentasi route", "Daftar route antar aplikasi jelas dan bisa diuji."]
+        ],
+        rules: [
+          ["Aturan", "Semua komunikasi wajib melalui Gateway", "Gateway menjadi pintu masuk integrasi."],
+          ["Aturan", "Tidak menjalankan bisnis logic transaksi", "Gateway hanya validasi, routing, logging, dan standardisasi."],
+          ["Aturan Keuangan", "Fee Gateway 0,5%", "Biaya infrastruktur dihitung untuk request transaksi."]
+        ]
+      }
+    ];
+
+    const state = loadState();
+
+    function allItems(app) {
+      return [...app.activities, ...commonRules, ...app.rules];
+    }
+
+    function itemKey(appId, index) {
+      return `${appId}:item:${index}`;
+    }
+
+    function evidenceKey(appId, index) {
+      return `${appId}:evidence:${index}`;
+    }
+
+    function dateKey(appId, index) {
+      return `${appId}:date:${index}`;
+    }
+
+    function notesKey(appId) {
+      return `${appId}:notes`;
+    }
+
+    function noteDateKey(appId) {
+      return `${appId}:notesDate`;
+    }
+
+    function groupNoteKey(appId) {
+      return `${appId}:groupNote`;
+    }
+
+    function groupNoteDateKey(appId) {
+      return `${appId}:groupNoteDate`;
+    }
+
+    function loadState() {
+      try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+      } catch {
+        return {};
+      }
+    }
+
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function pct(done, total) {
+      return total ? Math.round((done / total) * 100) : 0;
+    }
+
+    function barClass(value) {
+      if (value >= 80) return "good";
+      if (value >= 50) return "warn";
+      return "low";
+    }
+
+    function countBy(app, filterFn) {
+      const items = allItems(app);
+      const scoped = items.map((item, index) => ({ item, index })).filter(filterFn);
+      const done = scoped.filter(({ index }) => state[itemKey(app.id, index)]).length;
+      return { done, total: scoped.length, percent: pct(done, scoped.length) };
+    }
+
+    function appStats(app) {
+      const items = allItems(app);
+      const done = items.filter((_, index) => state[itemKey(app.id, index)]).length;
+      return {
+        done,
+        total: items.length,
+        percent: pct(done, items.length),
+        fitur: countBy(app, ({ item }) => item[0] === "Fitur"),
+        aturan: countBy(app, ({ item }) => item[0].startsWith("Aturan")),
+        dokumentasi: countBy(app, ({ item }) => item[0] === "Dokumentasi" || item[0] === "Integrasi")
+      };
+    }
+
+    function renderTabs() {
+      const tabs = document.getElementById("tabs");
+      const panels = document.getElementById("panels");
+      tabs.innerHTML = "";
+      panels.innerHTML = "";
+
+      apps.forEach((app, appIndex) => {
+        const stats = appStats(app);
+        const tab = document.createElement("button");
+        tab.type = "button";
+        tab.className = `tab ${appIndex === 0 ? "active" : ""}`;
+        tab.setAttribute("data-tab", app.id);
+        tab.innerHTML = `<strong>${app.group}</strong><span>${app.name} · <b id="tabpct-${app.id}">${stats.percent}%</b></span>`;
+        tab.addEventListener("click", () => activateTab(app.id));
+        tabs.appendChild(tab);
+
+        const panel = document.createElement("section");
+        panel.className = `panel ${appIndex === 0 ? "active" : ""}`;
+        panel.id = `panel-${app.id}`;
+        panel.innerHTML = panelTemplate(app);
+        panels.appendChild(panel);
+      });
+
+      attachEvents();
+      updateAll();
+    }
+
+    function panelTemplate(app) {
+      const items = allItems(app);
+      const rows = items.map((item, index) => {
+        const checked = state[itemKey(app.id, index)] ? "checked" : "";
+        const evidence = state[evidenceKey(app.id, index)] || "";
+        const reviewDate = state[dateKey(app.id, index)] || todayIso();
+        return `
+          <tr>
+            <td class="col-check"><input type="checkbox" ${checked} data-app="${app.id}" data-index="${index}" aria-label="Tandai selesai ${escapeHtml(item[1])}"></td>
+            <td class="col-type"><span class="type-pill">${escapeHtml(item[0])}</span></td>
+            <td><strong>${escapeHtml(item[1])}</strong><br><span class="muted">${escapeHtml(item[2])}</span></td>
+            <td class="col-date"><input class="inline-input" type="date" value="${escapeAttr(reviewDate)}" data-date-app="${app.id}" data-index="${index}" aria-label="Tanggal review ${escapeHtml(item[1])}"></td>
+            <td class="col-evidence"><input class="inline-input" type="text" value="${escapeAttr(evidence)}" data-evidence-app="${app.id}" data-index="${index}" placeholder="Link, bukti demo, catatan singkat"></td>
+          </tr>
+        `;
+      }).join("");
+
+      return `
+        <div class="section">
+          <div class="section-header">
+            <div>
+              <h2>${escapeHtml(app.group)} - ${escapeHtml(app.name)}</h2>
+              <p>${escapeHtml(app.role)}</p>
+            </div>
+            <span class="badge" id="badge-${app.id}">0%</span>
+          </div>
+          <div class="app-intro">
+            <div class="info-block"><label>Peran</label><div>${escapeHtml(app.role)}</div></div>
+            <div class="info-block"><label>Input Utama</label><div>${escapeHtml(app.input)}</div></div>
+            <div class="info-block"><label>Output Utama</label><div>${escapeHtml(app.output)}</div></div>
+          </div>
+        </div>
+
+        <div class="panel-grid">
+          <div>
+            <div class="section">
+              <div class="section-header">
+                <div>
+                  <h3>Checklist Aktivitas dan Kepatuhan</h3>
+                  <p>Centang item yang sudah dipenuhi oleh kelompok. Kolom bukti dapat diisi link repository, endpoint, video demo, atau catatan pemeriksaan.</p>
+                </div>
+              </div>
+              <table class="check-table">
+                <thead>
+                  <tr>
+                    <th class="col-check">Cek</th>
+                    <th class="col-type">Kategori</th>
+                    <th>Aktivitas / Aturan</th>
+                    <th class="col-date">Tanggal</th>
+                    <th class="col-evidence">Bukti / Catatan Singkat</th>
+                  </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+              </table>
+            </div>
+          </div>
+
+          <aside>
+            <div class="section">
+              <div class="section-header">
+                <div>
+                  <h3>Bar Chart Capaian</h3>
+                  <p>Grafik otomatis berdasarkan checklist pada tab ini.</p>
+                </div>
+              </div>
+              <div class="chart" aria-label="Grafik capaian ${escapeHtml(app.name)}">
+                ${chartRow(app.id, "total", "Total")}
+                ${chartRow(app.id, "fitur", "Fitur")}
+                ${chartRow(app.id, "aturan", "Aturan")}
+                ${chartRow(app.id, "dokumentasi", "Dok/Integrasi")}
+              </div>
+              <div class="status-line" id="status-${app.id}">Belum ada item yang dicentang.</div>
+            </div>
+
+            <div class="section">
+              <div class="section-header">
+                <div>
+                  <h3>Catatan Tambahan Kelompok</h3>
+                  <p>Diisi oleh kelompok untuk menginformasikan hal baru, kendala, keputusan teknis, atau fitur tambahan.</p>
+                </div>
+              </div>
+              <div class="notes-date">
+                <label for="groupNoteDate-${app.id}">Tanggal catatan kelompok</label>
+                <input class="inline-input" id="groupNoteDate-${app.id}" type="date" value="${escapeAttr(state[groupNoteDateKey(app.id)] || todayIso())}" data-group-note-date="${app.id}">
+              </div>
+              <textarea data-group-notes="${app.id}" placeholder="Contoh: Kelompok menambahkan endpoint simulasi refund, masih perlu validasi JWT untuk route pembayaran.">${escapeHtml(state[groupNoteKey(app.id)] || "")}</textarea>
+              <div class="notes-tools">
+                <span id="groupNotesState-${app.id}">Tersimpan otomatis</span>
+                <button type="button" data-clear-group-notes="${app.id}">Kosongkan catatan</button>
+              </div>
+            </div>
+
+            <div class="section">
+              <div class="section-header">
+                <div>
+                  <h3>Catatan Dosen</h3>
+                  <p>Isi evaluasi, revisi, temuan demo, atau arahan lanjutan untuk kelompok ini.</p>
+                </div>
+              </div>
+              <div class="notes-date">
+                <label for="notesDate-${app.id}">Tanggal catatan</label>
+                <input class="inline-input" id="notesDate-${app.id}" type="date" value="${escapeAttr(state[noteDateKey(app.id)] || todayIso())}" data-note-date="${app.id}">
+              </div>
+              <textarea data-notes="${app.id}" placeholder="Contoh: Endpoint pembayaran sudah berjalan, tetapi validasi nominal dan logging error perlu diperbaiki.">${escapeHtml(state[notesKey(app.id)] || "")}</textarea>
+              <div class="notes-tools">
+                <span id="notesState-${app.id}">Tersimpan otomatis</span>
+                <button type="button" data-clear-notes="${app.id}">Kosongkan catatan</button>
+              </div>
+            </div>
+          </aside>
+        </div>
+      `;
+    }
+
+    function chartRow(appId, key, label) {
+      return `
+        <div class="chart-row">
+          <span>${label}</span>
+          <div class="track"><div class="bar" id="bar-${appId}-${key}"></div></div>
+          <strong id="pct-${appId}-${key}">0%</strong>
+        </div>
+      `;
+    }
+
+    function activateTab(appId) {
+      document.querySelectorAll(".tab").forEach(tab => tab.classList.toggle("active", tab.dataset.tab === appId));
+      document.querySelectorAll(".panel").forEach(panel => panel.classList.toggle("active", panel.id === `panel-${appId}`));
+    }
+
+    function attachEvents() {
+      document.querySelectorAll('input[type="checkbox"][data-app]').forEach(input => {
+        input.addEventListener("change", event => {
+          const appId = event.target.dataset.app;
+          const index = event.target.dataset.index;
+          state[itemKey(appId, index)] = event.target.checked;
+          saveState();
+          updateAll();
+        });
+      });
+
+      document.querySelectorAll("input[data-evidence-app]").forEach(input => {
+        input.addEventListener("input", event => {
+          const appId = event.target.dataset.evidenceApp;
+          const index = event.target.dataset.index;
+          state[evidenceKey(appId, index)] = event.target.value;
+          saveState();
+        });
+      });
+
+      document.querySelectorAll("input[data-date-app]").forEach(input => {
+        input.addEventListener("change", event => {
+          const appId = event.target.dataset.dateApp;
+          const index = event.target.dataset.index;
+          state[dateKey(appId, index)] = event.target.value;
+          saveState();
+        });
+      });
+
+      document.querySelectorAll("textarea[data-notes]").forEach(textarea => {
+        textarea.addEventListener("input", event => {
+          const appId = event.target.dataset.notes;
+          state[notesKey(appId)] = event.target.value;
+          const label = document.getElementById(`notesState-${appId}`);
+          label.textContent = "Tersimpan otomatis";
+          saveState();
+        });
+      });
+
+      document.querySelectorAll("input[data-note-date]").forEach(input => {
+        input.addEventListener("change", event => {
+          const appId = event.target.dataset.noteDate;
+          state[noteDateKey(appId)] = event.target.value;
+          saveState();
+        });
+      });
+
+      document.querySelectorAll("textarea[data-group-notes]").forEach(textarea => {
+        textarea.addEventListener("input", event => {
+          const appId = event.target.dataset.groupNotes;
+          state[groupNoteKey(appId)] = event.target.value;
+          const label = document.getElementById(`groupNotesState-${appId}`);
+          label.textContent = "Tersimpan otomatis";
+          saveState();
+        });
+      });
+
+      document.querySelectorAll("input[data-group-note-date]").forEach(input => {
+        input.addEventListener("change", event => {
+          const appId = event.target.dataset.groupNoteDate;
+          state[groupNoteDateKey(appId)] = event.target.value;
+          saveState();
+        });
+      });
+
+      document.querySelectorAll("button[data-clear-group-notes]").forEach(button => {
+        button.addEventListener("click", event => {
+          const appId = event.target.dataset.clearGroupNotes;
+          const textarea = document.querySelector(`textarea[data-group-notes="${appId}"]`);
+          const dateInput = document.querySelector(`input[data-group-note-date="${appId}"]`);
+          textarea.value = "";
+          dateInput.value = todayIso();
+          state[groupNoteKey(appId)] = "";
+          state[groupNoteDateKey(appId)] = dateInput.value;
+          saveState();
+        });
+      });
+
+      document.querySelectorAll("button[data-clear-notes]").forEach(button => {
+        button.addEventListener("click", event => {
+          const appId = event.target.dataset.clearNotes;
+          const textarea = document.querySelector(`textarea[data-notes="${appId}"]`);
+          const dateInput = document.querySelector(`input[data-note-date="${appId}"]`);
+          textarea.value = "";
+          dateInput.value = todayIso();
+          state[notesKey(appId)] = "";
+          state[noteDateKey(appId)] = dateInput.value;
+          saveState();
+        });
+      });
+    }
+
+    function updateAll() {
+      let totalDone = 0;
+      let totalItems = 0;
+      const statsList = [];
+
+      apps.forEach(app => {
+        const stats = appStats(app);
+        totalDone += stats.done;
+        totalItems += stats.total;
+        statsList.push({ app, ...stats });
+        updateApp(app, stats);
+      });
+
+      document.getElementById("overallPercent").textContent = `${pct(totalDone, totalItems)}%`;
+      document.getElementById("overallDone").textContent = totalDone;
+      document.getElementById("overallTotal").textContent = `dari ${totalItems} item`;
+      updateGlobalRows(statsList);
+
+      if (totalDone === 0) {
+        document.getElementById("bestGroup").textContent = "-";
+        document.getElementById("bestGroupNote").textContent = "Belum ada data checklist";
+        document.getElementById("attentionGroup").textContent = "-";
+        document.getElementById("attentionGroupNote").textContent = "Belum ada data checklist";
+        return;
+      }
+
+      const maxPercent = Math.max(...statsList.map(item => item.percent));
+      const minPercent = Math.min(...statsList.map(item => item.percent));
+      const bestGroups = statsList.filter(item => item.percent === maxPercent);
+      const attentionGroups = statsList.filter(item => item.percent === minPercent);
+
+      document.getElementById("bestGroup").textContent = formatGroupList(bestGroups.map(item => item.app.group));
+      document.getElementById("bestGroupNote").textContent = formatGroupNote(bestGroups, maxPercent);
+      document.getElementById("attentionGroup").textContent = formatGroupList(attentionGroups.map(item => item.app.group));
+      document.getElementById("attentionGroupNote").textContent = formatGroupNote(attentionGroups, minPercent);
+    }
+
+    function updateGlobalRows(statsList) {
+      const tbody = document.getElementById("globalRows");
+      if (!tbody) return;
+
+      tbody.innerHTML = statsList.map(item => {
+        const note = state[notesKey(item.app.id)] || "";
+        const groupNote = state[groupNoteKey(item.app.id)] || "";
+        const shortNote = shortText(note, 90);
+        const shortGroupNote = shortText(groupNote, 90);
+        return `
+          <tr>
+            <td class="group-cell">${escapeHtml(item.app.group)}</td>
+            <td>${escapeHtml(item.app.name)}</td>
+            <td>
+              <div class="global-mini-chart">
+                <div class="track"><div class="bar ${barClass(item.percent)}" style="width:${item.percent}%"></div></div>
+                <strong>${item.percent}%</strong>
+              </div>
+            </td>
+            <td>${item.fitur.done}/${item.fitur.total}</td>
+            <td>${item.aturan.done}/${item.aturan.total}</td>
+            <td>${item.dokumentasi.done}/${item.dokumentasi.total}</td>
+            <td>${escapeHtml(shortGroupNote)}</td>
+            <td>${escapeHtml(shortNote)}</td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    function shortText(value, maxLength) {
+      const text = String(value || "").trim();
+      if (!text) return "-";
+      return text.slice(0, maxLength) + (text.length > maxLength ? "..." : "");
+    }
+
+    function formatGroupList(groups) {
+      const numbers = groups
+        .map(group => Number(String(group).replace(/\D+/g, "")))
+        .filter(Number.isFinite)
+        .sort((a, b) => a - b);
+
+      if (numbers.length === groups.length && numbers.length > 1) {
+        const consecutive = numbers.every((number, index) => index === 0 || number === numbers[index - 1] + 1);
+        if (consecutive) return `Kelompok ${numbers[0]}-${numbers[numbers.length - 1]}`;
+      }
+
+      return groups.join(", ");
+    }
+
+    function formatGroupNote(groupStats, percentValue) {
+      if (groupStats.length === 1) return `${groupStats[0].app.name}: ${percentValue}%`;
+      const appNames = groupStats.map(item => item.app.name).join(", ");
+      return `${groupStats.length} kelompok sama-sama ${percentValue}%: ${appNames}`;
+    }
+
+    function updateApp(app, stats) {
+      const setBar = (key, value) => {
+        const bar = document.getElementById(`bar-${app.id}-${key}`);
+        const label = document.getElementById(`pct-${app.id}-${key}`);
+        if (!bar || !label) return;
+        bar.style.width = `${value}%`;
+        bar.className = `bar ${barClass(value)}`;
+        label.textContent = `${value}%`;
+      };
+
+      setBar("total", stats.percent);
+      setBar("fitur", stats.fitur.percent);
+      setBar("aturan", stats.aturan.percent);
+      setBar("dokumentasi", stats.dokumentasi.percent);
+
+      document.getElementById(`badge-${app.id}`).textContent = `${stats.percent}%`;
+      document.getElementById(`tabpct-${app.id}`).textContent = `${stats.percent}%`;
+      document.getElementById(`status-${app.id}`).textContent = `${stats.done} dari ${stats.total} item selesai. Fitur ${stats.fitur.done}/${stats.fitur.total}, aturan ${stats.aturan.done}/${stats.aturan.total}, dokumen/integrasi ${stats.dokumentasi.done}/${stats.dokumentasi.total}.`;
+    }
+
+    function todayIso() {
+      const now = new Date();
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth() + 1).padStart(2, "0");
+      const dd = String(now.getDate()).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
+    function csvFileName() {
+      const now = new Date();
+      const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+      const day = String(now.getDate()).padStart(2, "0");
+      return `${day}_Review_${months[now.getMonth()]}_${now.getFullYear()}.csv`;
+    }
+
+    function csvEscape(value) {
+      const text = value == null ? "" : String(value);
+      if (/[",\r\n]/.test(text)) return `"${text.replaceAll('"', '""')}"`;
+      return text;
+    }
+
+    function buildCsv() {
+      const headers = [
+        "row_type",
+        "app_id",
+        "kelompok",
+        "aplikasi",
+        "item_index",
+        "kategori",
+        "aktivitas_aturan",
+        "deskripsi",
+        "tanggal",
+        "selesai",
+        "bukti_catatan_singkat",
+        "tanggal_catatan_kelompok",
+        "catatan_kelompok",
+        "tanggal_catatan_dosen",
+        "catatan_dosen",
+        "exported_at"
+      ];
+      const exportedAt = new Date().toISOString();
+      const rows = [headers];
+
+      apps.forEach(app => {
+        const items = allItems(app);
+        items.forEach((item, index) => {
+          rows.push([
+            "item",
+            app.id,
+            app.group,
+            app.name,
+            index,
+            item[0],
+            item[1],
+            item[2],
+            state[dateKey(app.id, index)] || todayIso(),
+            state[itemKey(app.id, index)] ? "TRUE" : "FALSE",
+            state[evidenceKey(app.id, index)] || "",
+            "",
+            "",
+            "",
+            "",
+            exportedAt
+          ]);
+        });
+
+        rows.push([
+          "catatan_kelompok",
+          app.id,
+          app.group,
+          app.name,
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          state[groupNoteDateKey(app.id)] || todayIso(),
+          state[groupNoteKey(app.id)] || "",
+          "",
+          "",
+          exportedAt
+        ]);
+
+        rows.push([
+          "catatan_dosen",
+          app.id,
+          app.group,
+          app.name,
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          state[noteDateKey(app.id)] || todayIso(),
+          state[notesKey(app.id)] || "",
+          exportedAt
+        ]);
+      });
+
+      return rows.map(row => row.map(csvEscape).join(",")).join("\r\n");
+    }
+
+    async function saveCsv() {
+      const csv = buildCsv();
+      const fileName = csvFileName();
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+
+      if ("showSaveFilePicker" in window) {
+        try {
+          const handle = await window.showSaveFilePicker({
+            suggestedName: fileName,
+            types: [{ description: "CSV Review", accept: { "text/csv": [".csv"] } }]
+          });
+          const writable = await handle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          alert(`CSV berhasil disimpan. Jika diminta memilih lokasi, gunakan folder data_review.\nNama file: ${fileName}`);
+          return;
+        } catch (error) {
+          if (error && error.name === "AbortError") return;
+        }
+      }
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      alert(`CSV dibuat dengan nama ${fileName}. Simpan atau pindahkan file tersebut ke folder data_review.`);
+    }
+
+    function parseCsv(text) {
+      const rows = [];
+      let row = [];
+      let cell = "";
+      let insideQuotes = false;
+
+      for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        const next = text[i + 1];
+
+        if (insideQuotes) {
+          if (char === '"' && next === '"') {
+            cell += '"';
+            i++;
+          } else if (char === '"') {
+            insideQuotes = false;
+          } else {
+            cell += char;
+          }
+        } else if (char === '"') {
+          insideQuotes = true;
+        } else if (char === ",") {
+          row.push(cell);
+          cell = "";
+        } else if (char === "\n") {
+          row.push(cell);
+          rows.push(row);
+          row = [];
+          cell = "";
+        } else if (char !== "\r") {
+          cell += char;
+        }
+      }
+
+      row.push(cell);
+      if (row.some(value => value !== "")) rows.push(row);
+      return rows;
+    }
+
+    function importCsv(text, options = {}) {
+      const rows = parseCsv(text);
+      if (rows.length < 2) throw new Error("CSV tidak memiliki data review.");
+
+      const headers = rows[0].map(value => value.trim());
+      const index = Object.fromEntries(headers.map((header, i) => [header, i]));
+      const required = ["row_type", "app_id", "item_index"];
+      const missing = required.filter(header => !(header in index));
+      if (missing.length) throw new Error(`Kolom wajib tidak ditemukan: ${missing.join(", ")}`);
+
+      let importedItems = 0;
+      let importedGroupNotes = 0;
+      let importedNotes = 0;
+
+      rows.slice(1).forEach(row => {
+        const get = header => row[index[header]] || "";
+        const appId = get("app_id");
+        const app = apps.find(item => item.id === appId);
+        if (!app) return;
+
+        if (get("row_type") === "item") {
+          const itemIndex = Number(get("item_index"));
+          if (!Number.isInteger(itemIndex) || itemIndex < 0 || itemIndex >= allItems(app).length) return;
+          state[itemKey(appId, itemIndex)] = ["TRUE", "true", "1", "YA", "ya", "Y", "y"].includes(get("selesai"));
+          state[dateKey(appId, itemIndex)] = get("tanggal") || todayIso();
+          state[evidenceKey(appId, itemIndex)] = get("bukti_catatan_singkat");
+          importedItems++;
+        }
+
+        if (get("row_type") === "catatan_kelompok") {
+          state[groupNoteDateKey(appId)] = get("tanggal_catatan_kelompok") || todayIso();
+          state[groupNoteKey(appId)] = get("catatan_kelompok");
+          importedGroupNotes++;
+        }
+
+        if (get("row_type") === "catatan_dosen") {
+          state[noteDateKey(appId)] = get("tanggal_catatan_dosen") || todayIso();
+          state[notesKey(appId)] = get("catatan_dosen");
+          importedNotes++;
+        }
+      });
+
+      if (!options.deferRender) {
+        saveState();
+        renderTabs();
+        alert(`CSV berhasil dimuat: ${importedItems} item checklist, ${importedGroupNotes} catatan kelompok, dan ${importedNotes} catatan dosen.`);
+      }
+
+      return { importedItems, importedGroupNotes, importedNotes };
+    }
+
+    function readFileAsText(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(new Error(`File gagal dibaca: ${file.name}`));
+        reader.readAsText(file, "utf-8");
+      });
+    }
+
+    async function importCsvFiles(files) {
+      let totalItems = 0;
+      let totalGroupNotes = 0;
+      let totalNotes = 0;
+      const failed = [];
+
+      for (const file of files) {
+        try {
+          const text = await readFileAsText(file);
+          const result = importCsv(text, { deferRender: true });
+          totalItems += result.importedItems;
+          totalGroupNotes += result.importedGroupNotes;
+          totalNotes += result.importedNotes;
+        } catch (error) {
+          failed.push(`${file.name}: ${error.message}`);
+        }
+      }
+
+      saveState();
+      renderTabs();
+      const status = document.getElementById("globalImportStatus");
+      status.textContent = `${files.length - failed.length} CSV dimuat`;
+
+      if (failed.length) {
+        alert(`Sebagian CSV gagal dimuat.\nBerhasil: ${files.length - failed.length} file\nItem: ${totalItems}\nCatatan kelompok: ${totalGroupNotes}\nCatatan dosen: ${totalNotes}\n\nGagal:\n${failed.join("\n")}`);
+      } else {
+        alert(`CSV berhasil digabungkan.\nFile: ${files.length}\nItem checklist: ${totalItems}\nCatatan kelompok: ${totalGroupNotes}\nCatatan dosen: ${totalNotes}`);
+      }
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function escapeAttr(value) {
+      return escapeHtml(value).replaceAll("\n", " ");
+    }
+
+    document.getElementById("saveCsvBtn").addEventListener("click", saveCsv);
+
+    document.getElementById("uploadCsvBtn").addEventListener("click", () => {
+      document.getElementById("csvInput").click();
+    });
+
+    document.getElementById("csvInput").addEventListener("change", event => {
+      const files = Array.from(event.target.files || []);
+      if (!files.length) return;
+      importCsvFiles(files).finally(() => {
+        event.target.value = "";
+      });
+    });
+
+    document.getElementById("printBtn").addEventListener("click", () => window.print());
+
+    document.getElementById("resetBtn").addEventListener("click", () => {
+      const ok = confirm("Reset semua checklist, bukti, catatan kelompok, dan catatan dosen pada browser ini?");
+      if (!ok) return;
+      Object.keys(state).forEach(key => delete state[key]);
+      saveState();
+      renderTabs();
+    });
+
+    renderTabs();
+  </script>
+</body>
+</html>

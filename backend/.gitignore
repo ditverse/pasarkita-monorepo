@@ -1,0 +1,33 @@
+# dependencies
+/node_modules/
+
+# environment files
+.env
+.env.*
+!.env.example
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# build and deployment outputs
+/dist/
+/build/
+/.vercel/
+
+# test and coverage outputs
+/coverage/
+
+# local cache and temp files
+/.cache/
+/tmp/
+/temp/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo

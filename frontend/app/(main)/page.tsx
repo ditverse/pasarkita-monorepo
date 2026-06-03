@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/pk/icon';
@@ -8,6 +9,7 @@ import Placeholder from '@/components/pk/placeholder';
 import { formatIDR } from '@/lib/format';
 import { productsApi } from '@/lib/api/products';
 import { useDebounce } from '@/lib/hooks/useDebounce';
+import { queryKeys } from '@/lib/query-keys';
 import { Product } from '@/types/api';
 
 const CATEGORIES = ['Fashion', 'Makanan', 'Kerajinan', 'Elektronik', 'Kecantikan', 'Rumah', 'Buku', 'Olahraga'];
@@ -15,33 +17,21 @@ const POPULAR_TAGS = ['Fashion Pria', 'Snack', 'Handphone', 'Sepatu'];
 
 export default function HomePage() {
   const router = useRouter();
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('Semua');
 
   const debouncedSearch = useDebounce(searchQuery, 400);
 
-  const fetchProducts = useCallback(async (search?: string) => {
-    try {
-      setLoading(true);
+  const { data: products = [], isLoading: loading, isError } = useQuery({
+    queryKey: queryKeys.products.home(debouncedSearch),
+    queryFn: async (): Promise<Product[]> => {
       const res = await productsApi.getAll({
         limit: 50,
-        search: search?.trim() || undefined,
+        search: debouncedSearch.trim() || undefined,
       });
-      setProducts(res.data.data ?? []);
-    } catch (err) {
-      console.error('Error fetching products:', err);
-      setProducts([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Initial load or search load
-  useEffect(() => {
-    fetchProducts(debouncedSearch);
-  }, [debouncedSearch, fetchProducts]);
+      return res.data.data ?? [];
+    },
+  });
 
   // Client-side filtering for category
   const filteredProducts = activeCategory === 'Semua' 
@@ -252,7 +242,16 @@ export default function HomePage() {
           </Link>
         </div>
         
-        {loading ? (
+        {isError ? (
+          <div style={{ textAlign: 'center', padding: '40px 0', border: '1px dashed var(--pk-border)', borderRadius: 12 }}>
+            <p style={{ color: 'var(--pk-text-secondary)', fontWeight: 500, marginBottom: 4 }}>
+              Produk gagal dimuat
+            </p>
+            <p style={{ color: 'var(--pk-text-hint)', fontSize: 13 }}>
+              Periksa koneksi backend dan konfigurasi API.
+            </p>
+          </div>
+        ) : loading ? (
           <div
             style={{
               display: 'grid',

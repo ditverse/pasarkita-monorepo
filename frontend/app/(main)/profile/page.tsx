@@ -10,7 +10,6 @@ import Avatar from '@/components/pk/avatar';
 import Icon from '@/components/pk/icon';
 import { useAuthStore } from '@/store/auth';
 import { authApi } from '@/lib/api/auth';
-import { formatIDR } from '@/lib/format';
 
 // ─── Schemas ────────────────────────────────────────────────────────────────
 
@@ -217,7 +216,7 @@ function PanelSecurity() {
     formState: { errors, isSubmitting },
   } = useForm<SecurityForm>({ resolver: zodResolver(securitySchema) });
 
-  const onSubmit = async (_data: SecurityForm) => {
+  const onSubmit = async () => {
     toast.info('Fitur ganti password belum tersedia');
     reset();
   };
@@ -440,7 +439,7 @@ export default function ProfilePage() {
             gap: 8,
           }}
         >
-          <Icon name="logOut" size={14} />
+          <Icon name="logout" size={14} />
           Keluar
         </button>
       </aside>

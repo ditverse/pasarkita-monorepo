@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import StatusBadge from '@/components/pk/status-badge';
 import Icon from '@/components/pk/icon';
 import { formatIDR } from '@/lib/format';
 import { ordersApi } from '@/lib/api/orders';
-import { Order } from '@/types/api';
+import { queryKeys } from '@/lib/query-keys';
 
 const STATUS_TABS = [
   { id: '', label: 'Semua' },
@@ -19,38 +20,35 @@ const STATUS_TABS = [
 const VALID_STATUSES = ['pending', 'paid', 'shipped', 'delivered', 'payment_failed'];
 
 export default function AdminOrdersPage() {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  const loadOrders = useCallback(async () => {
-    setLoading(true);
-    try {
+  const ordersQuery = useQuery({
+    queryKey: queryKeys.orders.list('admin', statusFilter),
+    queryFn: async () => {
       const params: { status?: string; limit?: number } = { limit: 50 };
       if (statusFilter) params.status = statusFilter;
       const res = await ordersApi.getAll(params);
-      setOrders(res.data.data ?? []);
-      setTotal(res.data.pagination?.total ?? 0);
-    } catch (err) {
-      console.error('Gagal load orders', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [statusFilter]);
+      return {
+        orders: res.data.data ?? [],
+        total: res.data.pagination?.total ?? 0,
+      };
+    },
+  });
 
-  useEffect(() => {
-    loadOrders();
-  }, [loadOrders]);
+  const updateStatusMutation = useMutation({
+    mutationFn: ({ orderId, status }: { orderId: string; status: string }) =>
+      ordersApi.updateStatus(orderId, { status }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['orders'] });
+    },
+  });
 
   const handleStatusChange = async (orderId: string, newStatus: string) => {
     setUpdatingId(orderId);
     try {
-      await ordersApi.updateStatus(orderId, { status: newStatus });
-      setOrders((prev) =>
-        prev.map((o) => (o.id === orderId ? { ...o, status: newStatus as Order['status'] } : o))
-      );
+      await updateStatusMutation.mutateAsync({ orderId, status: newStatus });
     } catch (err) {
       console.error('Gagal update status order', err);
     } finally {
@@ -60,6 +58,11 @@ export default function AdminOrdersPage() {
 
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+
+  const orders = ordersQuery.data?.orders ?? [];
+  const total = ordersQuery.data?.total ?? 0;
+  const loading = ordersQuery.isLoading;
+  const isError = ordersQuery.isError;
 
   return (
     <div>
@@ -118,14 +121,21 @@ export default function AdminOrdersPage() {
                 </td>
               </tr>
             )}
-            {!loading && orders.length === 0 && (
+            {!loading && !isError && orders.length === 0 && (
               <tr>
                 <td colSpan={5} style={{ padding: '32px', textAlign: 'center', color: 'var(--pk-text-hint)' }}>
                   Tidak ada order ditemukan.
                 </td>
               </tr>
             )}
-            {orders.map((o) => (
+            {!loading && isError && (
+              <tr>
+                <td colSpan={5} style={{ padding: '32px', textAlign: 'center', color: 'var(--pk-text-secondary)' }}>
+                  Order gagal dimuat. Periksa koneksi backend dan akses admin.
+                </td>
+              </tr>
+            )}
+            {!isError && orders.map((o) => (
               <tr key={o.id} style={{ borderTop: '1px solid var(--pk-border)' }}>
                 <td style={{ padding: '14px 20px' }}>
                   <span className="pk-mono" style={{ fontSize: 13 }}>

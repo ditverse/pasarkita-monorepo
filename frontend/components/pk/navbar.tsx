@@ -21,7 +21,8 @@ const INITIAL_NOTIFICATIONS: Notification[] = [];
 export function NavbarDesktop() {
   const pathname = usePathname();
   const active = NAV_LINKS.find((l) => pathname.startsWith(l.href))?.href ?? '';
-  const { isAuthenticated, user, _hasHydrated } = useAuthStore();
+  const { token, user, _hasHydrated } = useAuthStore();
+  const isLoggedIn = _hasHydrated && Boolean(token && user);
 
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>(INITIAL_NOTIFICATIONS);
@@ -33,7 +34,7 @@ export function NavbarDesktop() {
   }, []);
 
   const visibleLinks = NAV_LINKS.filter((l) => {
-    if (l.href === '/orders') return isAuthenticated;
+    if (l.href === '/orders') return isLoggedIn;
     return true;
   });
 
@@ -79,7 +80,7 @@ export function NavbarDesktop() {
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         {/* Bell — hanya untuk user yang sudah login */}
-        {_hasHydrated && isAuthenticated && (
+        {isLoggedIn && (
           <div style={{ position: 'relative' }}>
             <button
               onClick={() => setNotifOpen((v) => !v)}
@@ -116,9 +117,7 @@ export function NavbarDesktop() {
         )}
 
         {/* Auth section */}
-        {!_hasHydrated ? (
-          <div style={{ width: 100, height: 36, borderRadius: 999, background: 'var(--pk-bg-subtle)' }} />
-        ) : isAuthenticated && user ? (
+        {isLoggedIn && user ? (
           <Link href="/profile" style={{ textDecoration: 'none' }}>
             <div
               style={{
@@ -156,7 +155,8 @@ export function NavbarMobile({
   onOpenMenu?: () => void;
   showCart?: boolean;
 }) {
-  const { isAuthenticated, _hasHydrated } = useAuthStore();
+  const { token, user, _hasHydrated } = useAuthStore();
+  const isLoggedIn = _hasHydrated && Boolean(token && user);
 
   return (
     <header
@@ -177,7 +177,7 @@ export function NavbarMobile({
         <Icon name="menu" size={22} />
       </button>
       <Logo size={15} />
-      {showCart && _hasHydrated && isAuthenticated ? (
+      {showCart && isLoggedIn ? (
         <Icon name="bell" size={20} />
       ) : (
         <span style={{ width: 22 }} />

@@ -1,13 +1,16 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import StatusBadge from '@/components/pk/status-badge';
 import Placeholder from '@/components/pk/placeholder';
 import { formatIDR } from '@/lib/format';
 import { ordersApi } from '@/lib/api/orders';
+import { queryKeys } from '@/lib/query-keys';
 import { useAuthStore } from '@/store/auth';
 import { toast } from 'sonner';
+import { getApiErrorMessage } from '@/lib/api-error';
 import { Order } from '@/types/api';
 
 const TABS = [
@@ -20,39 +23,33 @@ const TABS = [
 
 export default function SellerOrdersPage() {
   const [tab, setTab] = useState('all');
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const user = useAuthStore((state) => state.user);
+  const queryClient = useQueryClient();
 
-  const loadOrders = useCallback(async () => {
-    if (!user) return;
-    setLoading(true);
-    try {
+  const { data: orders = [], isLoading: loading, isError } = useQuery({
+    queryKey: queryKeys.orders.list('seller'),
+    queryFn: async (): Promise<Order[]> => {
       const res = await ordersApi.getAll();
-      setOrders(res.data.data ?? []);
-    } catch (err) {
-      console.error('Gagal mendapatkan daftar order:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
+      return res.data.data ?? [];
+    },
+    enabled: Boolean(user),
+  });
 
-  useEffect(() => {
-    loadOrders();
-  }, [loadOrders]);
+  const markShippedMutation = useMutation({
+    mutationFn: (orderId: string) => ordersApi.updateStatus(orderId, { status: 'shipped' }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['orders'] });
+    },
+  });
 
   const handleMarkShipped = async (orderId: string) => {
     setUpdatingId(orderId);
     try {
-      await ordersApi.updateStatus(orderId, { status: 'shipped' });
-      setOrders((prev) =>
-        prev.map((o) => (o.id === orderId ? { ...o, status: 'shipped' as Order['status'] } : o))
-      );
+      await markShippedMutation.mutateAsync(orderId);
       toast.success('Pesanan ditandai sebagai dikirim');
-    } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { message?: string } } };
-      toast.error(axiosErr.response?.data?.message ?? 'Gagal update status');
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Gagal update status'));
     } finally {
       setUpdatingId(null);
     }
@@ -115,7 +112,17 @@ export default function SellerOrdersPage() {
           </div>
         )}
 
-        {!loading && filtered.map((o) => (
+        {!loading && isError && (
+          <div style={{
+            padding: '40px', textAlign: 'center',
+            border: '1px dashed var(--pk-border)', borderRadius: 12,
+            color: 'var(--pk-text-secondary)',
+          }}>
+            Order gagal dimuat. Periksa koneksi backend dan token login.
+          </div>
+        )}
+
+        {!loading && !isError && filtered.map((o) => (
           <div key={o.id} className="pk-card pk-card-hover" style={{ padding: 20, background: '#fff' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -173,7 +180,7 @@ export default function SellerOrdersPage() {
           </div>
         ))}
 
-        {!loading && filtered.length === 0 && (
+        {!loading && !isError && filtered.length === 0 && (
           <div style={{
             padding: '64px 24px', textAlign: 'center',
             border: '1px dashed var(--pk-border)', borderRadius: 12,

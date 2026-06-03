@@ -1,10 +1,12 @@
 'use client';
 
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Icon from '@/components/pk/icon';
 import Placeholder from '@/components/pk/placeholder';
 import { formatIDR } from '@/lib/format';
+import { api } from '@/lib/api';
 import { checkoutApi } from '@/lib/api/checkout';
 import { productsApi } from '@/lib/api/products';
 import { useAuthStore } from '@/store/auth';
@@ -45,38 +47,36 @@ function CheckoutContent() {
   const qtyUrl = Math.max(1, parseInt(searchParams.get('qty') || '1'));
 
   const [loading, setLoading] = useState(false);
-  const [initLoad, setInitLoad] = useState(true);
-  const [product, setProduct] = useState<Product | null>(null);
   const [address, setAddress] = useState('');
-  const [balance, setBalance] = useState<number | null>(null);
 
-  useEffect(() => {
-    if (!productId) {
-      setInitLoad(false);
-      return;
-    }
-    productsApi.getById(productId)
-      .then((res) => setProduct(res.data.data))
-      .catch((err) => console.error('Gagal load produk di checkout', err))
-      .finally(() => setInitLoad(false));
+  const productQuery = useQuery({
+    queryKey: ['products', 'checkout', productId],
+    queryFn: async (): Promise<Product> => {
+      const res = await productsApi.getById(productId as string);
+      return res.data.data;
+    },
+    enabled: Boolean(productId),
+  });
 
-    // Fetch saldo SmartBank jika user sudah login
-    if (user) {
-      import('@/lib/api').then(({ api }) => {
-        api.get('/smartbank/balance')
-          .then((res) => setBalance(res.data.data?.balance ?? null))
-          .catch(() => setBalance(null));
-      });
-    }
-  }, [productId, user]);
+  const balanceQuery = useQuery({
+    queryKey: ['smartbank', 'balance', user?.id],
+    queryFn: async (): Promise<number | null> => {
+      const res = await api.get('/smartbank/balance');
+      return res.data.data?.balance ?? null;
+    },
+    enabled: Boolean(user),
+  });
 
-  if (initLoad) {
+  if (productQuery.isLoading) {
     return (
       <div style={{ padding: 100, textAlign: 'center' }}>
         <Spinner size={24} />
       </div>
     );
   }
+
+  const product = productQuery.data ?? null;
+  const balance = balanceQuery.data ?? null;
 
   if (!productId || !product) {
     return (

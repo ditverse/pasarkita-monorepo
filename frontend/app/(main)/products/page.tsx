@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import Icon from '@/components/pk/icon';
 import Placeholder from '@/components/pk/placeholder';
@@ -16,38 +17,29 @@ export default function BrowseProductsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [priceMax, setPriceMax] = useState(15000000);
   const [sort, setSort] = useState('relevant');
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
 
   const debouncedSearch = useDebounce(searchQuery, 400);
 
-  useEffect(() => {
-    async function loadProducts() {
-      try {
-        setLoading(true);
-        const params: { limit: number; sort?: string; search?: string } = { limit: 100 };
-        if (sort === 'high') params.sort = 'price_desc';
-        if (sort === 'low') params.sort = 'price_asc';
-        if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
-        const res = await productsApi.getAll(params);
-        setProducts(res.data.data ?? []);
-      } catch (err) {
-        console.error('Gagal mendapatkan produk dinamis:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadProducts();
-  }, [sort, debouncedSearch]);
+  const productsQuery = useQuery({
+    queryKey: ['products', 'browse', sort, debouncedSearch],
+    queryFn: async (): Promise<Product[]> => {
+      const params: { limit: number; sort?: string; search?: string } = { limit: 100 };
+      if (sort === 'high') params.sort = 'price_desc';
+      if (sort === 'low') params.sort = 'price_asc';
+      if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
+      const res = await productsApi.getAll(params);
+      return res.data.data ?? [];
+    },
+  });
 
   // Client-side filtering for category + price (multi-category not supported by backend)
   const filtered = useMemo(() => {
-    return products.filter(
+    return (productsQuery.data ?? []).filter(
       (p) => 
         (selectedCategories.length === 0 || selectedCategories.includes(p.category)) && 
         p.price <= priceMax
     );
-  }, [products, selectedCategories, priceMax]);
+  }, [productsQuery.data, selectedCategories, priceMax]);
 
   const toggleCategory = (c: string) => {
     setSelectedCategories((prev) =>
@@ -268,12 +260,28 @@ export default function BrowseProductsPage() {
           <div style={{ fontSize: 14, color: 'var(--pk-text-secondary)' }}>
             Menampilkan{' '}
             <span style={{ color: 'var(--pk-text)', fontWeight: 500 }}>{filtered.length}</span> produk 
-            {loading && ' (memuat data...)'}
+            {productsQuery.isLoading && ' (memuat data...)'}
             {selectedCategories.length > 0 && ` · Kategori: ${selectedCategories.join(', ')}`}
           </div>
         </div>
 
-        {filtered.length === 0 ? (
+        {productsQuery.isError ? (
+          <div
+            style={{
+              padding: '64px 24px',
+              textAlign: 'center',
+              border: '1px dashed var(--pk-border)',
+              borderRadius: 12,
+            }}
+          >
+            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>
+              Produk gagal dimuat
+            </div>
+            <div style={{ fontSize: 14, color: 'var(--pk-text-secondary)' }}>
+              Periksa koneksi backend dan nilai NEXT_PUBLIC_API_URL.
+            </div>
+          </div>
+        ) : filtered.length === 0 ? (
           <div
             style={{
               display: 'flex',
@@ -302,9 +310,9 @@ export default function BrowseProductsPage() {
               <Icon name="search" size={24} />
             </div>
             <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>
-              {loading ? 'Sistem sedang memuat data...' : 'Tidak ada produk ditemukan'}
+              {productsQuery.isLoading ? 'Sistem sedang memuat data...' : 'Tidak ada produk ditemukan'}
             </div>
-            {!loading && (
+            {!productsQuery.isLoading && (
               <>
                 <div style={{ fontSize: 14, color: 'var(--pk-text-secondary)', maxWidth: 380, marginBottom: 20 }}>
                   Coba perlebar batas harga maksimal, hapus kata kunci, atau pilih kategori lain.

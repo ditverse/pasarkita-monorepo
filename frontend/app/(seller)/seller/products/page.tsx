@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import Icon from '@/components/pk/icon';
 import Placeholder from '@/components/pk/placeholder';
@@ -9,6 +10,8 @@ import { productsApi } from '@/lib/api/products';
 import { useAuthStore } from '@/store/auth';
 import { toast } from 'sonner';
 import { useDebounce } from '@/lib/hooks/useDebounce';
+import { getApiErrorMessage } from '@/lib/api-error';
+import { queryKeys } from '@/lib/query-keys';
 import { Product } from '@/types/api';
 
 function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
@@ -32,33 +35,32 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void 
 }
 
 export default function SellerProductsPage() {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('Semua');
   const user = useAuthStore((state) => state.user);
+  const queryClient = useQueryClient();
 
   const debouncedSearch = useDebounce(search, 400);
 
-  const loadSellerProducts = useCallback(async () => {
-    if (!user?.id) return;
-    try {
-      setLoading(true);
+  const { data: products = [], isLoading: loading, isFetching, isError } = useQuery({
+    queryKey: queryKeys.products.seller(user?.id, debouncedSearch),
+    queryFn: async (): Promise<Product[]> => {
       const res = await productsApi.getAll({
-        seller_id: user.id,
+        seller_id: user?.id,
         search: debouncedSearch || undefined,
       });
-      setProducts(res.data.data ?? []);
-    } catch (err) {
-      console.error('Gagal get seller products', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [user?.id, debouncedSearch]);
+      return res.data.data ?? [];
+    },
+    enabled: Boolean(user?.id),
+  });
 
-  useEffect(() => {
-    loadSellerProducts();
-  }, [loadSellerProducts]);
+  const updateProductMutation = useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      productsApi.update(id, { is_active: isActive }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['products', 'seller'] });
+    },
+  });
 
   const toggleActive = async (id: string, newStatus: boolean, stock: number) => {
     if (stock <= 0 && newStatus) {
@@ -67,13 +69,10 @@ export default function SellerProductsPage() {
     }
 
     try {
-      setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, is_active: newStatus } : p)));
-      await productsApi.update(id, { is_active: newStatus });
+      await updateProductMutation.mutateAsync({ id, isActive: newStatus });
       toast.success(`Produk berhasil di${newStatus ? 'aktifkan' : 'nonaktifkan'}`);
-    } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { message?: string } } };
-      setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, is_active: !newStatus } : p)));
-      toast.error(axiosErr.response?.data?.message ?? 'Gagal mengubah status produk');
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Gagal mengubah status produk'));
     }
   };
 
@@ -157,21 +156,28 @@ export default function SellerProductsPage() {
             </tr>
           </thead>
           <tbody>
-            {loading && products.length > 0 && (
+            {isFetching && products.length > 0 && (
                <tr>
                  <td colSpan={5} style={{ padding: '20px', textAlign: 'center', color: 'var(--pk-text-hint)' }}>
                    Mencari...
                  </td>
                </tr>
             )}
-            {!loading && filteredProducts.length === 0 && (
+            {!loading && isError && (
+              <tr>
+                <td colSpan={5} style={{ padding: '30px', textAlign: 'center', color: 'var(--pk-text-secondary)' }}>
+                  Produk gagal dimuat. Periksa koneksi backend dan token login.
+                </td>
+              </tr>
+            )}
+            {!loading && !isError && filteredProducts.length === 0 && (
               <tr>
                 <td colSpan={5} style={{ padding: '30px', textAlign: 'center', color: 'var(--pk-text-hint)' }}>
                   {search ? 'Produk tidak ditemukan.' : 'Catatan: Anda belum memiliki produk di database. Tambah sekarang!'}
                 </td>
               </tr>
             )}
-            {!loading && filteredProducts.map((p) => {
+            {!loading && !isError && filteredProducts.map((p) => {
               const isGreyedOut = !p.is_active || p.stock <= 0;
               return (
                 <tr key={p.id} style={{ 

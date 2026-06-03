@@ -20,12 +20,19 @@ export const useAuthStore = create<AuthStore>()(
       isAuthenticated: false,
       _hasHydrated: false,
       login: (token, user) => {
-        document.cookie = `token=${token}; path=/; max-age=86400; SameSite=Strict`;
-        set({ user, token, isAuthenticated: true });
+        if (typeof document !== 'undefined') {
+          document.cookie = `token=${token}; path=/; max-age=86400; SameSite=Strict`;
+        }
+        set({ user, token, isAuthenticated: true, _hasHydrated: true });
       },
       logout: () => {
-        document.cookie = 'token=; path=/; max-age=0';
-        set({ user: null, token: null, isAuthenticated: false });
+        if (typeof document !== 'undefined') {
+          document.cookie = 'token=; path=/; max-age=0';
+        }
+        if (typeof window !== 'undefined') {
+          window.localStorage.removeItem('pk-auth');
+        }
+        set({ user: null, token: null, isAuthenticated: false, _hasHydrated: true });
       },
       setHasHydrated: (v) => set({ _hasHydrated: v }),
     }),
@@ -38,11 +45,13 @@ export const useAuthStore = create<AuthStore>()(
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);
-        // Hanya bersihkan cookie stale jika localStorage tidak punya token
-        // Jangan logout paksa — biarkan middleware yang handle proteksi route
         if (typeof document !== 'undefined' && state) {
-          if (!state.isAuthenticated) {
-            document.cookie = 'token=; path=/; max-age=0';
+          const hasTokenCookie = document.cookie
+            .split('; ')
+            .some((cookie) => cookie.startsWith('token='));
+
+          if (!state.token || !state.user || !hasTokenCookie) {
+            state.logout();
           }
         }
       },

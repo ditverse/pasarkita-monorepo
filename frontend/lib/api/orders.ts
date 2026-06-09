@@ -8,7 +8,7 @@ export const ordersApi = {
   getById: (id: string) =>
     api.get<ApiResponse<Order>>(`/orders/${id}`),
 
-  updateStatus: (id: string, body: { status: string }) =>
+  updateStatus: (id: string, body: { status: string; reason?: string }) =>
     api.patch<ApiResponse<Order>>(`/orders/${id}/status`, body),
 
   getTracking: (id: string) =>

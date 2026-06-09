@@ -1,12 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import StatusBadge from '@/components/pk/status-badge';
 import Icon from '@/components/pk/icon';
 import { formatIDR } from '@/lib/format';
 import { ordersApi } from '@/lib/api/orders';
 import { queryKeys } from '@/lib/query-keys';
+import { toast } from 'sonner';
+import { getApiErrorMessage } from '@/lib/api-error';
 
 const STATUS_TABS = [
   { id: '', label: 'Semua' },
@@ -20,7 +23,19 @@ const STATUS_TABS = [
 const VALID_STATUSES = ['pending', 'paid', 'shipped', 'delivered', 'payment_failed'];
 
 export default function AdminOrdersPage() {
-  const [statusFilter, setStatusFilter] = useState('');
+  return (
+    <Suspense fallback={<div className="pk-card" style={{ padding: 32, textAlign: 'center' }}>Memuat order...</div>}>
+      <AdminOrdersContent />
+    </Suspense>
+  );
+}
+
+function AdminOrdersContent() {
+  const searchParams = useSearchParams();
+  const statusFromUrl = searchParams.get('status') ?? '';
+  const [statusFilter, setStatusFilter] = useState(
+    VALID_STATUSES.includes(statusFromUrl) ? statusFromUrl : ''
+  );
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
@@ -38,19 +53,24 @@ export default function AdminOrdersPage() {
   });
 
   const updateStatusMutation = useMutation({
-    mutationFn: ({ orderId, status }: { orderId: string; status: string }) =>
-      ordersApi.updateStatus(orderId, { status }),
+    mutationFn: ({ orderId, status, reason }: { orderId: string; status: string; reason: string }) =>
+      ordersApi.updateStatus(orderId, { status, reason }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['orders'] });
     },
   });
 
   const handleStatusChange = async (orderId: string, newStatus: string) => {
+    const reason = window.prompt(`Alasan mengubah status order menjadi "${newStatus}":`);
+    if (!reason?.trim()) return;
+    if (!window.confirm(`Yakin mengubah status order ${orderId.slice(0, 8).toUpperCase()} menjadi "${newStatus}"?`)) return;
+
     setUpdatingId(orderId);
     try {
-      await updateStatusMutation.mutateAsync({ orderId, status: newStatus });
+      await updateStatusMutation.mutateAsync({ orderId, status: newStatus, reason: reason.trim() });
+      toast.success('Status order berhasil diperbarui');
     } catch (err) {
-      console.error('Gagal update status order', err);
+      toast.error(getApiErrorMessage(err, 'Gagal memperbarui status order'));
     } finally {
       setUpdatingId(null);
     }

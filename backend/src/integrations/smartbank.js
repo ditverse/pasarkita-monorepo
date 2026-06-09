@@ -1,5 +1,6 @@
 const axios = require('axios');
 const env = require('../config/env');
+const { writeIntegrationLog } = require('../utils/observability');
 
 /**
  * Kirim payment request ke SmartBank.
@@ -13,6 +14,7 @@ const sendPaymentRequest = async ({ orderId, fromUser, amount, feeMarketplace, i
     : `${env.GATEWAY_BASE_URL}/smartbank/payment`;
 
   const apiKey = env.GATEWAY_API_KEY || 'mock-key';
+  const startedAt = Date.now();
 
   try {
     const response = await axios.post(
@@ -32,8 +34,25 @@ const sendPaymentRequest = async ({ orderId, fromUser, amount, feeMarketplace, i
         timeout: 8000,
       }
     );
+    await writeIntegrationLog({
+      service: env.SMARTBANK_URL ? 'smartbank' : 'gateway',
+      operation: 'payment.create',
+      success: true,
+      durationMs: Date.now() - startedAt,
+      orderId,
+      statusCode: response.status,
+    });
     return response.data;
   } catch (error) {
+    await writeIntegrationLog({
+      service: env.SMARTBANK_URL ? 'smartbank' : 'gateway',
+      operation: 'payment.create',
+      success: false,
+      durationMs: Date.now() - startedAt,
+      orderId,
+      statusCode: error.response?.status ?? null,
+      errorCode: error.response?.data?.error?.code ?? 'GATEWAY_ERROR',
+    });
     if (error.response) {
       // Teruskan error dari SmartBank apa adanya
       const errData = error.response.data;

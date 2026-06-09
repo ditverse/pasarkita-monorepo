@@ -1,172 +1,208 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import StatusBadge from '@/components/pk/status-badge';
-import Icon from '@/components/pk/icon';
-import { formatIDR } from '@/lib/format';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import {
+  ActionCenter,
+  FunnelChart,
+  HealthBars,
+  IntegrationHealth,
+  MetricCard,
+  PeriodFilter,
+  RankingBars,
+  StatusDonut,
+  TrendChart,
+  PulseHeatmap,
+  UserGrowthChart,
+} from '@/components/pk/admin-analytics';
 import { adminApi } from '@/lib/api/admin';
+import { queryKeys } from '@/lib/query-keys';
+import { formatIDR } from '@/lib/format';
 
-interface Metrics {
-  total_orders: number;
-  total_revenue: number;
-  marketplace_fee: number;
-  new_users: number;
+type Period = 'today' | '7d' | '30d' | 'custom';
+
+function toApiDate(value: string, endOfDay = false) {
+  if (!value) return undefined;
+  return new Date(`${value}T${endOfDay ? '23:59:59.999' : '00:00:00'}+07:00`).toISOString();
 }
-
-interface StatusBreakdown {
-  key: string;
-  count: number;
-  pct: number;
-}
-
-interface TopProduct {
-  rank: number;
-  name: string;
-  seller: string;
-  sold: number;
-}
-
-interface AnalyticsData {
-  metrics: Metrics;
-  orders_by_status: StatusBreakdown[];
-  top_products: TopProduct[];
-}
-
-function MetricCard({ label, value, loading }: { label: string; value: string; loading?: boolean }) {
-  return (
-    <div className="pk-card" style={{ padding: 20, background: '#fff' }}>
-      <div style={{ fontSize: 13, color: 'var(--pk-text-secondary)', marginBottom: 10 }}>{label}</div>
-      {loading ? (
-        <div style={{ width: '80%', height: 28, background: 'var(--pk-bg-subtle)', borderRadius: 4, animation: 'pk-pulse 1.5s infinite' }} />
-      ) : (
-        <div style={{ fontSize: 28, fontWeight: 600, letterSpacing: '-0.025em', lineHeight: 1 }}>{value}</div>
-      )}
-    </div>
-  );
-}
-
-const barColor: Record<string, string> = {
-  paid: 'var(--pk-accent)',
-  shipped: 'var(--pk-teal)',
-  delivered: 'var(--pk-success)',
-  pending: 'var(--pk-border-strong)',
-  payment_failed: 'var(--pk-danger)',
-};
 
 export default function AdminAnalyticsPage() {
-  const [data, setData] = useState<AnalyticsData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [period, setPeriod] = useState<Period>('30d');
+  const [start, setStart] = useState('');
+  const [end, setEnd] = useState('');
+  const customReady = period !== 'custom' || Boolean(start && end);
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const res = await adminApi.getAnalytics();
-        // Backend: { success, message, data: { metrics, orders_by_status, top_products } }
-        setData(res.data.data as unknown as AnalyticsData);
-      } catch (err) {
-        console.error('Gagal get analytics admin', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadData();
-  }, []);
+  const analyticsQuery = useQuery({
+    queryKey: queryKeys.admin.analytics(period, start, end),
+    enabled: customReady,
+    queryFn: async () => {
+      const params = period === 'custom'
+        ? { start: toApiDate(start), end: toApiDate(end, true) }
+        : { period };
+      const response = await adminApi.getAnalytics(params);
+      return response.data.data;
+    },
+  });
 
-  const m: Metrics = data?.metrics ?? { total_orders: 0, total_revenue: 0, marketplace_fee: 0, new_users: 0 };
-  const breakdown: StatusBreakdown[] = data?.orders_by_status ?? [];
-  const topProducts: TopProduct[] = data?.top_products ?? [];
+  const data = analyticsQuery.data;
+  const summary = data?.summary;
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 20, alignItems: 'flex-start', marginBottom: 24, flexWrap: 'wrap' }}>
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 600, letterSpacing: '-0.02em', margin: '0 0 4px' }}>Analytics</h1>
-          <p style={{ fontSize: 14, color: 'var(--pk-text-secondary)', margin: 0 }}>Performa marketplace keseluruhan</p>
+          <p style={{ fontSize: 14, color: 'var(--pk-text-secondary)', margin: 0 }}>
+            Performa operasional marketplace dalam zona waktu Asia/Jakarta
+          </p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px', height: 36, border: '1px solid var(--pk-border)', borderRadius: 8, background: '#fff', fontSize: 13 }}>
-          <Icon name="clipboard" size={14} style={{ color: 'var(--pk-text-hint)' }} />
-          <span>Keseluruhan Waktu</span>
-          <Icon name="chevronDown" size={14} style={{ color: 'var(--pk-text-hint)' }} />
-        </div>
+        <PeriodFilter
+          period={period}
+          start={start}
+          end={end}
+          onPeriodChange={setPeriod}
+          onStartChange={setStart}
+          onEndChange={setEnd}
+        />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 28 }}>
-        <MetricCard label="Total Orders" value={m.total_orders.toLocaleString('id-ID')} loading={loading} />
-        <MetricCard label="Total Revenue" value={formatIDR(m.total_revenue)} loading={loading} />
-        <MetricCard label="Revenue Admin (Fee)" value={formatIDR(m.marketplace_fee)} loading={loading} />
-        <MetricCard label="Total Users" value={m.new_users.toLocaleString('id-ID')} loading={loading} />
+      {period === 'custom' && !customReady && (
+        <div className="pk-card" style={{ padding: 16, marginBottom: 20, color: 'var(--pk-text-secondary)' }}>
+          Pilih tanggal mulai dan akhir untuk memuat analytics.
+        </div>
+      )}
+
+      {analyticsQuery.isError && (
+        <div className="pk-card" role="alert" style={{ padding: 20, marginBottom: 20, borderColor: 'var(--pk-danger)' }}>
+          <div style={{ fontWeight: 600, marginBottom: 6 }}>Analytics gagal dimuat</div>
+          <div style={{ color: 'var(--pk-text-secondary)', marginBottom: 12 }}>Periksa koneksi backend lalu coba lagi.</div>
+          <button className="pk-btn pk-btn-secondary pk-btn-sm" onClick={() => analyticsQuery.refetch()}>
+            Coba Lagi
+          </button>
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 14, marginBottom: 22 }}>
+        <MetricCard
+          label="GMV"
+          value={formatIDR(summary?.gmv)}
+          change={data?.comparison.gmv}
+          hint="Total nilai order dengan pembayaran sukses."
+          loading={analyticsQuery.isLoading}
+          href="/admin/orders"
+        />
+        <MetricCard
+          label="Revenue Marketplace"
+          value={formatIDR(summary?.marketplace_revenue)}
+          change={data?.comparison.marketplace_revenue}
+          hint="Fee marketplace dari order yang pembayaran sudah sukses."
+          loading={analyticsQuery.isLoading}
+          href="/admin/orders"
+        />
+        <MetricCard
+          label="Paid Orders"
+          value={(summary?.paid_orders ?? 0).toLocaleString('id-ID')}
+          change={data?.comparison.paid_orders}
+          hint="Order berstatus paid, shipped, atau delivered."
+          loading={analyticsQuery.isLoading}
+          href="/admin/orders?status=paid"
+        />
+        <MetricCard
+          label="Average Order Value"
+          value={formatIDR(summary?.average_order_value)}
+          hint="Rata-rata GMV per paid order."
+          loading={analyticsQuery.isLoading}
+          href="/admin/orders"
+        />
+        <MetricCard
+          label="Payment Failure"
+          value={`${summary?.payment_failure_rate ?? 0}%`}
+          hint="Proporsi payment_failed dibanding payment yang telah diproses."
+          loading={analyticsQuery.isLoading}
+          href="/admin/orders?status=payment_failed"
+        />
+        <MetricCard
+          label="Buyer Aktif"
+          value={(summary?.active_buyers ?? 0).toLocaleString('id-ID')}
+          hint="Buyer unik yang membuat order pada periode."
+          loading={analyticsQuery.isLoading}
+          href="/admin/users?role=buyer"
+        />
+        <MetricCard
+          label="Seller Aktif"
+          value={(summary?.active_sellers ?? 0).toLocaleString('id-ID')}
+          hint="Seller unik dengan item yang dipesan pada periode."
+          loading={analyticsQuery.isLoading}
+          href="/admin/users?role=seller"
+        />
+        <MetricCard
+          label="User Baru"
+          value={(summary?.new_users ?? 0).toLocaleString('id-ID')}
+          change={data?.comparison.new_users}
+          hint="Akun baru yang terdaftar pada periode."
+          loading={analyticsQuery.isLoading}
+          href="/admin/users"
+        />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-        <div className="pk-card" style={{ padding: 24, background: '#fff' }}>
-          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Order by Status</div>
-          <div style={{ fontSize: 12, color: 'var(--pk-text-hint)', marginBottom: 20 }}>Distribusi order seluruh waktu</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {!loading && breakdown.length === 0 && (
-              <div style={{ color: 'var(--pk-text-hint)' }}>Belum ada transaksi di platform.</div>
-            )}
-            {breakdown.map((b) => (
-              <div key={b.key}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <StatusBadge status={b.key} />
-                    <span style={{ fontSize: 13, color: 'var(--pk-text-secondary)' }}>{b.count.toLocaleString('id-ID')} order</span>
-                  </div>
-                  <span style={{ fontSize: 13, fontWeight: 500 }}>{b.pct}%</span>
-                </div>
-                <div style={{ height: 6, background: 'var(--pk-bg-subtle)', borderRadius: 999, overflow: 'hidden' }}>
-                  <div style={{ width: `${b.pct}%`, height: '100%', background: barColor[b.key] ?? 'var(--pk-border-strong)' }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="pk-card" style={{ padding: 0, background: '#fff', overflow: 'hidden' }}>
-          <div style={{ padding: 24, paddingBottom: 16 }}>
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Top 5 Products</div>
-            <div style={{ fontSize: 12, color: 'var(--pk-text-hint)' }}>Berdasarkan jumlah terjual</div>
-          </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: 'var(--pk-bg-subtle)' }}>
-                {['#', 'Produk', 'Terjual'].map((h, i) => (
-                  <th key={h} style={{ textAlign: i === 2 ? 'right' : 'left', padding: '10px 24px', fontSize: 11, fontWeight: 500, color: 'var(--pk-text-hint)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {topProducts.length === 0 && (
-                <tr>
-                  <td colSpan={3} style={{ padding: '24px', textAlign: 'center', color: 'var(--pk-text-hint)' }}>
-                    {loading ? 'Memuat...' : 'Belum ada data produk terjual.'}
-                  </td>
-                </tr>
-              )}
-              {topProducts.map((t) => (
-                <tr key={t.rank} style={{ borderTop: '1px solid var(--pk-border)' }}>
-                  <td style={{ padding: '14px 24px', width: 40 }}>
-                    <div style={{
-                      width: 24, height: 24, borderRadius: 6,
-                      background: t.rank === 1 ? 'var(--pk-text)' : 'var(--pk-bg-subtle)',
-                      color: t.rank === 1 ? '#fff' : 'var(--pk-text-secondary)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 12, fontWeight: 600,
-                    }}>{t.rank}</div>
-                  </td>
-                  <td style={{ padding: '14px 24px' }}>
-                    <div style={{ fontSize: 14, fontWeight: 500 }}>{t.name}</div>
-                    <div style={{ fontSize: 12, color: 'var(--pk-text-hint)' }}>{t.seller}</div>
-                  </td>
-                  <td style={{ padding: '14px 24px', textAlign: 'right', fontSize: 14, fontWeight: 500 }}>
-                    {t.sold.toLocaleString('id-ID')}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 18, marginBottom: 18 }}>
+        <TrendChart data={data?.timeseries ?? []} />
+        <FunnelChart data={data?.transaction_funnel ?? []} />
       </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 18, marginBottom: 18 }}>
+        <StatusDonut data={data?.orders_by_status ?? []} />
+        <RankingBars
+          title="Top Produk"
+          subtitle="Berdasarkan unit terjual dari paid order"
+          data={(data?.top_products ?? []) as unknown as Array<Record<string, string | number>>}
+          valueKey="sold"
+        />
+        <RankingBars
+          title="Top Kategori"
+          subtitle="Berdasarkan GMV"
+          data={(data?.top_categories ?? []) as unknown as Array<Record<string, string | number>>}
+          valueKey="gmv"
+        />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 18, marginBottom: 18 }}>
+        <HealthBars
+          title="Payment Health"
+          subtitle="Perbandingan payment sukses dan gagal"
+          data={data?.timeseries ?? []}
+          series={[
+            { key: 'payment_success', label: 'Sukses', color: '#16A34A' },
+            { key: 'payment_failed', label: 'Gagal', color: '#DC2626' },
+          ]}
+        />
+        <HealthBars
+          title="Shipping Health"
+          subtitle="Pengiriman dibuat, dikirim, dan selesai"
+          data={data?.timeseries ?? []}
+          series={[
+            { key: 'shipping_created', label: 'Dibuat', color: '#2563EB' },
+            { key: 'shipped', label: 'Dikirim', color: '#0D9488' },
+            { key: 'delivered', label: 'Selesai', color: '#16A34A' },
+          ]}
+        />
+        <UserGrowthChart data={data?.timeseries ?? []} />
+      </div>
+
+      <div style={{ marginBottom: 18 }}>
+        <PulseHeatmap data={data?.marketplace_pulse ?? []} />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 18 }}>
+        <IntegrationHealth data={data?.integration_health ?? { available: false, services: [], message: 'Memuat data...' }} />
+        <ActionCenter data={data?.action_center ?? []} />
+      </div>
+
+      {data && (
+        <div style={{ marginTop: 14, textAlign: 'right', fontSize: 11, color: 'var(--pk-text-hint)' }}>
+          Diperbarui {new Date(data.period.generated_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}
+        </div>
+      )}
     </div>
   );
 }

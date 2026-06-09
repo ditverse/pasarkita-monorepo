@@ -1,5 +1,6 @@
 const axios = require('axios');
 const env = require('../config/env');
+const { writeIntegrationLog } = require('../utils/observability');
 
 /**
  * Trigger pengiriman ke LogistiKita.
@@ -13,6 +14,7 @@ const triggerShipping = async ({ orderId, fromAddress, toAddress, itemsCount }) 
     : `${env.GATEWAY_BASE_URL}/logistikita/shipping`;
 
   const apiKey = env.GATEWAY_API_KEY || 'mock-key';
+  const startedAt = Date.now();
 
   try {
     const response = await axios.post(
@@ -31,8 +33,25 @@ const triggerShipping = async ({ orderId, fromAddress, toAddress, itemsCount }) 
         timeout: 8000,
       }
     );
+    await writeIntegrationLog({
+      service: env.LOGISTIKITA_URL ? 'logistikita' : 'gateway',
+      operation: 'shipping.create',
+      success: true,
+      durationMs: Date.now() - startedAt,
+      orderId,
+      statusCode: response.status,
+    });
     return response.data;
   } catch (error) {
+    await writeIntegrationLog({
+      service: env.LOGISTIKITA_URL ? 'logistikita' : 'gateway',
+      operation: 'shipping.create',
+      success: false,
+      durationMs: Date.now() - startedAt,
+      orderId,
+      statusCode: error.response?.status ?? null,
+      errorCode: error.response?.data?.error?.code ?? 'GATEWAY_ERROR',
+    });
     if (error.response) {
       const errData = error.response.data;
       throw {

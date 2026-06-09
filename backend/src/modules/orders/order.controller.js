@@ -22,7 +22,12 @@ const getOrderById = async (req, res, next) => {
 const updateOrderStatus = async (req, res, next) => {
   try {
     // Pass user agar service bisa validasi role
-    const data = await orderService.updateOrderStatus(req.user, req.params.id, req.body.status);
+    const data = await orderService.updateOrderStatus(
+      req.user,
+      req.params.id,
+      req.body.status,
+      req.body.reason
+    );
     return successResponse(res, 200, 'Status order berhasil diperbarui', data);
   } catch (err) {
     next(err);

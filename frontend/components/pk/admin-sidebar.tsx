@@ -7,9 +7,11 @@ import Icon from './icon';
 
 const items = [
   { id: 'overview', href: '/admin', label: 'Overview', icon: 'grid' as const },
+  { id: 'actions', href: '/admin/action-center', label: 'Action Center', icon: 'bell' as const },
   { id: 'users', href: '/admin/users', label: 'Semua User', icon: 'users' as const },
   { id: 'orders', href: '/admin/orders', label: 'Semua Order', icon: 'bag' as const },
   { id: 'analytics', href: '/admin/analytics', label: 'Analytics', icon: 'barChart' as const },
+  { id: 'audit', href: '/admin/audit-logs', label: 'Audit Log', icon: 'clipboard' as const },
 ];
 
 export default function AdminSidebar() {

@@ -2,6 +2,7 @@ const supabase = require('../../config/supabase');
 const { triggerShipping } = require('../../integrations/logistikita');
 const axios = require('axios');
 const env = require('../../config/env');
+const { writeAuditLog, writeIntegrationLog } = require('../../utils/observability');
 
 const getOrders = async (user, query) => {
   const page = parseInt(query.page) || 1;
@@ -76,7 +77,7 @@ const getOrderById = async (user, orderId) => {
   return { ...data, items: reshapedItems };
 };
 
-const updateOrderStatus = async (user, orderId, status) => {
+const updateOrderStatus = async (user, orderId, status, reason = null) => {
   // Validasi status yang diizinkan per role
   const sellerAllowed = ['shipped'];
   const buyerAllowed = ['delivered'];
@@ -97,6 +98,13 @@ const updateOrderStatus = async (user, orderId, status) => {
         : user.role === 'buyer'
           ? 'Buyer hanya bisa mengkonfirmasi pesanan diterima'
           : `Status tidak valid. Pilihan: ${adminAllowed.join(', ')}`,
+    };
+  }
+  if (user.role === 'superadmin' && (!reason || reason.trim().length < 3)) {
+    throw {
+      status: 400,
+      code: 'VALIDATION_ERROR',
+      message: 'Alasan perubahan status wajib diisi oleh admin',
     };
   }
 
@@ -125,6 +133,7 @@ const updateOrderStatus = async (user, orderId, status) => {
 
     // Jika ada tracking_id, update status di LogistiKita juga
     if (order.tracking_id) {
+      const startedAt = Date.now();
       try {
         const url = env.LOGISTIKITA_URL
           ? `${env.LOGISTIKITA_URL}/shipping/${order.tracking_id}`
@@ -134,7 +143,24 @@ const updateOrderStatus = async (user, orderId, status) => {
           headers: { Authorization: `Bearer ${env.GATEWAY_API_KEY || 'mock-key'}` },
           timeout: 5000,
         });
+        await writeIntegrationLog({
+          service: env.LOGISTIKITA_URL ? 'logistikita' : 'gateway',
+          operation: 'shipping.update',
+          success: true,
+          durationMs: Date.now() - startedAt,
+          orderId,
+          statusCode: 200,
+        });
       } catch (err) {
+        await writeIntegrationLog({
+          service: env.LOGISTIKITA_URL ? 'logistikita' : 'gateway',
+          operation: 'shipping.update',
+          success: false,
+          durationMs: Date.now() - startedAt,
+          orderId,
+          statusCode: err.response?.status ?? null,
+          errorCode: err.response?.data?.error?.code ?? 'GATEWAY_ERROR',
+        });
         // LogistiKita gagal tidak block update status order
         console.error('[Order] LogistiKita update gagal:', err.message);
       }
@@ -150,6 +176,17 @@ const updateOrderStatus = async (user, orderId, status) => {
 
   if (error) {
     throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
+  }
+  if (user.role === 'superadmin') {
+    await writeAuditLog({
+      actorId: user.id,
+      action: 'order.status_changed',
+      targetType: 'order',
+      targetId: orderId,
+      reason,
+      before: { status: order.status },
+      after: { status },
+    });
   }
   return data;
 };

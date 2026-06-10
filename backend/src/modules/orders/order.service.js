@@ -4,24 +4,131 @@ const axios = require('axios');
 const env = require('../../config/env');
 const { writeAuditLog, writeIntegrationLog } = require('../../utils/observability');
 
+const ORDER_STATUSES = new Set(['pending', 'paid', 'shipped', 'delivered', 'payment_failed']);
+const ORDER_SORTS = {
+  created_desc: ['created_at', false],
+  created_asc: ['created_at', true],
+  total_desc: ['total', false],
+  total_asc: ['total', true],
+  status_asc: ['status', true],
+  status_desc: ['status', false],
+  updated_desc: ['updated_at', false],
+  updated_asc: ['updated_at', true],
+};
+
+const parsePositiveInt = (value, fallback, max = 100) => {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return Math.min(parsed, max);
+};
+
+const findAdminOrderIds = async (search) => {
+  const term = search.trim();
+  if (!term) return null;
+  const safeTerm = term.replace(/[%_,]/g, '');
+
+  const [ordersResult, buyersResult] = await Promise.all([
+    supabase.from('orders').select('id, transaction_id, tracking_id'),
+    safeTerm
+      ? supabase
+        .from('users')
+        .select('id')
+        .eq('role', 'buyer')
+        .or(`name.ilike.%${safeTerm}%,email.ilike.%${safeTerm}%`)
+        .limit(100)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  if (ordersResult.error) {
+    throw { status: 500, code: 'INTERNAL_ERROR', message: ordersResult.error.message };
+  }
+  if (buyersResult.error) {
+    throw { status: 500, code: 'INTERNAL_ERROR', message: buyersResult.error.message };
+  }
+
+  const normalized = term.toLowerCase();
+  const buyerIds = new Set((buyersResult.data || []).map((buyer) => buyer.id));
+  const matchingOrderIds = (ordersResult.data || [])
+    .filter((order) =>
+      order.id.toLowerCase().startsWith(normalized) ||
+      order.transaction_id?.toLowerCase().includes(normalized) ||
+      order.tracking_id?.toLowerCase().includes(normalized)
+    )
+    .map((order) => order.id);
+
+  if (buyerIds.size > 0) {
+    const buyerOrders = await supabase
+      .from('orders')
+      .select('id')
+      .in('buyer_id', [...buyerIds]);
+    if (buyerOrders.error) {
+      throw { status: 500, code: 'INTERNAL_ERROR', message: buyerOrders.error.message };
+    }
+    matchingOrderIds.push(...(buyerOrders.data || []).map((order) => order.id));
+  }
+
+  return [...new Set(matchingOrderIds)];
+};
+
+const getSellerOrderIds = async (sellerId) => {
+  const { data, error } = await supabase
+    .from('order_items')
+    .select('order_id, product:products!inner(seller_id)')
+    .eq('product.seller_id', sellerId);
+
+  if (error) throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
+  return [...new Set((data || []).map((item) => item.order_id))];
+};
+
 const getOrders = async (user, query) => {
-  const page = parseInt(query.page) || 1;
-  const limit = parseInt(query.limit) || 20;
+  const page = parsePositiveInt(query.page, 1, 100000);
+  const limit = parsePositiveInt(query.limit, 20, 100);
   const offset = (page - 1) * limit;
+  const [sortColumn, sortAscending] = ORDER_SORTS[query.sort] || ORDER_SORTS.created_desc;
 
   let supaQuery = supabase
     .from('orders')
-    .select('*, items:order_items(product_id, qty, price_at_purchase, product:products(id, name, seller_id))', { count: 'exact' })
-    .order('created_at', { ascending: false })
+    .select(
+      '*, buyer:users!buyer_id(id, name, email), items:order_items(product_id, qty, price_at_purchase, product:products(id, name, seller_id, seller:users!seller_id(id, name)))',
+      { count: 'exact' }
+    )
+    .order(sortColumn, { ascending: sortAscending })
     .range(offset, offset + limit - 1);
 
   if (user.role === 'buyer') {
     supaQuery = supaQuery.eq('buyer_id', user.id);
   }
-  // seller dan superadmin lihat semua — filter seller dilakukan di sisi query jika perlu
+  if (user.role === 'seller') {
+    const sellerOrderIds = await getSellerOrderIds(user.id);
+    if (sellerOrderIds.length === 0) {
+      return { data: [], pagination: { page, limit, total: 0, total_pages: 0 } };
+    }
+    supaQuery = supaQuery.in('id', sellerOrderIds);
+  }
 
-  if (query.status) {
+  if (query.status && ORDER_STATUSES.has(query.status)) {
     supaQuery = supaQuery.eq('status', query.status);
+  }
+  if (user.role === 'superadmin' && query.search?.trim()) {
+    const matchingIds = await findAdminOrderIds(query.search);
+    if (matchingIds.length === 0) {
+      return { data: [], pagination: { page, limit, total: 0, total_pages: 0 } };
+    }
+    supaQuery = supaQuery.in('id', matchingIds);
+  }
+  if (user.role === 'superadmin' && query.created_from) {
+    const createdFrom = new Date(`${query.created_from}T00:00:00+07:00`);
+    if (Number.isNaN(createdFrom.getTime())) {
+      throw { status: 400, code: 'VALIDATION_ERROR', message: 'Tanggal awal tidak valid' };
+    }
+    supaQuery = supaQuery.gte('created_at', createdFrom.toISOString());
+  }
+  if (user.role === 'superadmin' && query.created_to) {
+    const createdTo = new Date(`${query.created_to}T23:59:59.999+07:00`);
+    if (Number.isNaN(createdTo.getTime())) {
+      throw { status: 400, code: 'VALIDATION_ERROR', message: 'Tanggal akhir tidak valid' };
+    }
+    supaQuery = supaQuery.lte('created_at', createdTo.toISOString());
   }
 
   const { data, error, count } = await supaQuery;
@@ -30,26 +137,18 @@ const getOrders = async (user, query) => {
     throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
   }
 
-  // Untuk seller: filter hanya order yang mengandung produk miliknya
-  let filtered = data || [];
-  if (user.role === 'seller') {
-    filtered = filtered.filter((order) =>
-      order.items?.some((item) => item.product?.seller_id === user.id)
-    );
-  }
-
   const totalPages = Math.ceil((count || 0) / limit);
 
   return {
-    data: filtered,
-    pagination: { page, limit, total: filtered.length, total_pages: totalPages },
+    data: data || [],
+    pagination: { page, limit, total: count || 0, total_pages: totalPages },
   };
 };
 
 const getOrderById = async (user, orderId) => {
   const { data, error } = await supabase
     .from('orders')
-    .select('*, items:order_items(product_id, qty, price_at_purchase, product:products(id, name, seller_id)), buyer:users!buyer_id(id, name, email)')
+    .select('*, items:order_items(product_id, qty, price_at_purchase, product:products(id, name, category, seller_id, seller:users!seller_id(id, name, email))), buyer:users!buyer_id(id, name, email)')
     .eq('id', orderId)
     .single();
 
@@ -70,11 +169,44 @@ const getOrderById = async (user, orderId) => {
   const reshapedItems = (data.items || []).map((item) => ({
     product_id: item.product_id,
     product_name: item.product?.name ?? 'Produk dihapus',
+    category: item.product?.category ?? null,
+    seller: item.product?.seller ?? null,
     qty: item.qty,
     price_at_purchase: item.price_at_purchase,
   }));
 
-  return { ...data, items: reshapedItems };
+  let auditHistory = { available: true, data: [] };
+  let integrationTimeline = { available: true, data: [] };
+  if (user.role === 'superadmin') {
+    const [auditResult, integrationResult] = await Promise.all([
+      supabase
+        .from('admin_audit_logs')
+        .select('id, action, reason, before_data, after_data, created_at, actor:users!actor_id(id, name, email)')
+        .eq('target_type', 'order')
+        .eq('target_id', orderId)
+        .order('created_at', { ascending: false })
+        .limit(20),
+      supabase
+        .from('integration_logs')
+        .select('id, service, operation, success, duration_ms, status_code, error_code, created_at')
+        .eq('order_id', orderId)
+        .order('created_at', { ascending: true }),
+    ]);
+
+    auditHistory = auditResult.error
+      ? { available: false, message: 'Audit log belum aktif.', data: [] }
+      : { available: true, data: auditResult.data || [] };
+    integrationTimeline = integrationResult.error
+      ? { available: false, message: 'Integration log belum aktif.', data: [] }
+      : { available: true, data: integrationResult.data || [] };
+  }
+
+  return {
+    ...data,
+    items: reshapedItems,
+    audit_history: auditHistory,
+    integration_timeline: integrationTimeline,
+  };
 };
 
 const updateOrderStatus = async (user, orderId, status, reason = null) => {

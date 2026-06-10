@@ -22,6 +22,7 @@ export default function AddProductPage() {
   });
   
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -29,8 +30,15 @@ export default function AddProductPage() {
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
         toast.error('Ukuran gambar maksimal 5MB');
+        e.target.value = '';
         return;
       }
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+        toast.error('Format gambar harus JPG, PNG, atau WebP');
+        e.target.value = '';
+        return;
+      }
+      setImageFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         setImagePreview(reader.result as string);
@@ -48,12 +56,19 @@ export default function AddProductPage() {
 
     try {
       setLoading(true);
+      let imageUrl: string | null = null;
+      if (imageFile) {
+        toast.info('Mengunggah foto produk...');
+        const uploadResponse = await productsApi.uploadImage(imageFile);
+        imageUrl = uploadResponse.data.data.image_url;
+      }
       await productsApi.create({
         name: form.name,
         description: form.description,
         category: form.category,
         price: parseInt(form.price),
         stock: parseInt(form.stock),
+        image_url: imageUrl,
       });
       toast.success('Produk berhasil ditambahkan!');
       router.push('/seller/products');
@@ -144,7 +159,7 @@ export default function AddProductPage() {
           <label className="pk-label">Foto Produk</label>
           <input 
             type="file" 
-            accept="image/png, image/jpeg" 
+            accept="image/png,image/jpeg,image/webp"
             style={{ display: 'none' }} 
             ref={fileInputRef}
             onChange={handleImageChange}
@@ -168,15 +183,20 @@ export default function AddProductPage() {
             ) : (
               <>
                 <Icon name="package" size={22} style={{ color: 'var(--pk-text-hint)', marginBottom: 8 }} />
-                <div style={{ fontSize: 13, fontWeight: 500 }}>Klik untuk upload atau drag & drop</div>
-                <div style={{ fontSize: 12, color: 'var(--pk-text-hint)', marginTop: 2 }}>PNG, JPG hingga 5MB · Maks 8 foto</div>
+                <div style={{ fontSize: 13, fontWeight: 500 }}>Klik untuk memilih foto utama</div>
+                <div style={{ fontSize: 12, color: 'var(--pk-text-hint)', marginTop: 2 }}>PNG, JPG, atau WebP hingga 5MB</div>
               </>
             )}
           </div>
           {imagePreview && (
             <button 
               style={{ fontSize: 12, color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', marginTop: 8 }}
-              onClick={() => setImagePreview(null)}
+              type="button"
+              onClick={() => {
+                setImagePreview(null);
+                setImageFile(null);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+              }}
             >
               Hapus Foto
             </button>

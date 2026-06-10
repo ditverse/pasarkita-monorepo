@@ -4,7 +4,7 @@ import { Suspense, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Icon from '@/components/pk/icon';
-import Placeholder from '@/components/pk/placeholder';
+import ProductImage from '@/components/pk/product-image';
 import { formatIDR } from '@/lib/format';
 import { api } from '@/lib/api';
 import { checkoutApi } from '@/lib/api/checkout';
@@ -148,7 +148,12 @@ function CheckoutContent() {
               Ringkasan Pesanan
             </div>
             <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-              <Placeholder label="item" height={64} style={{ width: 64, flexShrink: 0 }} />
+              <ProductImage
+                src={product.image_url}
+                alt={product.name}
+                height={64}
+                style={{ width: 64, borderRadius: 8, flexShrink: 0 }}
+              />
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 14, fontWeight: 500 }}>{product.name}</div>
                 <div style={{ fontSize: 12, color: 'var(--pk-text-hint)', marginTop: 2 }}>

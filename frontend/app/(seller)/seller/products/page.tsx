@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import Icon from '@/components/pk/icon';
-import Placeholder from '@/components/pk/placeholder';
+import ProductImage from '@/components/pk/product-image';
 import { formatIDR } from '@/lib/format';
 import { productsApi } from '@/lib/api/products';
 import { useAuthStore } from '@/store/auth';
@@ -14,10 +14,24 @@ import { getApiErrorMessage } from '@/lib/api-error';
 import { queryKeys } from '@/lib/query-keys';
 import { Product } from '@/types/api';
 
-function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
+function Toggle({
+  on,
+  onChange,
+  label,
+  title,
+}: {
+  on: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+  title?: string;
+}) {
   return (
     <button
+      type="button"
       onClick={() => onChange(!on)}
+      aria-label={label}
+      aria-pressed={on}
+      title={title}
       style={{
         width: 36, height: 20, borderRadius: 999,
         background: on ? 'var(--pk-success)' : 'var(--pk-border-strong)',
@@ -45,9 +59,9 @@ export default function SellerProductsPage() {
   const { data: products = [], isLoading: loading, isFetching, isError } = useQuery({
     queryKey: queryKeys.products.seller(user?.id, debouncedSearch),
     queryFn: async (): Promise<Product[]> => {
-      const res = await productsApi.getAll({
-        seller_id: user?.id,
+      const res = await productsApi.getMine({
         search: debouncedSearch || undefined,
+        limit: 100,
       });
       return res.data.data ?? [];
     },
@@ -68,6 +82,9 @@ export default function SellerProductsPage() {
       return;
     }
 
+    const action = newStatus ? 'mengaktifkan' : 'menonaktifkan';
+    if (!window.confirm(`Yakin ingin ${action} produk ini?`)) return;
+
     try {
       await updateProductMutation.mutateAsync({ id, isActive: newStatus });
       toast.success(`Produk berhasil di${newStatus ? 'aktifkan' : 'nonaktifkan'}`);
@@ -83,6 +100,7 @@ export default function SellerProductsPage() {
   });
 
   const activeCount = products.filter((p) => p.is_active).length;
+  const hasActiveFilters = Boolean(search) || filterStatus !== 'Semua';
 
   if (loading && products.length === 0 && !debouncedSearch) {
      return <div style={{ padding: '40px', color: 'var(--pk-text-hint)' }}>Memuat etalase produk Anda...</div>;
@@ -140,80 +158,106 @@ export default function SellerProductsPage() {
             </select>
             <Icon name="chevronDown" size={14} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--pk-text-hint)' }} />
           </div>
+          {hasActiveFilters && (
+            <button
+              type="button"
+              className="pk-btn pk-btn-secondary pk-btn-sm"
+              onClick={() => {
+                setSearch('');
+                setFilterStatus('Semua');
+              }}
+            >
+              Reset
+            </button>
+          )}
         </div>
-        
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ background: 'var(--pk-bg-subtle)' }}>
-              {['Nama Produk', 'Harga', 'Stok', 'Status', 'Aksi'].map((h, i) => (
-                <th key={h} style={{
-                  textAlign: i === 0 ? 'left' : i === 4 ? 'right' : 'left',
-                  padding: '10px 20px', fontSize: 12, fontWeight: 500,
-                  color: 'var(--pk-text-hint)', textTransform: 'uppercase', letterSpacing: '0.06em',
-                  borderBottom: '1px solid var(--pk-border)',
-                }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {isFetching && products.length > 0 && (
-               <tr>
-                 <td colSpan={5} style={{ padding: '20px', textAlign: 'center', color: 'var(--pk-text-hint)' }}>
-                   Mencari...
-                 </td>
-               </tr>
-            )}
-            {!loading && isError && (
-              <tr>
-                <td colSpan={5} style={{ padding: '30px', textAlign: 'center', color: 'var(--pk-text-secondary)' }}>
-                  Produk gagal dimuat. Periksa koneksi backend dan token login.
-                </td>
+
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', minWidth: 720, borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: 'var(--pk-bg-subtle)' }}>
+                {['Nama Produk', 'Harga', 'Stok', 'Status', 'Aksi'].map((h, i) => (
+                  <th key={h} style={{
+                    textAlign: i === 0 ? 'left' : i === 4 ? 'right' : 'left',
+                    padding: '10px 20px', fontSize: 12, fontWeight: 500,
+                    color: 'var(--pk-text-hint)', textTransform: 'uppercase', letterSpacing: '0.06em',
+                    borderBottom: '1px solid var(--pk-border)',
+                  }}>{h}</th>
+                ))}
               </tr>
-            )}
-            {!loading && !isError && filteredProducts.length === 0 && (
-              <tr>
-                <td colSpan={5} style={{ padding: '30px', textAlign: 'center', color: 'var(--pk-text-hint)' }}>
-                  {search ? 'Produk tidak ditemukan.' : 'Catatan: Anda belum memiliki produk di database. Tambah sekarang!'}
-                </td>
-              </tr>
-            )}
-            {!loading && !isError && filteredProducts.map((p) => {
-              const isGreyedOut = !p.is_active || p.stock <= 0;
-              return (
-                <tr key={p.id} style={{ 
-                  borderBottom: '1px solid var(--pk-border)',
-                  background: isGreyedOut ? 'var(--pk-bg-subtle)' : 'transparent',
-                  opacity: isGreyedOut ? 0.7 : 1,
-                  transition: 'background 150ms ease, opacity 150ms ease'
-                }}>
-                  <td style={{ padding: '14px 20px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <Placeholder label="img" height={40} style={{ width: 40, borderRadius: 6, fontSize: 9 }} />
-                      <div>
-                        <div style={{ fontSize: 14, fontWeight: 500 }}>{p.name}</div>
-                        <div style={{ fontSize: 12, color: 'var(--pk-text-hint)' }}>{p.category || 'Belanja'}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td style={{ padding: '14px 20px', fontSize: 14, fontWeight: 500 }}>{formatIDR(p.price)}</td>
-                  <td style={{ padding: '14px 20px', fontSize: 14 }}>
-                    <span style={{ color: p.stock <= 0 ? '#dc2626' : 'inherit', fontWeight: p.stock <= 0 ? 600 : 'normal' }}>
-                      {p.stock}
-                    </span>
-                  </td>
-                  <td style={{ padding: '14px 20px' }}>
-                    <Toggle on={p.is_active} onChange={(v) => toggleActive(p.id, v, p.stock)} />
-                  </td>
-                  <td style={{ padding: '14px 20px', textAlign: 'right' }}>
-                    <Link href={`/seller/products/edit/${p.id}`} style={{ fontSize: 13, color: 'var(--pk-accent)', cursor: 'pointer', fontWeight: 500, textDecoration: 'none' }}>
-                      Edit
-                    </Link>
+            </thead>
+            <tbody>
+              {isFetching && products.length > 0 && (
+                <tr>
+                  <td colSpan={5} style={{ padding: '20px', textAlign: 'center', color: 'var(--pk-text-hint)' }}>
+                    Mencari...
                   </td>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              )}
+              {!loading && isError && (
+                <tr>
+                  <td colSpan={5} style={{ padding: '30px', textAlign: 'center', color: 'var(--pk-text-secondary)' }}>
+                    Produk gagal dimuat. Periksa koneksi backend dan token login.
+                  </td>
+                </tr>
+              )}
+              {!loading && !isError && filteredProducts.length === 0 && (
+                <tr>
+                  <td colSpan={5} style={{ padding: '30px', textAlign: 'center', color: 'var(--pk-text-hint)' }}>
+                    {hasActiveFilters ? 'Tidak ada produk yang sesuai dengan pencarian atau filter.' : 'Catatan: Anda belum memiliki produk di database. Tambah sekarang!'}
+                  </td>
+                </tr>
+              )}
+              {!loading && !isError && filteredProducts.map((p) => {
+                const isGreyedOut = !p.is_active || p.stock <= 0;
+                return (
+                  <tr key={p.id} style={{
+                    borderBottom: '1px solid var(--pk-border)',
+                    background: isGreyedOut ? 'var(--pk-bg-subtle)' : 'transparent',
+                    opacity: isGreyedOut ? 0.7 : 1,
+                    transition: 'background 150ms ease, opacity 150ms ease'
+                  }}>
+                    <td style={{ padding: '14px 20px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <ProductImage
+                          src={p.image_url}
+                          alt={p.name}
+                          height={40}
+                          style={{ width: 40, borderRadius: 6, flexShrink: 0 }}
+                        />
+                        <div>
+                          <div style={{ fontSize: 14, fontWeight: 500 }}>{p.name}</div>
+                          <div style={{ fontSize: 12, color: 'var(--pk-text-hint)' }}>{p.category || 'Belanja'}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ padding: '14px 20px', fontSize: 14, fontWeight: 500 }}>{formatIDR(p.price)}</td>
+                    <td style={{ padding: '14px 20px', fontSize: 14 }}>
+                      <span style={{ color: p.stock <= 0 ? '#dc2626' : 'inherit', fontWeight: p.stock <= 0 ? 600 : 'normal' }}>
+                        {p.stock}
+                      </span>
+                    </td>
+                    <td style={{ padding: '14px 20px' }}>
+                      <Toggle
+                        on={p.is_active}
+                        onChange={(v) => toggleActive(p.id, v, p.stock)}
+                        label={`${p.is_active ? 'Nonaktifkan' : 'Aktifkan'} produk ${p.name}`}
+                        title={!p.is_active && p.stock <= 0
+                          ? 'Isi stok terlebih dahulu sebelum mengaktifkan produk'
+                          : `${p.is_active ? 'Nonaktifkan' : 'Aktifkan'} produk`}
+                      />
+                    </td>
+                    <td style={{ padding: '14px 20px', textAlign: 'right' }}>
+                      <Link href={`/seller/products/edit/${p.id}`} style={{ fontSize: 13, color: 'var(--pk-accent)', cursor: 'pointer', fontWeight: 500, textDecoration: 'none' }}>
+                        Edit
+                      </Link>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

@@ -27,7 +27,7 @@ export default function SellerOrdersPage() {
   const user = useAuthStore((state) => state.user);
   const queryClient = useQueryClient();
 
-  const { data: orders = [], isLoading: loading, isError } = useQuery({
+  const { data: orders = [], isLoading: loading, isError, isFetching, refetch } = useQuery({
     queryKey: queryKeys.orders.list('seller'),
     queryFn: async (): Promise<Order[]> => {
       const res = await ordersApi.getAll();
@@ -44,6 +44,10 @@ export default function SellerOrdersPage() {
   });
 
   const handleMarkShipped = async (orderId: string) => {
+    if (!window.confirm(`Tandai order ${orderId.slice(0, 8).toUpperCase()} sebagai sudah dikirim?`)) {
+      return;
+    }
+
     setUpdatingId(orderId);
     try {
       await markShippedMutation.mutateAsync(orderId);
@@ -118,7 +122,16 @@ export default function SellerOrdersPage() {
             border: '1px dashed var(--pk-border)', borderRadius: 12,
             color: 'var(--pk-text-secondary)',
           }}>
-            Order gagal dimuat. Periksa koneksi backend dan token login.
+            <div>Order gagal dimuat. Periksa koneksi backend dan token login.</div>
+            <button
+              type="button"
+              className="pk-btn pk-btn-secondary pk-btn-sm"
+              onClick={() => void refetch()}
+              disabled={isFetching}
+              style={{ marginTop: 12 }}
+            >
+              {isFetching ? 'Mencoba lagi...' : 'Coba Lagi'}
+            </button>
           </div>
         )}
 

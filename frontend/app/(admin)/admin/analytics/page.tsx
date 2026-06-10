@@ -82,6 +82,31 @@ export default function AdminAnalyticsPage() {
         </div>
       )}
 
+      {data && (analyticsQuery.isStale || analyticsQuery.isFetching) && (
+        <div
+          className="pk-card"
+          style={{
+            padding: '10px 14px',
+            marginBottom: 18,
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 12,
+            alignItems: 'center',
+            background: 'var(--pk-warning-soft)',
+            borderColor: 'var(--pk-warning)',
+            color: 'var(--pk-warning)',
+            fontSize: 12,
+          }}
+        >
+          <span>{analyticsQuery.isFetching ? 'Data sedang diperbarui di latar belakang.' : 'Data melewati batas freshness 30 detik.'}</span>
+          {!analyticsQuery.isFetching && (
+            <button className="pk-btn pk-btn-secondary pk-btn-sm" onClick={() => analyticsQuery.refetch()}>
+              Perbarui
+            </button>
+          )}
+        </div>
+      )}
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 14, marginBottom: 22 }}>
         <MetricCard
           label="GMV"

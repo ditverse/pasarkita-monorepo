@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Icon from '@/components/pk/icon';
-import Placeholder from '@/components/pk/placeholder';
+import ProductImage from '@/components/pk/product-image';
 import { formatIDR } from '@/lib/format';
 import { productsApi } from '@/lib/api/products';
 import { useDebounce } from '@/lib/hooks/useDebounce';
@@ -285,7 +285,12 @@ export default function HomePage() {
                 style={{ textDecoration: 'none' }}
               >
                 <div className="pk-card pk-card-hover" style={{ cursor: 'pointer', overflow: 'hidden' }}>
-                  <Placeholder label={p.category || 'produk'} height={200} style={{ borderRadius: 0 }} />
+                  <ProductImage
+                    src={p.image_url}
+                    alt={p.name}
+                    height={200}
+                    style={{ borderRadius: 0 }}
+                  />
                   <div style={{ padding: 14 }}>
                     <div
                       style={{

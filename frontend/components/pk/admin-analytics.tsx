@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { formatIDR } from '@/lib/format';
 import type { AnalyticsSummary } from '@/types/api';
@@ -112,6 +113,7 @@ const compactIDR = new Intl.NumberFormat('id-ID', {
 });
 
 export function TrendChart({ data }: { data: AnalyticsSummary['timeseries'] }) {
+  const [visible, setVisible] = useState({ gmv: true, revenue: true, orders: true });
   const width = 720;
   const height = 240;
   const padding = 38;
@@ -148,7 +150,7 @@ export function TrendChart({ data }: { data: AnalyticsSummary['timeseries'] }) {
                 </g>
               );
             })}
-            {points.map((point) => {
+            {visible.orders && points.map((point) => {
               const barHeight = (point.orders / maxOrders) * (height - padding * 2);
               return (
                 <rect
@@ -164,9 +166,9 @@ export function TrendChart({ data }: { data: AnalyticsSummary['timeseries'] }) {
                 </rect>
               );
             })}
-            <path d={path} fill="none" stroke="#2563EB" strokeWidth="3" strokeLinejoin="round" />
-            <path d={revenuePath} fill="none" stroke="#0D9488" strokeWidth="2" strokeDasharray="5 4" strokeLinejoin="round" />
-            {points.map((point) => (
+            {visible.gmv && <path d={path} fill="none" stroke="#2563EB" strokeWidth="3" strokeLinejoin="round" />}
+            {visible.revenue && <path d={revenuePath} fill="none" stroke="#0D9488" strokeWidth="2" strokeDasharray="5 4" strokeLinejoin="round" />}
+            {visible.gmv && points.map((point) => (
               <g key={point.bucket}>
                 <circle cx={point.x} cy={point.y} r="4" fill="#2563EB">
                   <title>{`${point.bucket}: ${formatIDR(point.gmv)}, ${point.orders} order`}</title>
@@ -179,9 +181,9 @@ export function TrendChart({ data }: { data: AnalyticsSummary['timeseries'] }) {
             </text>
           </svg>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 18, fontSize: 11, color: 'var(--pk-text-secondary)' }}>
-            <span><b style={{ color: '#2563EB' }}>━</b> GMV</span>
-            <span><b style={{ color: '#0D9488' }}>┄</b> Revenue</span>
-            <span><b style={{ color: '#9CA3AF' }}>■</b> Order</span>
+            <LegendButton active={visible.gmv} onClick={() => setVisible((value) => ({ ...value, gmv: !value.gmv }))} color="#2563EB" symbol="━" label="GMV" />
+            <LegendButton active={visible.revenue} onClick={() => setVisible((value) => ({ ...value, revenue: !value.revenue }))} color="#0D9488" symbol="┄" label="Revenue" />
+            <LegendButton active={visible.orders} onClick={() => setVisible((value) => ({ ...value, orders: !value.orders }))} color="#9CA3AF" symbol="■" label="Order" />
           </div>
         </div>
       )}
@@ -200,9 +202,11 @@ export function HealthBars({
   data: AnalyticsSummary['timeseries'];
   series: Array<{ key: keyof AnalyticsSummary['timeseries'][number]; label: string; color: string }>;
 }) {
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const activeSeries = series.filter((item) => !hidden.has(String(item.key)));
   const max = Math.max(
     1,
-    ...data.map((point) => series.reduce((sum, item) => sum + Number(point[item.key] || 0), 0))
+    ...data.map((point) => activeSeries.reduce((sum, item) => sum + Number(point[item.key] || 0), 0))
   );
   return (
     <div className="pk-card" style={{ padding: 24, background: '#fff', minWidth: 0 }}>
@@ -213,11 +217,12 @@ export function HealthBars({
           <div style={{ height: 170, display: 'flex', alignItems: 'flex-end', gap: 5, overflowX: 'auto' }}>
             {data.map((point) => (
               <div key={point.bucket} title={point.bucket} style={{ minWidth: 16, flex: 1, height: '100%', display: 'flex', flexDirection: 'column-reverse', justifyContent: 'flex-start' }}>
-                {series.map((item) => {
+                {activeSeries.map((item) => {
                   const value = Number(point[item.key] || 0);
                   return (
                     <div
                       key={String(item.key)}
+                      title={`${point.bucket} · ${item.label}: ${value}`}
                       style={{ height: `${(value / max) * 100}%`, minHeight: value ? 3 : 0, background: item.color }}
                     >
                       <span className="sr-only">{item.label}: {value}</span>
@@ -229,7 +234,19 @@ export function HealthBars({
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 12, fontSize: 11 }}>
             {series.map((item) => (
-              <span key={String(item.key)}><b style={{ color: item.color }}>■</b> {item.label}</span>
+              <LegendButton
+                key={String(item.key)}
+                active={!hidden.has(String(item.key))}
+                onClick={() => setHidden((current) => {
+                  const next = new Set(current);
+                  if (next.has(String(item.key))) next.delete(String(item.key));
+                  else next.add(String(item.key));
+                  return next;
+                })}
+                color={item.color}
+                symbol="■"
+                label={item.label}
+              />
             ))}
           </div>
         </>
@@ -302,8 +319,15 @@ export function FunnelChart({ data }: { data: AnalyticsSummary['transaction_funn
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {data.map((step, index) => {
             const pct = Math.round((step.count / max) * 100);
+            const href = step.key === 'checkout_created'
+              ? '/admin/orders'
+              : step.key === 'payment_requested'
+                ? '/admin/orders?sort=updated_desc'
+                : step.key === 'shipping_created'
+                  ? '/admin/orders?status=paid'
+                  : `/admin/orders?status=${step.key}`;
             return (
-              <div key={step.key}>
+              <Link key={step.key} href={href} title={`Buka order tahap ${step.label}`} style={{ color: 'inherit', textDecoration: 'none' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 5 }}>
                   <span>{index + 1}. {step.label}</span>
                   <strong>{step.count.toLocaleString('id-ID')} ({pct}%)</strong>
@@ -311,7 +335,7 @@ export function FunnelChart({ data }: { data: AnalyticsSummary['transaction_funn
                 <div style={{ height: 12, borderRadius: 4, background: 'var(--pk-bg-subtle)', overflow: 'hidden' }}>
                   <div style={{ width: `${pct}%`, height: '100%', background: index < 2 ? '#2563EB' : '#0D9488' }} />
                 </div>
-              </div>
+              </Link>
             );
           })}
         </div>
@@ -374,13 +398,13 @@ export function StatusDonut({ data }: { data: AnalyticsSummary['orders_by_status
           </div>
           <div style={{ flex: 1, minWidth: 180, display: 'grid', gap: 9 }}>
             {data.map((item) => (
-              <div key={item.key} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+              <Link key={item.key} href={`/admin/orders?status=${item.key}`} title={`Buka order status ${item.key}`} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'inherit', textDecoration: 'none' }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ width: 9, height: 9, borderRadius: 3, background: STATUS_COLORS[item.key] || '#6B7280' }} />
                   {item.key.replace('_', ' ')}
                 </span>
                 <strong>{item.count} ({item.pct}%)</strong>
-              </div>
+              </Link>
             ))}
           </div>
         </div>
@@ -410,8 +434,11 @@ export function RankingBars({
           {data.map((item, index) => {
             const label = String(item.name || item.category || '-');
             const value = Number(item[valueKey] || 0);
+            const href = item.product_id
+              ? `/admin/products/${item.product_id}`
+              : `/admin/moderation?search=${encodeURIComponent(label)}`;
             return (
-              <div key={`${label}-${index}`}>
+              <Link key={`${label}-${index}`} href={href} title={`Buka detail ${label}`} style={{ color: 'inherit', textDecoration: 'none' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 5 }}>
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{index + 1}. {label}</span>
                   <strong>{valueKey === 'gmv' ? formatIDR(value) : value.toLocaleString('id-ID')}</strong>
@@ -419,7 +446,7 @@ export function RankingBars({
                 <div style={{ height: 8, background: 'var(--pk-bg-subtle)', borderRadius: 99, overflow: 'hidden' }}>
                   <div style={{ width: `${(value / max) * 100}%`, height: '100%', background: '#111827' }} />
                 </div>
-              </div>
+              </Link>
             );
           })}
         </div>
@@ -525,6 +552,32 @@ export function ActionCenter({
         ))}
       </div>
     </div>
+  );
+}
+
+function LegendButton({
+  active,
+  onClick,
+  color,
+  symbol,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  color: string;
+  symbol: string;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      title={`${active ? 'Sembunyikan' : 'Tampilkan'} seri ${label}`}
+      style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', color: active ? 'var(--pk-text-secondary)' : 'var(--pk-text-hint)', opacity: active ? 1 : 0.45, fontSize: 11 }}
+    >
+      <b style={{ color }}>{symbol}</b> {label}
+    </button>
   );
 }
 

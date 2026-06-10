@@ -1,11 +1,12 @@
 const errorHandler = (err, req, res, next) => {
   console.error(err);
-  const status = err.status || 500;
+  const isFileTooLarge = err.code === 'LIMIT_FILE_SIZE';
+  const status = isFileTooLarge ? 413 : err.status || 500;
   res.status(status).json({
     success: false,
-    message: err.message || 'Internal server error',
+    message: isFileTooLarge ? 'Ukuran gambar maksimal 5MB' : err.message || 'Internal server error',
     error: {
-      code: err.code || 'INTERNAL_ERROR',
+      code: isFileTooLarge ? 'IMAGE_TOO_LARGE' : err.code || 'INTERNAL_ERROR',
       details: err.details || null
     }
   });

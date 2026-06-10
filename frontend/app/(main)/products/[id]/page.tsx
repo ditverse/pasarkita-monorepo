@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Icon from '@/components/pk/icon';
-import Placeholder from '@/components/pk/placeholder';
+import ProductImage from '@/components/pk/product-image';
 import Avatar from '@/components/pk/avatar';
 import { Stars } from '@/components/pk/rating-modal';
 import { formatIDR } from '@/lib/format';
@@ -57,20 +57,12 @@ export default function ProductDetailPage() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 48 }}>
         {/* Images */}
         <div>
-          <Placeholder label="foto produk utama" height={520} style={{ borderRadius: 12 }} />
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginTop: 12 }}>
-            {[1, 2, 3, 4].map((i) => (
-              <Placeholder
-                key={i}
-                label={`thumb ${i}`}
-                height={96}
-                style={{
-                  borderRadius: 8,
-                  border: i === 1 ? '1.5px solid var(--pk-text)' : '1px solid var(--pk-border)',
-                }}
-              />
-            ))}
-          </div>
+          <ProductImage
+            src={p.image_url}
+            alt={p.name}
+            height={520}
+            style={{ borderRadius: 12 }}
+          />
         </div>
 
         {/* Info */}

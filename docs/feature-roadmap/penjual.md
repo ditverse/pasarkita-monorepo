@@ -10,7 +10,7 @@ operasional UMKM yang membantu mengelola katalog, stok, pesanan, dan performa.
 | Area | Status | Catatan |
 |---|---|---|
 | Daftar produk milik seller | Ada | Pencarian dan toggle aktif tersedia |
-| Tambah dan edit produk | Ada sebagian | Upload gambar hanya preview lokal, tidak tersimpan |
+| Tambah dan edit produk | Ada | Foto utama tersimpan di Supabase Storage setelah migration dijalankan |
 | Hapus/nonaktifkan produk | Ada | Berupa soft delete `is_active=false` |
 | Order masuk | Ada | Seller dapat menandai order `paid` menjadi `shipped` |
 | Detail order | Ada sebagian | Menggunakan halaman order umum |
@@ -22,12 +22,25 @@ operasional UMKM yang membantu mengelola katalog, stok, pesanan, dan performa.
 | Respons ulasan | Belum | Seller belum dapat merespons review |
 | Notifikasi seller | Tampilan saja | Belum ada API/event |
 
+**Aktivasi upload gambar:** jalankan `backend/product-images.sql` melalui
+Supabase SQL Editor. Migration ini menambahkan kolom `products.image_url` dan
+bucket publik `product-images` dengan batas file 5MB.
+
 ## Quick Wins - Fitur Kecil tetapi Logis
+
+### Navigasi dan Akun
+
+- [x] Sidebar menampilkan identitas seller yang sedang aktif.
+- [x] Tombol logout tersedia di seluruh halaman seller dan meminta konfirmasi.
+- [x] Logout membersihkan sesi lalu mengarahkan kembali ke halaman login.
+- [x] Tombol kembali ke marketplace tersedia tanpa harus mengubah URL manual.
+- [x] Sidebar tetap terlihat saat halaman panjang di-scroll.
+- [x] Padding konten seller menyesuaikan lebar layar dan tidak memaksa overflow layout.
 
 ### Produk
 
-- [ ] Konfirmasi sebelum menonaktifkan atau menghapus produk.
-- [ ] Tampilkan alasan produk tidak dapat diaktifkan.
+- [x] Konfirmasi sebelum menonaktifkan atau mengaktifkan produk.
+- [x] Tampilkan alasan produk tidak dapat diaktifkan ketika stok habis.
 - [ ] Peringatan saat keluar dari form dengan perubahan yang belum disimpan.
 - [ ] Simpan draft form produk di browser untuk mencegah input hilang.
 - [ ] Preview halaman produk sebelum dipublikasikan.
@@ -36,19 +49,19 @@ operasional UMKM yang membantu mengelola katalog, stok, pesanan, dan performa.
 - [ ] Tambahkan SKU/kode produk internal yang dapat dicari dan disalin.
 - [ ] Sorting produk berdasarkan nama, harga, stok, terbaru, dan status.
 - [ ] Pagination produk yang sebenarnya.
-- [ ] Tombol reset search/filter dan empty state yang membedakan "belum ada produk"
+- [x] Tombol reset search/filter dan empty state yang membedakan "belum ada produk"
   dengan "hasil pencarian kosong".
 
 ### Pesanan
 
-- [ ] Badge jumlah order baru pada sidebar.
-- [ ] Konfirmasi sebelum mengubah status order menjadi diproses atau dikirim.
+- [x] Badge jumlah order baru pada sidebar.
+- [x] Konfirmasi sebelum mengubah status order menjadi dikirim.
 - [ ] Tombol salin order ID, transaction ID, alamat, dan tracking ID.
 - [ ] Search order berdasarkan ID atau nama produk.
 - [ ] Filter periode, status, dan kebutuhan tindakan.
 - [ ] Sorting order terbaru, terlama, dan mendekati batas proses.
 - [ ] Catatan internal seller per order yang tidak terlihat buyer.
-- [ ] Tombol retry ketika daftar order atau integrasi pengiriman gagal.
+- [x] Tombol retry ketika daftar order gagal dimuat.
 - [ ] Tampilkan alasan tombol "Tandai Dikirim" tidak tersedia.
 
 ### Operasional Toko
@@ -81,11 +94,11 @@ operasional UMKM yang membantu mengelola katalog, stok, pesanan, dan performa.
 
 ### 2. Upload dan Manajemen Gambar Produk
 
-- [ ] Simpan gambar ke storage, bukan hanya `FileReader` preview.
+- [x] Simpan satu foto utama ke Supabase Storage, bukan hanya `FileReader` preview.
 - [ ] Dukungan beberapa gambar dengan satu gambar utama.
-- [ ] Validasi format, ukuran, dan rasio.
+- [x] Validasi format JPG/PNG/WebP dan ukuran maksimal 5MB di frontend serta backend.
 - [ ] Hapus gambar yang tidak lagi digunakan.
-- [ ] Tampilkan gambar yang sama pada katalog, checkout, order, dan ulasan.
+- [x] Tampilkan gambar yang sama pada katalog, detail produk, checkout, dan daftar seller.
 
 ### 3. Pengelolaan Pesanan yang Aman
 

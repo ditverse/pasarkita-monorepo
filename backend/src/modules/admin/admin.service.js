@@ -11,6 +11,7 @@ const USER_SORTS = {
   name_desc: ['name', false],
 };
 const PAID_STATUSES = new Set(['paid', 'shipped', 'delivered']);
+const REPORT_TYPES = new Set(['orders', 'users', 'sellers', 'products', 'analytics']);
 
 const parsePositiveInt = (value, fallback, max = 100) => {
   const parsed = Number.parseInt(value, 10);
@@ -88,6 +89,8 @@ const percentile = (values, pct) => {
   const index = Math.min(sorted.length - 1, Math.ceil((pct / 100) * sorted.length) - 1);
   return sorted[index];
 };
+
+const clampScore = (value) => Math.max(0, Math.min(100, Math.round(value)));
 
 const getUsers = async (query) => {
   const page = parsePositiveInt(query.page, 1, 100000);
@@ -224,6 +227,233 @@ const getUserById = async (userId) => {
   return result;
 };
 
+const getModerationSellers = async (query) => {
+  const page = parsePositiveInt(query.page, 1, 100000);
+  const limit = parsePositiveInt(query.limit, 20, 100);
+  const offset = (page - 1) * limit;
+  let dbQuery = supabase
+    .from('users')
+    .select('id, name, email, is_active, created_at', { count: 'exact' })
+    .eq('role', 'seller')
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (query.status && VALID_USER_STATUSES.has(query.status)) {
+    dbQuery = dbQuery.eq('is_active', query.status === 'active');
+  }
+  if (query.search?.trim()) {
+    const escaped = query.search.trim().replace(/[%_,]/g, '');
+    if (escaped) dbQuery = dbQuery.or(`name.ilike.%${escaped}%,email.ilike.%${escaped}%`);
+  }
+
+  const { data: sellers, count, error } = await dbQuery;
+  if (error) throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
+
+  const sellerIds = (sellers || []).map((seller) => seller.id);
+  let products = [];
+  if (sellerIds.length > 0) {
+    const productsResult = await supabase
+      .from('products')
+      .select('seller_id, is_active, stock')
+      .in('seller_id', sellerIds);
+    if (productsResult.error) {
+      throw { status: 500, code: 'INTERNAL_ERROR', message: productsResult.error.message };
+    }
+    products = productsResult.data || [];
+  }
+
+  const summaryBySeller = new Map();
+  products.forEach((product) => {
+    const current = summaryBySeller.get(product.seller_id) || {
+      total_products: 0,
+      active_products: 0,
+      inactive_products: 0,
+      low_stock_products: 0,
+    };
+    current.total_products++;
+    if (product.is_active) current.active_products++;
+    else current.inactive_products++;
+    if (product.is_active && product.stock <= 5) current.low_stock_products++;
+    summaryBySeller.set(product.seller_id, current);
+  });
+
+  const total = count || 0;
+  return {
+    data: (sellers || []).map((seller) => ({
+      ...seller,
+      verification_status: 'not_configured',
+      product_summary: summaryBySeller.get(seller.id) || {
+        total_products: 0,
+        active_products: 0,
+        inactive_products: 0,
+        low_stock_products: 0,
+      },
+    })),
+    pagination: { page, limit, total, total_pages: Math.ceil(total / limit) },
+  };
+};
+
+const getModerationProducts = async (query) => {
+  const page = parsePositiveInt(query.page, 1, 100000);
+  const limit = parsePositiveInt(query.limit, 20, 100);
+  const offset = (page - 1) * limit;
+  let dbQuery = supabase
+    .from('products')
+    .select(
+      'id, seller_id, name, description, category, price, stock, is_active, created_at, seller:users!seller_id(id, name, email, is_active)',
+      { count: 'exact' }
+    )
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (query.status === 'active') dbQuery = dbQuery.eq('is_active', true);
+  if (query.status === 'inactive') dbQuery = dbQuery.eq('is_active', false);
+  if (query.category) dbQuery = dbQuery.eq('category', query.category);
+  if (query.seller_id) dbQuery = dbQuery.eq('seller_id', query.seller_id);
+  if (query.stock === 'low') dbQuery = dbQuery.lte('stock', 5);
+  if (query.stock === 'empty') dbQuery = dbQuery.eq('stock', 0);
+  if (query.search?.trim()) {
+    const escaped = query.search.trim().replace(/[%_,]/g, '');
+    if (escaped) dbQuery = dbQuery.ilike('name', `%${escaped}%`);
+  }
+
+  const { data, count, error } = await dbQuery;
+  if (error) throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
+
+  const total = count || 0;
+  return {
+    data: data || [],
+    pagination: { page, limit, total, total_pages: Math.ceil(total / limit) },
+  };
+};
+
+const getModerationProductById = async (productId) => {
+  const { data: product, error: productError } = await supabase
+    .from('products')
+    .select(
+      'id, seller_id, name, description, category, price, stock, is_active, created_at, seller:users!seller_id(id, name, email, is_active)'
+    )
+    .eq('id', productId)
+    .single();
+
+  if (productError || !product) {
+    throw { status: 404, code: 'NOT_FOUND', message: 'Produk tidak ditemukan' };
+  }
+
+  const [itemsResult, ratingsResult, auditResult] = await Promise.all([
+    supabase
+      .from('order_items')
+      .select('qty, price_at_purchase, order:orders!order_id(id, status, total, created_at, buyer:users!buyer_id(id, name, email))')
+      .eq('product_id', productId),
+    supabase
+      .from('ratings')
+      .select('id, rating, comment, created_at, buyer:users!buyer_id(id, name)')
+      .eq('product_id', productId)
+      .order('created_at', { ascending: false })
+      .limit(20),
+    supabase
+      .from('admin_audit_logs')
+      .select('id, action, reason, before_data, after_data, created_at, actor:users!actor_id(id, name, email)')
+      .eq('target_type', 'product')
+      .eq('target_id', productId)
+      .order('created_at', { ascending: false })
+      .limit(20),
+  ]);
+
+  if (itemsResult.error) {
+    throw { status: 500, code: 'INTERNAL_ERROR', message: itemsResult.error.message };
+  }
+
+  const paidItems = (itemsResult.data || [])
+    .filter((item) => item.order && PAID_STATUSES.has(item.order.status))
+    .sort((a, b) => new Date(b.order.created_at).getTime() - new Date(a.order.created_at).getTime());
+  const ratings = ratingsResult.error ? [] : (ratingsResult.data || []);
+  const soldUnits = paidItems.reduce((sum, item) => sum + Number(item.qty || 0), 0);
+  const productGmv = paidItems.reduce(
+    (sum, item) => sum + Number(item.qty || 0) * Number(item.price_at_purchase || 0),
+    0
+  );
+  const averageRating = ratings.length
+    ? Math.round(
+      (ratings.reduce((sum, rating) => sum + Number(rating.rating || 0), 0) / ratings.length) * 10
+    ) / 10
+    : null;
+
+  return {
+    product,
+    stats: {
+      sold_units: soldUnits,
+      paid_order_count: new Set(paidItems.map((item) => item.order.id)).size,
+      gmv: productGmv,
+      average_rating: averageRating,
+      rating_count: ratings.length,
+    },
+    recent_orders: paidItems.slice(0, 10).map((item) => ({
+      id: item.order.id,
+      status: item.order.status,
+      total: item.order.total,
+      qty: item.qty,
+      price_at_purchase: item.price_at_purchase,
+      created_at: item.order.created_at,
+      buyer: item.order.buyer,
+    })),
+    ratings: ratings.map((rating) => ({
+      id: rating.id,
+      rating: rating.rating,
+      comment: rating.comment,
+      created_at: rating.created_at,
+      buyer: rating.buyer,
+    })),
+    audit_history: auditResult.error
+      ? { available: false, message: 'Audit log belum aktif.', data: [] }
+      : { available: true, data: auditResult.data || [] },
+  };
+};
+
+const moderateProduct = async (actor, productId, payload) => {
+  const { data: product, error: findError } = await supabase
+    .from('products')
+    .select('id, seller_id, name, is_active, stock')
+    .eq('id', productId)
+    .single();
+
+  if (findError || !product) {
+    throw { status: 404, code: 'NOT_FOUND', message: 'Produk tidak ditemukan' };
+  }
+  if (payload.is_active && product.stock <= 0) {
+    throw {
+      status: 400,
+      code: 'OUT_OF_STOCK',
+      message: 'Produk dengan stok habis tidak dapat diaktifkan',
+    };
+  }
+
+  const { data, error } = await supabase
+    .from('products')
+    .update({ is_active: payload.is_active })
+    .eq('id', productId)
+    .select('id, seller_id, name, is_active, stock')
+    .single();
+
+  if (error) throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
+
+  await writeAuditLog({
+    actorId: actor.id,
+    action: payload.is_active ? 'product.activated' : 'product.deactivated',
+    targetType: 'product',
+    targetId: productId,
+    reason: payload.reason,
+    before: { is_active: product.is_active },
+    after: {
+      is_active: payload.is_active,
+      moderation_rule: payload.rule,
+      seller_id: product.seller_id,
+    },
+  });
+
+  return data;
+};
+
 const updateUserStatus = async (actor, userId, payload) => {
   const { is_active, reason } = payload;
   if (actor.id === userId) {
@@ -341,6 +571,8 @@ const getAnalytics = async (query) => {
     productsResult,
     itemsResult,
     integrationHealth,
+    sellersResult,
+    ratingsResult,
   ] = await Promise.all([
     supabase
       .from('orders')
@@ -357,6 +589,8 @@ const getAnalytics = async (query) => {
       .from('order_items')
       .select('order_id, product_id, qty, price_at_purchase, product:products(id, name, category, seller:users!seller_id(id, name))'),
     getIntegrationHealth(period.start, period.end),
+    supabase.from('users').select('id, is_active').eq('role', 'seller'),
+    supabase.from('ratings').select('rating, created_at').gte('created_at', toIso(period.start)).lte('created_at', endIso),
   ]);
 
   if (ordersResult.error) {
@@ -367,6 +601,8 @@ const getAnalytics = async (query) => {
   const allUsers = usersResult.data || [];
   const products = productsResult.data || [];
   const orderItems = itemsResult.data || [];
+  const sellers = sellersResult.data || [];
+  const ratings = ratingsResult.error ? [] : (ratingsResult.data || []);
   const inRange = (iso, start, end) => {
     const time = new Date(iso).getTime();
     return time >= start.getTime() && time <= end.getTime();
@@ -587,7 +823,7 @@ const getAnalytics = async (query) => {
       severity: lowStock.length ? 'low' : 'ok',
       title: 'Produk stok kritis',
       count: lowStock.length,
-      href: '/admin/analytics',
+      href: '/admin/moderation?status=active&stock=low',
       owner: 'Catalog Operations',
       description: 'Hubungi seller untuk mengisi stok produk aktif yang tersisa lima atau kurang.',
     },
@@ -603,6 +839,173 @@ const getAnalytics = async (query) => {
         : 'Jalankan migration observability agar kesehatan integrasi dapat dipantau.',
     },
   ];
+
+  const paymentScore = clampScore(100 - summary.payment_failure_rate * 2);
+  const paidOrderCount = currentOrders.filter((order) => PAID_STATUSES.has(order.status)).length;
+  const trackedPaidCount = currentOrders.filter(
+    (order) => PAID_STATUSES.has(order.status) && order.tracking_id
+  ).length;
+  const shippingCoverage = paidOrderCount ? (trackedPaidCount / paidOrderCount) * 100 : 100;
+  const shippingScore = clampScore(
+    shippingCoverage - (paidOrderCount ? (delayedPaidOrders.length / paidOrderCount) * 40 : 0)
+  );
+  const activeProducts = products.filter((product) => product.is_active);
+  const healthyStockProducts = activeProducts.filter((product) => product.stock > 5);
+  const stockScore = clampScore(
+    activeProducts.length ? (healthyStockProducts.length / activeProducts.length) * 100 : 100
+  );
+  const activeSellerCount = sellers.filter((seller) => seller.is_active).length;
+  const sellerActivation = sellers.length ? (activeSellerCount / sellers.length) * 100 : 100;
+  const sellerScore = clampScore(
+    sellerActivation - (paidOrderCount ? (delayedPaidOrders.length / paidOrderCount) * 30 : 0)
+  );
+  const averageRating = ratings.length
+    ? ratings.reduce((sum, rating) => sum + Number(rating.rating || 0), 0) / ratings.length
+    : null;
+  const deliveredCount = currentOrders.filter((order) => order.status === 'delivered').length;
+  const buyerScore = clampScore(
+    averageRating !== null
+      ? (averageRating / 5) * 100
+      : paidOrderCount
+        ? (deliveredCount / paidOrderCount) * 100
+        : 100
+  );
+  const healthComponents = [
+    {
+      key: 'payment',
+      label: 'Kesehatan Pembayaran',
+      score: paymentScore,
+      weight: 30,
+      metric: `${summary.payment_failure_rate}% payment failure`,
+      explanation: 'Skor turun dua poin untuk setiap satu persen payment failure.',
+      href: '/admin/orders?status=payment_failed',
+    },
+    {
+      key: 'shipping',
+      label: 'Kesehatan Pengiriman',
+      score: shippingScore,
+      weight: 25,
+      metric: paidOrderCount
+        ? `${trackedPaidCount}/${paidOrderCount} paid order memiliki tracking`
+        : 'Belum ada paid order pada periode ini',
+      explanation: 'Mengukur cakupan tracking dan penalti order paid terlambat lebih dari 24 jam.',
+      href: '/admin/orders?status=paid',
+    },
+    {
+      key: 'stock',
+      label: 'Ketersediaan Stok',
+      score: stockScore,
+      weight: 20,
+      metric: `${healthyStockProducts.length}/${activeProducts.length} produk aktif memiliki stok > 5`,
+      explanation: 'Produk aktif dengan stok lima atau kurang dianggap membutuhkan perhatian.',
+      href: '/admin/moderation?status=active&stock=low',
+    },
+    {
+      key: 'seller',
+      label: 'Kualitas Seller',
+      score: sellerScore,
+      weight: 15,
+      metric: `${activeSellerCount}/${sellers.length} seller aktif`,
+      explanation: 'Menggabungkan status akun seller dan penalti keterlambatan pemrosesan order.',
+      href: '/admin/moderation',
+    },
+    {
+      key: 'buyer',
+      label: 'Kepuasan Buyer',
+      score: buyerScore,
+      weight: 10,
+      metric: averageRating !== null
+        ? `Rating rata-rata ${Math.round(averageRating * 10) / 10}/5 dari ${ratings.length} ulasan`
+        : paidOrderCount
+          ? `${deliveredCount}/${paidOrderCount} paid order selesai (proxy karena belum ada rating periode ini)`
+          : 'Belum ada paid order atau rating pada periode ini',
+      explanation: averageRating !== null
+        ? 'Skor berasal dari rating buyer pada periode terpilih.'
+        : 'Tanpa rating, rasio order selesai dipakai sebagai proxy dan ditandai transparan.',
+      href: '/admin/analytics',
+    },
+  ];
+  const overallHealthScore = clampScore(
+    healthComponents.reduce((sum, component) => sum + component.score * component.weight, 0) / 100
+  );
+
+  const previousFailureRate = previousSummary.payment_failure_rate;
+  const averageOrderValue = summary.average_order_value;
+  const unusualOrderThreshold = Math.max(1000000, averageOrderValue * 3);
+  const unusualOrders = currentOrders.filter((order) => Number(order.total || 0) >= unusualOrderThreshold);
+  const emptyActiveProducts = products.filter((product) => product.is_active && product.stock <= 0);
+  const anomalies = [];
+  if (
+    paymentFailed.length >= 3 &&
+    summary.payment_failure_rate >= previousFailureRate + 10
+  ) {
+    anomalies.push({
+      key: 'payment_failure_spike',
+      severity: 'high',
+      title: 'Payment failure meningkat tajam',
+      description: `${summary.payment_failure_rate}% pada periode ini, sebelumnya ${previousFailureRate}%.`,
+      count: paymentFailed.length,
+      rule: 'Minimal 3 kegagalan dan kenaikan sekurangnya 10 poin persentase.',
+      href: '/admin/orders?status=payment_failed',
+    });
+  }
+  if (unusualOrders.length > 0) {
+    anomalies.push({
+      key: 'unusual_order_value',
+      severity: 'medium',
+      title: 'Order bernilai tidak biasa',
+      description: `Total order sekurangnya ${Math.round(unusualOrderThreshold).toLocaleString('id-ID')}.`,
+      count: unusualOrders.length,
+      rule: 'Nilai order minimal tiga kali AOV atau Rp1.000.000.',
+      href: '/admin/orders?sort=total_desc',
+    });
+  }
+  if (emptyActiveProducts.length > 0) {
+    anomalies.push({
+      key: 'active_product_empty_stock',
+      severity: 'medium',
+      title: 'Produk aktif kehabisan stok',
+      description: 'Listing masih aktif meskipun stok sudah nol.',
+      count: emptyActiveProducts.length,
+      rule: 'is_active=true dan stock=0.',
+      href: '/admin/moderation?status=active&stock=empty',
+    });
+  }
+  if (delayedPaidOrders.length > 0) {
+    anomalies.push({
+      key: 'paid_order_shipping_delay',
+      severity: 'high',
+      title: 'Order paid terlambat dikirim',
+      description: 'Order belum memiliki tracking setelah lebih dari 24 jam.',
+      count: delayedPaidOrders.length,
+      rule: 'status=paid, tracking kosong, dan updated_at lebih dari 24 jam.',
+      href: '/admin/orders?status=paid',
+    });
+  }
+  if (stalePending.length > 0) {
+    anomalies.push({
+      key: 'stale_pending_order',
+      severity: 'low',
+      title: 'Order pending terlalu lama',
+      description: 'Checkout belum bergerak ke pembayaran setelah lebih dari 24 jam.',
+      count: stalePending.length,
+      rule: 'status=pending dan created_at lebih dari 24 jam.',
+      href: '/admin/orders?status=pending',
+    });
+  }
+  if (!integrationHealth.available || integrationErrors > 0) {
+    anomalies.push({
+      key: 'integration_observability',
+      severity: integrationErrors > 0 ? 'high' : 'low',
+      title: integrationErrors > 0 ? 'Error integrasi terdeteksi' : 'Monitoring integrasi belum aktif',
+      description: integrationErrors > 0
+        ? `${integrationErrors} error Gateway pada periode terpilih.`
+        : 'Migration observability diperlukan agar anomali integrasi dapat dihitung.',
+      count: integrationErrors || 1,
+      rule: 'Error Gateway > 0 atau sumber observability tidak tersedia.',
+      href: '/admin/analytics',
+    });
+  }
 
   return {
     period: {
@@ -628,6 +1031,30 @@ const getAnalytics = async (query) => {
     }),
     integration_health: integrationHealth,
     action_center: actionCenter,
+    marketplace_health: {
+      score: overallHealthScore,
+      status: overallHealthScore >= 85 ? 'healthy' : overallHealthScore >= 65 ? 'attention' : 'critical',
+      formula: 'payment 30% + shipping 25% + stock 20% + seller 15% + buyer 10%',
+      components: healthComponents,
+      data_notes: [
+        ratingsResult.error
+          ? 'Tabel rating tidak tersedia; kepuasan buyer memakai proxy order selesai.'
+          : ratings.length === 0
+            ? 'Belum ada rating pada periode ini; kepuasan buyer memakai proxy order selesai.'
+            : 'Kepuasan buyer memakai rating aktual.',
+        integrationHealth.available
+          ? 'Integration health termasuk dalam anomaly monitoring.'
+          : 'Integration health belum aktif dan tidak mengubah bobot skor utama.',
+      ],
+    },
+    anomalies,
+    anomaly_coverage: [
+      { rule: 'Payment failure spike', available: true },
+      { rule: 'Order bernilai tidak biasa', available: true },
+      { rule: 'Produk aktif stok habis', available: true },
+      { rule: 'Order paid terlambat dikirim', available: true },
+      { rule: 'Seller cancellation spike', available: false, reason: 'Status cancelled belum tersedia pada schema order.' },
+    ],
   };
 };
 
@@ -664,4 +1091,328 @@ const getAuditLogs = async (query) => {
   };
 };
 
-module.exports = { getUsers, getUserById, updateUserStatus, getAnalytics, getAuditLogs };
+const maskEmail = (email) => {
+  if (!email || !email.includes('@')) return '';
+  const [name, domain] = email.split('@');
+  const visible = name.slice(0, Math.min(2, name.length));
+  return `${visible}${'*'.repeat(Math.max(2, name.length - visible.length))}@${domain}`;
+};
+
+const escapeCsv = (value) => {
+  if (value === null || value === undefined) return '';
+  let normalized = String(value).replace(/\r?\n/g, ' ');
+  if (/^[=+\-@]/.test(normalized)) normalized = `'${normalized}`;
+  return /[",;]/.test(normalized) ? `"${normalized.replace(/"/g, '""')}"` : normalized;
+};
+
+const rowsToCsv = (columns, rows) => {
+  const header = columns.map((column) => escapeCsv(column.label)).join(',');
+  const body = rows.map((row) =>
+    columns.map((column) => escapeCsv(row[column.key])).join(',')
+  );
+  return `\uFEFF${[header, ...body].join('\n')}`;
+};
+
+const reportDateIso = (value, endOfDay = false) => {
+  if (!value) return null;
+  const date = new Date(`${value}T${endOfDay ? '23:59:59.999' : '00:00:00'}+07:00`);
+  if (Number.isNaN(date.getTime())) {
+    throw { status: 400, code: 'VALIDATION_ERROR', message: 'Filter tanggal tidak valid' };
+  }
+  return date.toISOString();
+};
+
+const buildReport = async (query) => {
+  const type = query.type;
+  if (!REPORT_TYPES.has(type)) {
+    throw { status: 400, code: 'VALIDATION_ERROR', message: 'Jenis laporan tidak valid' };
+  }
+
+  if (type === 'analytics') {
+    const analytics = await getAnalytics({
+      ...query,
+      start: query.start ? reportDateIso(query.start) : undefined,
+      end: query.end ? reportDateIso(query.end, true) : undefined,
+    });
+    const columns = [
+      { key: 'metric', label: 'Metrik' },
+      { key: 'value', label: 'Nilai' },
+      { key: 'period_start', label: 'Periode Mulai' },
+      { key: 'period_end', label: 'Periode Akhir' },
+    ];
+    const labels = {
+      gmv: 'GMV',
+      marketplace_revenue: 'Revenue Marketplace',
+      paid_orders: 'Paid Orders',
+      total_orders: 'Total Orders',
+      average_order_value: 'Average Order Value',
+      payment_failure_rate: 'Payment Failure Rate (%)',
+      active_buyers: 'Buyer Aktif',
+      active_sellers: 'Seller Aktif',
+      new_users: 'User Baru',
+      total_products: 'Total Produk',
+      low_stock_products: 'Produk Stok Kritis',
+    };
+    const rows = Object.entries(analytics.summary).map(([metric, value]) => ({
+      metric: labels[metric] || metric,
+      value,
+      period_start: analytics.period.start,
+      period_end: analytics.period.end,
+    }));
+    return { type, columns, rows };
+  }
+
+  if (type === 'orders') {
+    let dbQuery = supabase
+      .from('orders')
+      .select('id, buyer_id, status, subtotal, fee_marketplace, total, transaction_id, tracking_id, created_at, updated_at, buyer:users!buyer_id(name, email)')
+      .order('created_at', { ascending: false })
+      .limit(5000);
+    if (query.status && ['pending', 'paid', 'shipped', 'delivered', 'payment_failed'].includes(query.status)) {
+      dbQuery = dbQuery.eq('status', query.status);
+    }
+    if (query.start) dbQuery = dbQuery.gte('created_at', reportDateIso(query.start));
+    if (query.end) dbQuery = dbQuery.lte('created_at', reportDateIso(query.end, true));
+    const { data, error } = await dbQuery;
+    if (error) throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
+    const term = query.search?.trim().toLowerCase();
+    const filtered = term ? (data || []).filter((order) =>
+      order.id.toLowerCase().includes(term) ||
+      order.transaction_id?.toLowerCase().includes(term) ||
+      order.tracking_id?.toLowerCase().includes(term) ||
+      order.buyer?.name?.toLowerCase().includes(term) ||
+      order.buyer?.email?.toLowerCase().includes(term)
+    ) : (data || []);
+    const columns = [
+      { key: 'order_id', label: 'Order ID' },
+      { key: 'buyer', label: 'Buyer' },
+      { key: 'buyer_email_masked', label: 'Email Buyer (Masked)' },
+      { key: 'status', label: 'Status' },
+      { key: 'subtotal', label: 'Subtotal' },
+      { key: 'fee_marketplace', label: 'Fee Marketplace' },
+      { key: 'total', label: 'Total' },
+      { key: 'transaction_id', label: 'Transaction ID' },
+      { key: 'tracking_id', label: 'Tracking ID' },
+      { key: 'created_at', label: 'Dibuat' },
+      { key: 'updated_at', label: 'Diperbarui' },
+    ];
+    return {
+      type,
+      columns,
+      rows: filtered.map((order) => ({
+        order_id: order.id,
+        buyer: order.buyer?.name || '',
+        buyer_email_masked: maskEmail(order.buyer?.email),
+        status: order.status,
+        subtotal: order.subtotal,
+        fee_marketplace: order.fee_marketplace,
+        total: order.total,
+        transaction_id: order.transaction_id,
+        tracking_id: order.tracking_id,
+        created_at: order.created_at,
+        updated_at: order.updated_at,
+      })),
+    };
+  }
+
+  if (type === 'users' || type === 'sellers') {
+    let dbQuery = supabase
+      .from('users')
+      .select('id, name, email, role, is_active, created_at')
+      .order('created_at', { ascending: false })
+      .limit(5000);
+    if (type === 'sellers') dbQuery = dbQuery.eq('role', 'seller');
+    else if (query.role && VALID_ROLES.has(query.role)) dbQuery = dbQuery.eq('role', query.role);
+    if (query.status && VALID_USER_STATUSES.has(query.status)) {
+      dbQuery = dbQuery.eq('is_active', query.status === 'active');
+    }
+    if (query.start) dbQuery = dbQuery.gte('created_at', reportDateIso(query.start));
+    if (query.end) dbQuery = dbQuery.lte('created_at', reportDateIso(query.end, true));
+    const { data, error } = await dbQuery;
+    if (error) throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
+    const term = query.search?.trim().toLowerCase();
+    const filtered = term ? (data || []).filter((user) =>
+      user.name.toLowerCase().includes(term) || user.email.toLowerCase().includes(term)
+    ) : (data || []);
+    const columns = [
+      { key: 'user_id', label: 'User ID' },
+      { key: 'name', label: 'Nama' },
+      { key: 'email_masked', label: 'Email (Masked)' },
+      { key: 'role', label: 'Role' },
+      { key: 'status', label: 'Status' },
+      { key: 'created_at', label: 'Tanggal Daftar' },
+    ];
+    return {
+      type,
+      columns,
+      rows: filtered.map((user) => ({
+        user_id: user.id,
+        name: user.name,
+        email_masked: maskEmail(user.email),
+        role: user.role,
+        status: user.is_active ? 'active' : 'inactive',
+        created_at: user.created_at,
+      })),
+    };
+  }
+
+  let dbQuery = supabase
+    .from('products')
+    .select('id, name, category, price, stock, is_active, created_at, seller:users!seller_id(id, name, email)')
+    .order('created_at', { ascending: false })
+    .limit(5000);
+  if (query.status === 'active') dbQuery = dbQuery.eq('is_active', true);
+  if (query.status === 'inactive') dbQuery = dbQuery.eq('is_active', false);
+  if (query.category) dbQuery = dbQuery.eq('category', query.category);
+  if (query.stock === 'low') dbQuery = dbQuery.lte('stock', 5);
+  if (query.stock === 'empty') dbQuery = dbQuery.eq('stock', 0);
+  if (query.start) dbQuery = dbQuery.gte('created_at', reportDateIso(query.start));
+  if (query.end) dbQuery = dbQuery.lte('created_at', reportDateIso(query.end, true));
+  const { data, error } = await dbQuery;
+  if (error) throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
+  const term = query.search?.trim().toLowerCase();
+  const filtered = term ? (data || []).filter((product) =>
+    product.name.toLowerCase().includes(term) ||
+    product.seller?.name?.toLowerCase().includes(term)
+  ) : (data || []);
+  const columns = [
+    { key: 'product_id', label: 'Product ID' },
+    { key: 'name', label: 'Produk' },
+    { key: 'category', label: 'Kategori' },
+    { key: 'seller', label: 'Seller' },
+    { key: 'seller_email_masked', label: 'Email Seller (Masked)' },
+    { key: 'price', label: 'Harga' },
+    { key: 'stock', label: 'Stok' },
+    { key: 'status', label: 'Status' },
+    { key: 'created_at', label: 'Dibuat' },
+  ];
+  return {
+    type,
+    columns,
+    rows: filtered.map((product) => ({
+      product_id: product.id,
+      name: product.name,
+      category: product.category,
+      seller: product.seller?.name || '',
+      seller_email_masked: maskEmail(product.seller?.email),
+      price: product.price,
+      stock: product.stock,
+      status: product.is_active ? 'active' : 'inactive',
+      created_at: product.created_at,
+    })),
+  };
+};
+
+const previewReport = async (query) => {
+  const report = await buildReport(query);
+  return {
+    type: report.type,
+    row_count: report.rows.length,
+    columns: report.columns.map((column) => column.label),
+    sample: report.rows.slice(0, 3),
+    truncated: report.rows.length >= 5000,
+  };
+};
+
+const exportReport = async (actor, query) => {
+  const report = await buildReport(query);
+  await writeAuditLog({
+    actorId: actor.id,
+    action: 'report.exported',
+    targetType: 'report',
+    targetId: null,
+    reason: `Export CSV ${report.type}`,
+    after: {
+      report_type: report.type,
+      row_count: report.rows.length,
+      filters: query,
+    },
+  });
+  const date = new Date().toISOString().slice(0, 10);
+  return {
+    filename: `pasarkita-${report.type}-${date}.csv`,
+    csv: rowsToCsv(report.columns, report.rows),
+  };
+};
+
+const simulateFeeImpact = async (query) => {
+  const period = parsePeriod({
+    ...query,
+    start: query.start ? reportDateIso(query.start) : undefined,
+    end: query.end ? reportDateIso(query.end, true) : undefined,
+  });
+  const customRate = Number(query.rate ?? 2);
+  if (!Number.isFinite(customRate) || customRate < 0 || customRate > 10) {
+    throw {
+      status: 400,
+      code: 'VALIDATION_ERROR',
+      message: 'Fee simulasi harus berada pada rentang 0 sampai 10 persen',
+    };
+  }
+
+  const { data, error } = await supabase
+    .from('orders')
+    .select('id, subtotal, fee_marketplace, total, status, created_at')
+    .in('status', [...PAID_STATUSES])
+    .gte('created_at', toIso(period.start))
+    .lte('created_at', toIso(period.end))
+    .limit(5000);
+
+  if (error) throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
+
+  const orders = data || [];
+  const subtotal = orders.reduce((sum, order) => sum + Number(order.subtotal || 0), 0);
+  const actualRevenue = orders.reduce(
+    (sum, order) => sum + Number(order.fee_marketplace || 0),
+    0
+  );
+  const buildScenario = (rate) => {
+    const simulatedRevenue = orders.reduce(
+      (sum, order) => sum + Math.round(Number(order.subtotal || 0) * (rate / 100)),
+      0
+    );
+    return {
+      rate,
+      revenue: simulatedRevenue,
+      revenue_difference: simulatedRevenue - actualRevenue,
+      average_fee_per_order: orders.length ? Math.round(simulatedRevenue / orders.length) : 0,
+      buyer_total: subtotal + simulatedRevenue,
+      average_buyer_total: orders.length ? Math.round((subtotal + simulatedRevenue) / orders.length) : 0,
+    };
+  };
+
+  const rates = [...new Set([0, 1, 2, 3, 5, customRate])].sort((a, b) => a - b);
+  return {
+    period: {
+      start: toIso(period.start),
+      end: toIso(period.end),
+      timezone: 'Asia/Jakarta',
+    },
+    baseline: {
+      production_fee_rate: 2,
+      paid_orders: orders.length,
+      subtotal,
+      actual_revenue: actualRevenue,
+      actual_buyer_total: subtotal + actualRevenue,
+    },
+    selected_rate: customRate,
+    selected_scenario: buildScenario(customRate),
+    scenarios: rates.map(buildScenario),
+    disclaimer: 'Simulasi hanya membaca data historis dan tidak mengubah fee produksi 2%.',
+  };
+};
+
+module.exports = {
+  getUsers,
+  getUserById,
+  getModerationSellers,
+  getModerationProducts,
+  getModerationProductById,
+  moderateProduct,
+  updateUserStatus,
+  getAnalytics,
+  getAuditLogs,
+  previewReport,
+  exportReport,
+  simulateFeeImpact,
+};

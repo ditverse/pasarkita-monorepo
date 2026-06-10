@@ -6,6 +6,7 @@ export type Product = {
   price: number;
   stock: number;
   is_active: boolean;
+  image_url?: string | null;
   seller: {
     id: string;
     name: string;
@@ -15,6 +16,12 @@ export type Product = {
 export type OrderItem = {
   product_id: string;
   product_name: string;
+  category?: string | null;
+  seller?: {
+    id: string;
+    name: string;
+    email?: string;
+  } | null;
   qty: number;
   price_at_purchase: number;
 };
@@ -29,7 +36,33 @@ export type Order = {
   transaction_id: string | null;
   tracking_id: string | null;
   created_at: string;
+  updated_at?: string;
+  buyer_id?: string;
+  buyer?: {
+    id: string;
+    name: string;
+    email: string;
+  };
   items: OrderItem[];
+  audit_history?: {
+    available: boolean;
+    message?: string;
+    data: Array<Omit<AdminAuditLog, 'target_type' | 'target_id'>>;
+  };
+  integration_timeline?: {
+    available: boolean;
+    message?: string;
+    data: Array<{
+      id: string;
+      service: string;
+      operation: string;
+      success: boolean;
+      duration_ms: number;
+      status_code: number | null;
+      error_code: string | null;
+      created_at: string;
+    }>;
+  };
 };
 
 export type User = {
@@ -72,6 +105,108 @@ export type AdminUserDetail = {
     message?: string;
     data: Array<Omit<AdminAuditLog, 'target_type' | 'target_id'>>;
   };
+};
+
+export type AdminModerationSeller = {
+  id: string;
+  name: string;
+  email: string;
+  is_active: boolean;
+  created_at: string;
+  verification_status: 'not_configured';
+  product_summary: {
+    total_products: number;
+    active_products: number;
+    inactive_products: number;
+    low_stock_products: number;
+  };
+};
+
+export type AdminModerationProduct = {
+  id: string;
+  seller_id: string;
+  name: string;
+  description: string;
+  category: string;
+  price: number;
+  stock: number;
+  is_active: boolean;
+  created_at: string;
+  seller: {
+    id: string;
+    name: string;
+    email: string;
+    is_active: boolean;
+  };
+};
+
+export type AdminReportPreview = {
+  type: 'orders' | 'users' | 'sellers' | 'products' | 'analytics';
+  row_count: number;
+  columns: string[];
+  sample: Array<Record<string, string | number | boolean | null>>;
+  truncated: boolean;
+};
+
+export type AdminProductDetail = {
+  product: AdminModerationProduct;
+  stats: {
+    sold_units: number;
+    paid_order_count: number;
+    gmv: number;
+    average_rating: number | null;
+    rating_count: number;
+  };
+  recent_orders: Array<{
+    id: string;
+    status: Order['status'];
+    total: number;
+    qty: number;
+    price_at_purchase: number;
+    created_at: string;
+    buyer: { id: string; name: string; email: string } | null;
+  }>;
+  ratings: Array<{
+    id: string;
+    rating: number;
+    comment: string | null;
+    created_at: string;
+    buyer: { id: string; name: string } | null;
+  }>;
+  audit_history: {
+    available: boolean;
+    message?: string;
+    data: Array<Omit<AdminAuditLog, 'target_type' | 'target_id'>>;
+  };
+};
+
+export type FeeSimulation = {
+  period: { start: string; end: string; timezone: string };
+  baseline: {
+    production_fee_rate: number;
+    paid_orders: number;
+    subtotal: number;
+    actual_revenue: number;
+    actual_buyer_total: number;
+  };
+  selected_rate: number;
+  selected_scenario: {
+    rate: number;
+    revenue: number;
+    revenue_difference: number;
+    average_fee_per_order: number;
+    buyer_total: number;
+    average_buyer_total: number;
+  };
+  scenarios: Array<{
+    rate: number;
+    revenue: number;
+    revenue_difference: number;
+    average_fee_per_order: number;
+    buyer_total: number;
+    average_buyer_total: number;
+  }>;
+  disclaimer: string;
 };
 
 export type CheckoutResponse = {
@@ -175,6 +310,35 @@ export type AnalyticsSummary = {
     href: string;
     owner: string;
     description: string;
+  }>;
+  marketplace_health: {
+    score: number;
+    status: 'healthy' | 'attention' | 'critical';
+    formula: string;
+    components: Array<{
+      key: string;
+      label: string;
+      score: number;
+      weight: number;
+      metric: string;
+      explanation: string;
+      href: string;
+    }>;
+    data_notes: string[];
+  };
+  anomalies: Array<{
+    key: string;
+    severity: 'high' | 'medium' | 'low';
+    title: string;
+    description: string;
+    count: number;
+    rule: string;
+    href: string;
+  }>;
+  anomaly_coverage: Array<{
+    rule: string;
+    available: boolean;
+    reason?: string;
   }>;
 };
 

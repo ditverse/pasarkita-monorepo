@@ -6,9 +6,9 @@ Dashboard admin harus membantu pengambilan keputusan dan penanganan masalah, buk
 sekadar menampilkan angka besar. Inspirasi pola dashboard marketplace digunakan
 secara selektif dan disesuaikan dengan scope PasarKita sebagai marketplace UMKM.
 
-## Status Implementasi Nomor 1-9
+## Status Implementasi Nomor 1-16
 
-> **SUDAH DIKERJAKAN pada 10 Juni 2026.** Checklist rinci nomor 1-9 tersedia di
+> **SUDAH DIKERJAKAN pada 10 Juni 2026.** Checklist rinci nomor 1-16 tersedia di
 > bawah. Semua bagian yang selesai ditandai `[x]`. Item yang tetap `[ ]`
 > memerlukan perubahan skema, workflow baru, idempotency checkout, atau perubahan
 > pada API Gateway.
@@ -24,6 +24,13 @@ secara selektif dan disesuaikan dengan scope PasarKita sebagai marketplace UMKM.
 | 7 | Delapan kelompok grafik analytics | Selesai |
 | 8 | Action Center | Selesai untuk sumber data yang tersedia |
 | 9 | Manajemen user | Selesai, kecuali ban sementara |
+| 10 | Moderasi seller dan produk | Selesai untuk schema saat ini |
+| 11 | Komplain dan refund | Belum, memerlukan schema dan integrasi refund |
+| 12 | Laporan dan ekspor | Selesai |
+| 13 | Marketplace Health Score | Selesai |
+| 14 | Anomaly Inbox | Selesai untuk data yang tersedia |
+| 15 | Simulator Dampak Fee | Selesai |
+| 16 | Integration Storyboard | Selesai parsial, menunggu correlation ID Gateway |
 
 **Aktivasi database:** jalankan `backend/observability.sql` di Supabase agar audit
 log dan integration health mulai menyimpan data.
@@ -47,33 +54,40 @@ produk dilewati jika namanya sudah tersedia.
 | Manajemen user | Sudah | Search, filter lengkap, sorting, pagination, dan halaman detail tersedia |
 | Ban/aktifkan user | Sudah | Alasan dan audit log tersedia |
 | Manajemen semua order | Ada | Admin dapat mengubah status |
-| Moderasi produk | Belum ada halaman | Kemampuan API terbatas, tidak ada workflow moderasi |
+| Moderasi produk | Sudah | Antrean, aturan keputusan, status listing, dan audit tersedia |
 | Audit log dan monitoring integrasi | Sudah | Memerlukan `observability.sql` di Supabase |
 | Komplain/refund | Belum | Tidak ada workflow sengketa |
 
 ## Quick Wins - Fitur Kecil tetapi Logis
 
+### Navigasi dan Akun
+
+- [x] Sidebar menampilkan identitas admin yang sedang aktif.
+- [x] Tombol logout tersedia di seluruh halaman admin dan meminta konfirmasi.
+- [x] Logout membersihkan sesi lalu mengarahkan kembali ke halaman login.
+- [x] Tombol kembali ke marketplace tersedia tanpa harus mengubah URL manual.
+- [x] Sidebar tetap terlihat saat halaman panjang di-scroll.
+
 ### Tabel dan Pencarian
 
 - [x] Search user benar-benar berfungsi, bukan input `readOnly`.
-- [ ] Search order berdasarkan order ID, buyer, transaction ID, atau tracking ID.
+- [x] Search order berdasarkan order ID, buyer, transaction ID, atau tracking ID.
 - [x] Sorting nama dan tanggal daftar pada user.
-- [ ] Sorting total, status, dan aktivitas terakhir pada tabel lain.
+- [x] Sorting total, status, tanggal dibuat, dan aktivitas terakhir pada order.
 - [x] Pagination server-side pada user dan audit log.
-- [ ] Pagination server-side pada order dan produk.
+- [x] Pagination server-side pada order dan produk moderasi.
 - [x] Tampilkan jumlah hasil dan rentang data pada manajemen user.
 - [x] Tombol reset semua filter pada manajemen user.
-- [ ] Simpan filter di URL agar halaman hasil dapat dibagikan.
-- [ ] Pertahankan filter dan halaman ketika admin kembali dari detail.
-- [ ] Empty state membedakan belum ada data dengan filter tanpa hasil.
+- [x] Simpan filter order di URL agar halaman hasil dapat dibagikan.
+- [x] Pertahankan filter dan halaman order ketika admin kembali dari detail.
+- [x] Empty state order membedakan belum ada data dengan filter tanpa hasil.
 
 ### Keamanan Aksi Admin
 
 - [x] Dialog konfirmasi untuk ban user, aktivasi user, dan perubahan status order.
-- [ ] Dialog konfirmasi untuk
-  penonaktifan produk.
+- [x] Dialog konfirmasi untuk penonaktifan dan aktivasi produk.
 - [x] Alasan wajib untuk aksi ban/aktivasi user dan perubahan status order.
-- [ ] Pilihan alasan cepat yang dapat diedit.
+- [x] Pilihan aturan moderasi cepat dengan alasan yang dapat diedit.
 - [x] Tampilkan ringkasan target sebelum konfirmasi agar admin tidak salah objek.
 - [x] Disable tombol selama request berjalan untuk mencegah aksi ganda.
 - [x] Toast sukses/error menyebut target yang diubah.
@@ -85,34 +99,38 @@ produk dilewati jika namanya sudah tersedia.
 ### Detail dan Produktivitas
 
 - [x] Halaman detail user yang juga menampilkan ringkasan seller sesuai role.
-- [ ] Halaman detail produk dan order.
+- [x] Halaman detail order admin.
+- [x] Halaman detail produk admin khusus, di luar antrean moderasi.
 - [x] Tombol salin user ID.
-- [ ] Tombol salin order ID, transaction ID, tracking ID, dan correlation ID.
-- [ ] Link silang dari order ke buyer, seller, produk, payment, dan shipping.
-- [ ] Tombol refresh manual dengan indikator waktu pembaruan terakhir.
+- [x] Tombol salin product ID.
+- [x] Tombol salin order ID, transaction ID, dan tracking ID.
+- [ ] Correlation ID menunggu kontrak ID bersama dari Gateway.
+- [x] Link silang dari order ke buyer, seller, dan produk/moderasi.
+- [x] Timeline payment/shipping dari integration log jika observability aktif.
+- [x] Tombol refresh manual dengan indikator waktu pembaruan terakhir.
 - [x] Tombol retry pada widget dashboard yang gagal tanpa reload seluruh halaman.
-- [ ] Pilihan jumlah baris per halaman.
-- [ ] Kolom tabel yang penting tetap terlihat saat scroll horizontal.
-- [ ] Export hanya data hasil filter aktif, disertai preview jumlah baris.
+- [x] Pilihan jumlah baris per halaman order.
+- [x] Kolom order ID tetap terlihat saat tabel order di-scroll horizontal.
+- [x] Export hanya data hasil filter aktif, disertai preview jumlah baris.
 
 ### Kejelasan Dashboard
 
 - [x] Tooltip definisi pada setiap metrik utama.
-- [ ] Tooltip detail pada setiap elemen grafik.
-- [ ] Legend grafik dapat diklik untuk menyembunyikan seri.
+- [x] Tooltip detail pada elemen grafik SVG, stacked bar, dan heatmap.
+- [x] Legend grafik tren dan stacked bar dapat diklik untuk menyembunyikan seri.
 - [x] Drill-down ketika kartu metrik diklik.
-- [ ] Drill-down ketika bagian grafik diklik.
+- [x] Drill-down ketika funnel, distribusi status, top produk, dan kategori diklik.
 - [x] Loading, empty, dan error state berbeda secara visual.
-- [ ] Stale state khusus.
+- [x] Stale state khusus dengan indikator freshness 30 detik dan refresh manual.
 - [x] Tandai data parsial jika observability integrasi tidak tersedia.
 - [x] Tampilkan zona waktu dashboard.
 - [x] Format Rupiah dan tanggal konsisten.
 - [x] Dashboard dan tabel menggunakan layout responsif dan horizontal overflow.
-- [ ] Indikator jumlah item yang membutuhkan tindakan pada sidebar.
+- [x] Indikator jumlah item yang membutuhkan tindakan pada sidebar.
 
 ## P0 - Akurasi, Kontrol, dan Kepatuhan
 
-> **Status implementasi 10 Juni 2026:** source untuk nomor 1-7 sudah dibuat dan
+> **Status implementasi 10 Juni 2026:** source untuk nomor 1-16 sudah dibuat dan
 > lolos lint/build. Jalankan `backend/observability.sql` di Supabase untuk
 > mengaktifkan penyimpanan audit log dan integration health. Migration tidak
 > dijalankan otomatis agar tidak mengubah database bersama tanpa persetujuan.
@@ -267,11 +285,20 @@ Panel prioritas otomatis:
 
 ### 10. Moderasi Seller dan Produk
 
-- [ ] Daftar seller serta status verifikasi.
+- [x] Daftar seller dengan status akun dan ringkasan produk aktif, nonaktif, serta
+  stok kritis.
+- [ ] Status verifikasi seller formal. Memerlukan tabel profil/verifikasi seller
+  dan dokumen KYC; UI saat ini menandainya "Belum dikonfigurasi".
 - [ ] Review produk yang dilaporkan.
-- [ ] Nonaktifkan listing dengan alasan dan notifikasi ke seller.
-- [ ] Riwayat keputusan moderasi.
-- [ ] Aturan objektif untuk mengurangi keputusan admin yang inkonsisten.
+- [x] Nonaktifkan atau aktifkan listing dengan alasan wajib.
+- [ ] Notifikasi keputusan ke seller. Seller sudah tidak dapat mengaktifkan ulang
+  listing yang dikunci admin, tetapi inbox/notifikasi memerlukan tabel baru.
+- [x] Riwayat keputusan moderasi melalui audit log.
+- [x] Aturan objektif untuk mengurangi keputusan admin yang inkonsisten.
+- [x] Filter produk berdasarkan status dan kondisi stok, search server-side,
+  pagination, jumlah hasil, serta reset filter.
+- [x] Halaman seller tetap menampilkan produk nonaktif miliknya, tanpa
+  menampilkan listing tersebut pada katalog publik.
 
 ### 11. Komplain dan Refund
 
@@ -283,10 +310,13 @@ Panel prioritas otomatis:
 
 ### 12. Laporan dan Ekspor
 
-- [ ] Ekspor CSV untuk order, user, seller, produk, dan ringkasan analytics.
-- [ ] Terapkan filter yang sama dengan dashboard.
-- [ ] Masking data pribadi yang tidak diperlukan.
-- [ ] Catat siapa yang mengekspor data dan kapan.
+- [x] Ekspor CSV untuk order, user, seller, produk, dan ringkasan analytics.
+- [x] Terapkan filter status, pencarian, stok, role, serta periode sesuai dataset.
+- [x] Preview jumlah baris, kolom, dan tiga contoh data sebelum ekspor.
+- [x] Masking email dan tidak mengekspor password maupun alamat pengiriman.
+- [x] Catat siapa yang mengekspor data, jenis laporan, filter, jumlah baris, dan
+  waktu melalui audit log jika observability sudah aktif.
+- [x] Batasi maksimal 5.000 baris per file dan tandai hasil yang mencapai batas.
 
 ## P2 - Inovasi Pembeda
 
@@ -294,33 +324,55 @@ Panel prioritas otomatis:
 
 Satu skor ringkas dengan rincian yang dapat ditindaklanjuti:
 
-- kesehatan pembayaran;
-- kesehatan pengiriman;
-- ketersediaan stok;
-- kualitas seller;
-- kepuasan buyer.
+- [x] Kesehatan pembayaran dengan bobot 30%.
+- [x] Kesehatan pengiriman dengan bobot 25%.
+- [x] Ketersediaan stok dengan bobot 20%.
+- [x] Kualitas seller dengan bobot 15%.
+- [x] Kepuasan buyer dengan bobot 10%; memakai rating aktual atau proxy order
+  selesai jika belum ada rating pada periode.
+- [x] Setiap komponen menampilkan skor, bobot, metrik sumber, penjelasan, dan
+  link penyelesaian.
+- [x] Halaman Health Center menyediakan periode hari ini, 7 hari, dan 30 hari.
 
-Skor tidak boleh menjadi angka misterius. Bobot, data, dan penyebab perubahan
-harus terlihat.
+Formula yang digunakan:
+
+`payment 30% + shipping 25% + stock 20% + seller 15% + buyer 10%`.
+
+Skor, bobot, data, keterbatasan, serta penyebab penurunan ditampilkan agar angka
+tidak menjadi metrik misterius.
 
 ### 14. Anomaly Inbox
 
 Deteksi berbasis aturan sederhana:
 
-- kenaikan payment failure secara mendadak;
-- order bernilai tidak biasa;
-- produk mendadak habis;
-- seller dengan lonjakan pembatalan;
-- order paid yang lama tidak dikirim.
+- [x] Kenaikan payment failure secara mendadak: minimal tiga kegagalan dan naik
+  setidaknya 10 poin persentase dari periode sebelumnya.
+- [x] Order bernilai tidak biasa: minimal tiga kali AOV atau Rp1.000.000.
+- [x] Produk aktif dengan stok habis.
+- [ ] Seller dengan lonjakan pembatalan. Status `cancelled` belum tersedia pada
+  schema order.
+- [x] Order paid yang belum memiliki tracking setelah lebih dari 24 jam.
+- [x] Order pending lebih dari 24 jam.
+- [x] Error integrasi atau monitoring integrasi yang belum aktif.
+- [x] Setiap anomali menampilkan severity, jumlah, aturan, penjelasan, dan link
+  investigasi.
+- [x] Cakupan aturan yang belum tersedia ditampilkan secara eksplisit.
 
 Pendekatan rule-based lebih realistis untuk tugas besar daripada mengklaim AI
 tanpa dataset yang memadai.
 
 ### 15. Simulator Dampak Fee
 
-Admin dapat mensimulasikan dampak perubahan fee pada revenue dan total bayar
-berdasarkan data historis, tetapi tidak dapat mengubah fee produksi langsung dari
-dashboard. Fee 2% tetap mengikuti aturan tugas besar sampai ada keputusan resmi.
+- [x] Admin dapat memilih periode hari ini, 7 hari, 30 hari, atau custom.
+- [x] Fee simulasi dapat dipilih dari 0–10% dengan kenaikan 0,5%.
+- [x] Tampilkan revenue simulasi, selisih dari aktual, fee rata-rata per order,
+  total buyer, dan rata-rata total buyer.
+- [x] Tampilkan tabel skenario 0%, 1%, 2%, 3%, 5%, dan nilai custom.
+- [x] Perhitungan memakai paid order historis dan pembulatan per order seperti
+  produksi.
+- [x] Simulator bersifat read-only dan tidak dapat mengubah fee produksi.
+
+Fee produksi 2% tetap mengikuti aturan tugas besar sampai ada keputusan resmi.
 
 ### 16. Integration Storyboard
 
@@ -328,8 +380,14 @@ Visualisasi satu order secara end-to-end:
 
 `Buyer -> PasarKita -> Gateway -> SmartBank -> PasarKita -> LogistiKita`
 
-Setiap node menampilkan timestamp, status, dan correlation ID. Ini berguna untuk
-debugging, demo dosen, dan audit integrasi.
+- [x] Storyboard tersedia pada detail order admin.
+- [x] Setiap node menampilkan status, deskripsi, dan timestamp jika tersedia.
+- [x] Gunakan status order sebagai fallback ketika integration log belum aktif.
+- [x] Bedakan node sukses, gagal, dan belum terverifikasi.
+- [ ] Correlation ID menunggu kontrak dan payload bersama dari Gateway.
+
+Storyboard berguna untuk debugging, demo dosen, dan audit integrasi tanpa
+mengarang event yang belum tersedia.
 
 ## Kontrak Data Analytics Minimum
 
@@ -349,7 +407,9 @@ Endpoint analytics sebaiknya menyediakan:
   "top_products": [],
   "top_categories": [],
   "integration_health": {},
-  "action_center": []
+  "action_center": [],
+  "marketplace_health": {},
+  "anomalies": []
 }
 ```
 

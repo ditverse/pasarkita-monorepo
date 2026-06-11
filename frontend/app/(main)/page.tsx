@@ -22,7 +22,7 @@ export default function HomePage() {
 
   const debouncedSearch = useDebounce(searchQuery, 400);
 
-  const { data: products = [], isLoading: loading, isError } = useQuery({
+  const { data: products = [], isLoading: loading, isError, isFetching, refetch } = useQuery({
     queryKey: queryKeys.products.home(debouncedSearch),
     queryFn: async (): Promise<Product[]> => {
       const res = await productsApi.getAll({
@@ -250,6 +250,9 @@ export default function HomePage() {
             <p style={{ color: 'var(--pk-text-hint)', fontSize: 13 }}>
               Periksa koneksi backend dan konfigurasi API.
             </p>
+            <button type="button" className="pk-btn pk-btn-secondary pk-btn-sm" onClick={() => void refetch()} disabled={isFetching}>
+              {isFetching ? 'Mencoba lagi...' : 'Coba Lagi'}
+            </button>
           </div>
         ) : loading ? (
           <div

@@ -59,7 +59,9 @@ export function proxy(request: NextRequest) {
 
   // 1. Redirect guests from protected routes (including unauthorized page)
   if (isProtectedRoute && !token) {
-    return NextResponse.redirect(new URL('/auth/login', request.url));
+    const loginUrl = new URL('/auth/login', request.url);
+    loginUrl.searchParams.set('next', `${pathname}${request.nextUrl.search}`);
+    return NextResponse.redirect(loginUrl);
   }
 
   // 2. Allow unauthorized page for LOGGED-IN non-sellers

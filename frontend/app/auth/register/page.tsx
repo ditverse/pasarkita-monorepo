@@ -21,6 +21,7 @@ type RegisterForm = z.infer<typeof registerSchema>;
 
 export default function RegisterPage() {
   const [role, setRole] = useState<'buyer' | 'seller'>('buyer');
+  const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
 
   const { register, handleSubmit, setValue, formState: { errors } } = useForm<RegisterForm>({
@@ -67,7 +68,23 @@ export default function RegisterPage() {
         </div>
         <div style={{ marginBottom: 14 }}>
           <label className="pk-label">Password</label>
-          <input {...register('password')} className="pk-input" type="password" placeholder="Min. 8 karakter" />
+          <div style={{ position: 'relative' }}>
+            <input
+              {...register('password')}
+              className="pk-input"
+              type={showPassword ? 'text' : 'password'}
+              placeholder="Min. 6 karakter"
+              style={{ paddingRight: 40 }}
+            />
+            <button
+              type="button"
+              aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}
+              onClick={() => setShowPassword((current) => !current)}
+              style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--pk-text-hint)', padding: 4 }}
+            >
+              <Icon name={showPassword ? 'eyeOff' : 'eye'} size={16} />
+            </button>
+          </div>
           {errors.password && <div style={{ fontSize: 12, color: 'var(--pk-danger)', marginTop: 4 }}>{errors.password.message}</div>}
         </div>
         <div style={{ marginBottom: 20 }}>

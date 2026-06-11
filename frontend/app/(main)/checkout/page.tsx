@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Icon from '@/components/pk/icon';
@@ -48,6 +48,15 @@ function CheckoutContent() {
 
   const [loading, setLoading] = useState(false);
   const [address, setAddress] = useState('');
+
+  useEffect(() => {
+    if (!loading) return;
+    const warnBeforeLeave = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+    };
+    window.addEventListener('beforeunload', warnBeforeLeave);
+    return () => window.removeEventListener('beforeunload', warnBeforeLeave);
+  }, [loading]);
 
   const productQuery = useQuery({
     queryKey: ['products', 'checkout', productId],
@@ -101,6 +110,9 @@ function CheckoutContent() {
     }
     if (!address.trim() || address.trim().length < 10) {
       toast.error('Alamat pengiriman terlalu pendek');
+      return;
+    }
+    if (!window.confirm(`Bayar ${formatIDR(total)} untuk ${qtyUrl} barang melalui SmartBank?`)) {
       return;
     }
 
@@ -222,15 +234,24 @@ function CheckoutContent() {
 
           <button
             className="pk-btn pk-btn-primary pk-btn-lg pk-btn-block"
-            disabled={loading || product.stock < 1}
+            disabled={loading || product.stock < 1 || (balance !== null && balance < total)}
             onClick={handlePay}
+            title={
+              product.stock < 1
+                ? 'Produk sedang kehabisan stok'
+                : balance !== null && balance < total
+                  ? 'Saldo SmartBank tidak mencukupi'
+                  : undefined
+            }
           >
             {loading ? (
               <><Spinner /> Memproses...</>
             ) : product.stock < 1 ? (
               'Stok Habis'
+            ) : balance !== null && balance < total ? (
+              'Saldo Tidak Cukup'
             ) : (
-              `Bayar ${formatIDR(total)}`
+              `Bayar ${qtyUrl} Barang · ${formatIDR(total)}`
             )}
           </button>
         </div>

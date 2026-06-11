@@ -20,8 +20,8 @@ alur tugas besar, lalu berkembang menjadi marketplace yang nyaman digunakan.
 |---|---|---|
 | Registrasi dan login | Ada | JWT dan role sudah tersedia |
 | Browse, cari, filter, urutkan produk | Ada sebagian | Pagination masih bersifat dummy di UI |
-| Detail produk | Ada | Gambar produk masih placeholder |
-| Keranjang multi-item | Ada | Tersimpan di client, belum tersinkron ke akun |
+| Detail produk | Ada | Foto utama produk tampil dengan fallback placeholder |
+| Keranjang multi-item | Ada sebagian | Persisten di browser; checkout masih dilakukan per produk |
 | Kalkulasi subtotal dan fee 2% | Ada | Sudah memakai endpoint fee |
 | Checkout dan pembayaran SmartBank | Ada | Belum idempotent dan belum aman dari race stok |
 | Riwayat dan detail order | Ada | Status dasar dan tracking tersedia |
@@ -40,44 +40,44 @@ harian pembeli.
 ### Akun dan Navigasi
 
 - [ ] Fitur lupa password dan reset password.
-- [ ] Tombol tampilkan/sembunyikan password yang konsisten pada login, register,
-  dan ganti password.
-- [ ] Redirect kembali ke halaman tujuan setelah login, bukan selalu ke halaman
+- [x] Tombol tampilkan/sembunyikan password yang konsisten pada login dan register;
+  ganti password menunggu API.
+- [x] Redirect kembali ke halaman tujuan setelah login, bukan selalu ke halaman
   default.
-- [ ] Breadcrumb atau tombol kembali yang jelas pada detail produk dan detail order.
-- [ ] Halaman 404 dengan tombol kembali ke katalog.
+- [x] Breadcrumb atau tombol kembali yang jelas pada detail produk dan detail order.
+- [x] Halaman 404 dengan tombol kembali ke katalog.
 - [ ] Konfirmasi sebelum logout jika checkout atau form profil sedang diisi.
 
 ### Katalog dan Keranjang
 
-- [ ] Badge jumlah item pada ikon keranjang.
-- [ ] Halaman keranjang khusus untuk mengubah qty, menghapus item, dan mengosongkan
+- [x] Badge jumlah item pada ikon keranjang.
+- [x] Halaman keranjang khusus untuk mengubah qty, menghapus item, dan mengosongkan
   keranjang.
-- [ ] Dialog konfirmasi sebelum mengosongkan keranjang.
-- [ ] Cegah qty melebihi stok langsung dari input.
+- [x] Dialog konfirmasi sebelum mengosongkan keranjang.
+- [x] Cegah qty melebihi stok langsung dari input.
 - [ ] Beri tanda jika harga atau stok berubah sejak item dimasukkan ke keranjang.
-- [ ] Tombol "Bagikan produk" menggunakan Web Share API atau salin tautan.
-- [ ] Tombol retry pada katalog/detail produk ketika request gagal.
+- [x] Tombol "Bagikan produk" menggunakan Web Share API atau salin tautan.
+- [x] Tombol retry pada katalog/detail produk ketika request gagal.
 - [ ] Sorting "rating tertinggi" dan "paling banyak terjual" setelah datanya tersedia.
 - [ ] Simpan posisi scroll dan filter ketika kembali dari detail produk.
 
 ### Checkout dan Pesanan
 
-- [ ] Ringkasan jumlah item pada tombol checkout.
-- [ ] Konfirmasi akhir sebelum mengirim pembayaran.
-- [ ] Peringatan ketika user meninggalkan halaman saat pembayaran sedang diproses.
-- [ ] Tombol salin untuk order ID, transaction ID, dan tracking ID.
-- [ ] Tombol "Beli Lagi" dari order selesai.
-- [ ] Tombol retry pada halaman checkout gagal.
-- [ ] Tampilkan alasan tombol aksi disabled, misalnya stok habis atau saldo kurang.
+- [x] Ringkasan jumlah item pada tombol checkout.
+- [x] Konfirmasi akhir sebelum mengirim pembayaran.
+- [x] Peringatan ketika user meninggalkan halaman saat pembayaran sedang diproses.
+- [x] Tombol salin untuk order ID, transaction ID, dan tracking ID.
+- [x] Tombol "Beli Lagi" dari order selesai.
+- [x] Tombol retry pada halaman checkout gagal.
+- [x] Tampilkan alasan tombol aksi disabled, misalnya stok habis atau saldo kurang.
 - [ ] Tampilkan tanggal dan jam status order, bukan hanya urutan status.
-- [ ] Konfirmasi sebelum buyer menandai pesanan telah diterima.
+- [x] Konfirmasi sebelum buyer menandai pesanan telah diterima.
 
 ### Kualitas Antarmuka
 
 - [ ] Skeleton loading yang konsisten untuk katalog, order, dan profil.
-- [ ] Empty state dengan tindakan relevan, misalnya "Mulai Belanja".
-- [ ] Pesan error yang ramah pengguna serta tombol coba lagi.
+- [x] Empty state dengan tindakan relevan, misalnya "Mulai Belanja".
+- [x] Pesan error katalog dan pesanan yang ramah pengguna serta tombol coba lagi.
 - [ ] Layout mobile untuk tabel/ringkasan yang saat ini lebar.
 - [ ] Fokus keyboard, label form, dan teks alternatif gambar yang memadai.
 - [ ] Format mata uang, tanggal, dan nomor telepon konsisten dalam locale Indonesia.

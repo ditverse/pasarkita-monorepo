@@ -13,6 +13,22 @@ const uploadProductImage = async (sellerId, file) => {
     throw { status: 400, code: 'IMAGE_REQUIRED', message: 'Pilih gambar produk terlebih dahulu' };
   }
 
+  const { error: schemaError } = await supabase
+    .from('products')
+    .select('image_url')
+    .limit(1);
+
+  if (schemaError) {
+    const imageColumnMissing = schemaError.message?.includes('products.image_url');
+    throw {
+      status: 503,
+      code: imageColumnMissing ? 'IMAGE_SCHEMA_NOT_READY' : 'IMAGE_STORAGE_CHECK_FAILED',
+      message: imageColumnMissing
+        ? 'Kolom gambar produk belum aktif. Jalankan backend/product-images.sql di Supabase SQL Editor.'
+        : `Gagal memeriksa konfigurasi gambar: ${schemaError.message}`,
+    };
+  }
+
   const extension = IMAGE_EXTENSIONS[file.mimetype];
   if (!extension) {
     throw {

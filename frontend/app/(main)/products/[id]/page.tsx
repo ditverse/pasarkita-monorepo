@@ -11,13 +11,17 @@ import { useParams } from 'next/navigation';
 import { productsApi } from '@/lib/api/products';
 import { ratingsApi } from '@/lib/api/ratings';
 import { Product, RatingSummary } from '@/types/api';
+import { useCartStore } from '@/store/cart';
+import { toast } from 'sonner';
 
 export default function ProductDetailPage() {
   const { id } = useParams();
   const [qty, setQty] = useState(1);
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [ratingSummary, setRatingSummary] = useState<RatingSummary | null>(null);
+  const addItem = useCartStore((state) => state.addItem);
 
   useEffect(() => {
     if (!id) return;
@@ -28,12 +32,27 @@ export default function ProductDetailPage() {
         return ratingsApi.getByProduct(id as string);
       })
       .then((res) => setRatingSummary(res.data.data))
-      .catch((err) => console.error('Gagal mendapatkan produk:', err))
+      .catch((err) => {
+        console.error('Gagal mendapatkan produk:', err);
+        setLoadError(true);
+      })
       .finally(() => setLoading(false));
   }, [id]);
 
   if (loading) {
     return <div style={{ padding: '80px', textAlign: 'center', color: 'var(--pk-text-hint)' }}>Memuat produk...</div>;
+  }
+
+  if (loadError) {
+    return (
+      <div style={{ padding: '80px 24px', textAlign: 'center' }}>
+        <h2 style={{ marginBottom: 8 }}>Produk gagal dimuat</h2>
+        <p style={{ color: 'var(--pk-text-secondary)' }}>Periksa koneksi lalu coba kembali.</p>
+        <button type="button" className="pk-btn pk-btn-primary" onClick={() => window.location.reload()}>
+          Coba Lagi
+        </button>
+      </div>
+    );
   }
 
   if (!product) {
@@ -43,6 +62,33 @@ export default function ProductDetailPage() {
   const p = product;
   const subtotal = p.price * qty;
   const fee = Math.round(subtotal * 0.02);
+
+  const handleAddToCart = () => {
+    addItem({
+      productId: p.id,
+      name: p.name,
+      price: p.price,
+      qty,
+      sellerName: p.seller?.name || 'Toko Anonim',
+      stock: p.stock,
+      imageUrl: p.image_url,
+    });
+    toast.success(`${qty} ${p.name} ditambahkan ke keranjang`);
+  };
+
+  const handleShare = async () => {
+    const url = window.location.href;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: p.name, text: `Lihat ${p.name} di PasarKita`, url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        toast.success('Tautan produk disalin');
+      }
+    } catch (error) {
+      if ((error as DOMException).name !== 'AbortError') toast.error('Gagal membagikan produk');
+    }
+  };
 
   return (
     <div style={{ padding: '20px 80px 64px' }}>
@@ -81,6 +127,9 @@ export default function ProductDetailPage() {
           >
             {p.name}
           </h1>
+          <button type="button" className="pk-btn pk-btn-ghost pk-btn-sm" onClick={handleShare} style={{ marginBottom: 12 }}>
+            <Icon name="arrowRight" size={14} /> Bagikan Produk
+          </button>
           <div
             style={{
               fontSize: 32,
@@ -203,19 +252,21 @@ export default function ProductDetailPage() {
             <Row label="Total" value={formatIDR(subtotal + fee)} bold />
           </div>
 
-          <Link href={`/checkout?productId=${p.id}&qty=${qty}`} style={{ textDecoration: 'none' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 20 }}>
             <button
-              className="pk-btn pk-btn-primary pk-btn-lg pk-btn-block"
-              style={{ marginTop: 20 }}
+              type="button"
+              className="pk-btn pk-btn-secondary pk-btn-lg"
               disabled={p.stock < 1}
+              onClick={handleAddToCart}
             >
-              {p.stock > 0 ? (
-                <>Checkout Sekarang <Icon name="arrowRight" size={16} /></>
-              ) : (
-                'Stok Habis'
-              )}
+              <Icon name="cart" size={16} /> Tambah Keranjang
             </button>
-          </Link>
+            <Link href={`/checkout?productId=${p.id}&qty=${qty}`} style={{ textDecoration: 'none' }}>
+              <button className="pk-btn pk-btn-primary pk-btn-lg pk-btn-block" disabled={p.stock < 1}>
+                {p.stock > 0 ? <>Checkout <Icon name="arrowRight" size={16} /></> : 'Stok Habis'}
+              </button>
+            </Link>
+          </div>
           <div style={{ fontSize: 12, color: 'var(--pk-text-hint)', textAlign: 'center', marginTop: 12 }}>
             Pembayaran aman lewat SmartBank · Dana ditahan sampai barang diterima
           </div>

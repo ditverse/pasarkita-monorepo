@@ -70,6 +70,9 @@ export default function OrderDetailPage() {
 
   const handleConfirmDelivered = async () => {
     if (!o) return;
+    if (!window.confirm('Pastikan barang sudah diterima dalam kondisi baik. Tandai pesanan sebagai selesai?')) {
+      return;
+    }
     setConfirming(true);
     try {
       await ratingsApi.confirmDelivered(o.id);
@@ -104,6 +107,11 @@ export default function OrderDetailPage() {
   });
 
   const activeIdx = STEPS_MAP[o.status] ?? 0;
+
+  const copyValue = async (label: string, value: string) => {
+    await navigator.clipboard.writeText(value);
+    toast.success(`${label} disalin`);
+  };
 
   const STEPS = [
     { label: 'Pending', date: dateStr },
@@ -219,6 +227,9 @@ export default function OrderDetailPage() {
             {o.tracking_id ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span className="pk-mono" style={{ color: 'var(--pk-text)', fontSize: 12 }}>{o.tracking_id}</span>
+                <button type="button" className="pk-btn pk-btn-ghost pk-btn-sm" onClick={() => void copyValue('Nomor resi', o.tracking_id as string)}>
+                  Salin
+                </button>
                 {trackingStatus && (
                   <span style={{
                     fontSize: 11, fontWeight: 500, padding: '2px 7px', borderRadius: 4,
@@ -248,18 +259,32 @@ export default function OrderDetailPage() {
             <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--pk-border)', display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div>
                 <div style={{ fontSize: 11, color: 'var(--pk-text-hint)', marginBottom: 2 }}>Order ID</div>
-                <div className="pk-mono" style={{ fontSize: 11 }}>{o.id}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div className="pk-mono" style={{ fontSize: 11, overflowWrap: 'anywhere' }}>{o.id}</div>
+                  <button type="button" className="pk-btn pk-btn-ghost pk-btn-sm" onClick={() => void copyValue('Order ID', o.id)}>Salin</button>
+                </div>
               </div>
               {o.transaction_id && (
                 <div>
                   <div style={{ fontSize: 11, color: 'var(--pk-text-hint)', marginBottom: 2 }}>Transaction ID</div>
-                  <div className="pk-mono" style={{ fontSize: 11 }}>{o.transaction_id}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div className="pk-mono" style={{ fontSize: 11, overflowWrap: 'anywhere' }}>{o.transaction_id}</div>
+                    <button type="button" className="pk-btn pk-btn-ghost pk-btn-sm" onClick={() => void copyValue('Transaction ID', o.transaction_id as string)}>Salin</button>
+                  </div>
                 </div>
               )}
             </div>
           </div>
         </div>
       </div>
+
+      {o.status === 'delivered' && items[0] && (
+        <div style={{ marginTop: 20, display: 'flex', justifyContent: 'flex-end' }}>
+          <Link href={`/products/${items[0].product_id}`} className="pk-btn pk-btn-primary">
+            Beli Lagi
+          </Link>
+        </div>
+      )}
 
       {/* Rating Modal */}
       {showRating && o.items.length > 0 && (

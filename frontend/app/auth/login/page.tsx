@@ -36,6 +36,11 @@ export default function LoginPage() {
       document.cookie = `token=${token}; path=/; max-age=86400; SameSite=Strict`;
       setLogin(token, user);
       toast.success('Berhasil masuk!');
+      const requestedPath = new URLSearchParams(window.location.search).get('next');
+      if (requestedPath?.startsWith('/') && !requestedPath.startsWith('//')) {
+        router.push(requestedPath);
+        return;
+      }
       if (user.role === 'superadmin') router.push('/admin');
       else if (user.role === 'seller') router.push('/seller/products');
       else router.push('/');

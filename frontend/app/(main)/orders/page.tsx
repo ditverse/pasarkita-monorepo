@@ -24,7 +24,7 @@ export default function OrdersListPage() {
   const [tab, setTab] = useState('all');
   const user = useAuthStore((state) => state.user);
 
-  const { data: orders = [], isLoading: loading, isError } = useQuery({
+  const { data: orders = [], isLoading: loading, isError, isFetching, refetch } = useQuery({
     queryKey: queryKeys.orders.list('buyer'),
     queryFn: async (): Promise<Order[]> => {
       const res = await ordersApi.getAll();
@@ -99,7 +99,10 @@ export default function OrdersListPage() {
 
         {!loading && isError && (
           <div style={{ padding: '40px', textAlign: 'center', border: '1px dashed var(--pk-border)', borderRadius: 12, color: 'var(--pk-text-secondary)' }}>
-            Pesanan gagal dimuat. Periksa koneksi backend dan token login.
+            <div>Pesanan gagal dimuat. Periksa koneksi lalu coba kembali.</div>
+            <button type="button" className="pk-btn pk-btn-secondary pk-btn-sm" onClick={() => void refetch()} disabled={isFetching} style={{ marginTop: 12 }}>
+              {isFetching ? 'Mencoba lagi...' : 'Coba Lagi'}
+            </button>
           </div>
         )}
         
@@ -141,7 +144,10 @@ export default function OrdersListPage() {
 
         {!loading && !isError && filtered.length === 0 && (
           <div style={{ padding: '64px 24px', textAlign: 'center', border: '1px dashed var(--pk-border)', borderRadius: 12, color: 'var(--pk-text-hint)', fontSize: 14 }}>
-            Tidak ada pesanan dalam status ini.
+            <div style={{ marginBottom: 14 }}>Tidak ada pesanan dalam status ini.</div>
+            {tab === 'all' && (
+              <Link href="/products" className="pk-btn pk-btn-primary pk-btn-sm">Mulai Belanja</Link>
+            )}
           </div>
         )}
       </div>

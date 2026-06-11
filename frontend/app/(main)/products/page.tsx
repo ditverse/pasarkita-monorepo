@@ -280,6 +280,9 @@ export default function BrowseProductsPage() {
             <div style={{ fontSize: 14, color: 'var(--pk-text-secondary)' }}>
               Periksa koneksi backend dan nilai NEXT_PUBLIC_API_URL.
             </div>
+            <button type="button" className="pk-btn pk-btn-secondary pk-btn-sm" onClick={() => void productsQuery.refetch()} disabled={productsQuery.isFetching} style={{ marginTop: 16 }}>
+              {productsQuery.isFetching ? 'Mencoba lagi...' : 'Coba Lagi'}
+            </button>
           </div>
         ) : filtered.length === 0 ? (
           <div

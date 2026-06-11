@@ -8,6 +8,7 @@ import Icon from './icon';
 import Avatar from './avatar';
 import NotificationDropdown, { type Notification } from './notification-dropdown';
 import { useAuthStore } from '@/store/auth';
+import { useCartStore } from '@/store/cart';
 
 const NAV_LINKS = [
   { href: '/products', label: 'Browse' },
@@ -22,6 +23,9 @@ export function NavbarDesktop() {
   const pathname = usePathname();
   const active = NAV_LINKS.find((l) => pathname.startsWith(l.href))?.href ?? '';
   const { token, user, _hasHydrated } = useAuthStore();
+  const cartCount = useCartStore((state) =>
+    state.items.reduce((total, item) => total + item.qty, 0)
+  );
   const isLoggedIn = _hasHydrated && Boolean(token && user);
 
   const [notifOpen, setNotifOpen] = useState(false);
@@ -79,6 +83,35 @@ export function NavbarDesktop() {
       </nav>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <Link
+          href="/cart"
+          className="pk-btn pk-btn-ghost pk-btn-sm"
+          style={{ height: 36, padding: '0 10px', position: 'relative' }}
+          aria-label={`Keranjang, ${cartCount} barang`}
+        >
+          <Icon name="cart" size={18} />
+          {cartCount > 0 && (
+            <span style={{
+              position: 'absolute',
+              top: -4,
+              right: -4,
+              minWidth: 18,
+              height: 18,
+              padding: '0 5px',
+              borderRadius: 999,
+              background: 'var(--pk-danger)',
+              color: '#fff',
+              border: '2px solid #fff',
+              display: 'grid',
+              placeItems: 'center',
+              fontSize: 9,
+              fontWeight: 700,
+            }}>
+              {cartCount > 99 ? '99+' : cartCount}
+            </span>
+          )}
+        </Link>
+
         {/* Bell — hanya untuk user yang sudah login */}
         {isLoggedIn && (
           <div style={{ position: 'relative' }}>

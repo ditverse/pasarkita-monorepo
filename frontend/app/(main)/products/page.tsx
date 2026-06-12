@@ -1,416 +1,281 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Icon from '@/components/pk/icon';
 import ProductImage from '@/components/pk/product-image';
+import WishlistButton from '@/components/pk/wishlist-button';
 import { formatIDR } from '@/lib/format';
 import { productsApi } from '@/lib/api/products';
 import { useDebounce } from '@/lib/hooks/useDebounce';
 import { Product } from '@/types/api';
 
 const CATEGORIES = ['Fashion', 'Makanan', 'Kerajinan', 'Elektronik', 'Kecantikan', 'Rumah', 'Buku', 'Olahraga'];
+const PAGE_SIZE = 12;
 
-export default function BrowseProductsPage() {
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [priceMax, setPriceMax] = useState(15000000);
-  const [sort, setSort] = useState('relevant');
+function BrowseProductsContent() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [searchInput, setSearchInput] = useState(searchParams.get('search') ?? '');
+  const debouncedSearch = useDebounce(searchInput, 400);
 
-  const debouncedSearch = useDebounce(searchQuery, 400);
+  const category = searchParams.get('category') ?? '';
+  const sort = searchParams.get('sort') ?? 'created_desc';
+  const minPrice = Math.max(0, Number(searchParams.get('min_price') ?? 0) || 0);
+  const maxPrice = Math.max(0, Number(searchParams.get('max_price') ?? 15000000) || 15000000);
+  const inStock = searchParams.get('in_stock') !== 'false';
+  const page = Math.max(1, Number(searchParams.get('page') ?? 1) || 1);
+
+  const updateParams = (updates: Record<string, string | null>, replace = false) => {
+    const params = new URLSearchParams(searchParams.toString());
+    Object.entries(updates).forEach(([key, value]) => {
+      if (!value) params.delete(key);
+      else params.set(key, value);
+    });
+    const url = `${pathname}${params.size ? `?${params.toString()}` : ''}`;
+    if (replace) router.replace(url, { scroll: false });
+    else router.push(url, { scroll: false });
+  };
+
+  useEffect(() => {
+    const currentSearch = searchParams.get('search') ?? '';
+    if (currentSearch === debouncedSearch.trim()) return;
+    updateParams({ search: debouncedSearch.trim() || null, page: null }, true);
+    // updateParams intentionally derives from the current URL snapshot.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch]);
 
   const productsQuery = useQuery({
-    queryKey: ['products', 'browse', sort, debouncedSearch],
-    queryFn: async (): Promise<Product[]> => {
-      const params: { limit: number; sort?: string; search?: string } = { limit: 100 };
-      if (sort === 'high') params.sort = 'price_desc';
-      if (sort === 'low') params.sort = 'price_asc';
-      if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
-      const res = await productsApi.getAll(params);
-      return res.data.data ?? [];
+    queryKey: ['products', 'browse', debouncedSearch, category, sort, minPrice, maxPrice, inStock, page],
+    queryFn: async () => {
+      const response = await productsApi.getAll({
+        search: debouncedSearch.trim() || undefined,
+        category: category || undefined,
+        sort,
+        min_price: minPrice || undefined,
+        max_price: maxPrice || undefined,
+        in_stock: inStock,
+        page,
+        limit: PAGE_SIZE,
+      });
+      return {
+        products: response.data.data ?? [],
+        pagination: response.data.pagination,
+      };
     },
+    placeholderData: (previous) => previous,
   });
 
-  // Client-side filtering for category + price (multi-category not supported by backend)
-  const filtered = useMemo(() => {
-    return (productsQuery.data ?? []).filter(
-      (p) => 
-        (selectedCategories.length === 0 || selectedCategories.includes(p.category)) && 
-        p.price <= priceMax
-    );
-  }, [productsQuery.data, selectedCategories, priceMax]);
+  const products: Product[] = productsQuery.data?.products ?? [];
+  const pagination = productsQuery.data?.pagination ?? {
+    page,
+    limit: PAGE_SIZE,
+    total: 0,
+    total_pages: 0,
+  };
+  const pageNumbers = useMemo(() => {
+    const start = Math.max(1, page - 2);
+    const end = Math.min(pagination.total_pages, start + 4);
+    return Array.from({ length: Math.max(0, end - start + 1) }, (_, index) => start + index);
+  }, [page, pagination.total_pages]);
+  const hasFilters = Boolean(debouncedSearch || category || minPrice || maxPrice !== 15000000 || !inStock || sort !== 'created_desc');
 
-  const toggleCategory = (c: string) => {
-    setSelectedCategories((prev) =>
-      prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]
-    );
+  const resetFilters = () => {
+    setSearchInput('');
+    router.push(pathname, { scroll: false });
   };
 
   return (
-    <div style={{ display: 'flex', padding: '24px 80px', gap: 32 }}>
-      {/* Sidebar */}
-      <aside style={{ width: 220, flexShrink: 0 }}>
-        <div
-          style={{
-            fontSize: 12,
-            fontWeight: 500,
-            textTransform: 'uppercase',
-            letterSpacing: '0.06em',
-            color: 'var(--pk-text-hint)',
-            marginBottom: 12,
-          }}
-        >
+    <div className="pk-catalog-layout" style={{ display: 'flex', padding: '24px clamp(16px, 6vw, 80px)', gap: 32, alignItems: 'flex-start' }}>
+      <aside className="pk-catalog-sidebar" style={{ width: 220, flexShrink: 0 }}>
+        <div style={{ fontSize: 12, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--pk-text-hint)', marginBottom: 12 }}>
           Kategori
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 28 }}>
-          {CATEGORIES.map((c) => (
-            <label
-              key={c}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 28 }}>
+          {CATEGORIES.map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => updateParams({ category: category === item ? null : item, page: null })}
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                fontSize: 14,
+                padding: '8px 10px',
+                borderRadius: 8,
+                border: 0,
+                textAlign: 'left',
+                background: category === item ? 'var(--pk-bg-subtle)' : 'transparent',
+                color: category === item ? 'var(--pk-text)' : 'var(--pk-text-secondary)',
+                fontSize: 13,
+                fontWeight: category === item ? 600 : 400,
                 cursor: 'pointer',
-                color: 'var(--pk-text)',
               }}
             >
-              <span
-                onClick={() => toggleCategory(c)}
-                style={{
-                  width: 16,
-                  height: 16,
-                  borderRadius: 4,
-                  border: '1.5px solid ' + (selectedCategories.includes(c) ? 'var(--pk-text)' : 'var(--pk-border-strong)'),
-                  background: selectedCategories.includes(c) ? 'var(--pk-text)' : '#fff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                  transition: 'all 150ms ease',
-                }}
-              >
-                {selectedCategories.includes(c) && (
-                  <Icon name="check" size={12} style={{ color: '#fff' }} stroke={3} />
-                )}
-              </span>
-              {c}
-            </label>
+              {item}
+            </button>
           ))}
         </div>
 
-        {/* Active category tags */}
-        {selectedCategories.length > 0 && (
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-              {selectedCategories.map((c) => (
-                <span
-                  key={c}
-                  onClick={() => toggleCategory(c)}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 4,
-                    padding: '4px 10px',
-                    borderRadius: 999,
-                    fontSize: 12,
-                    fontWeight: 500,
-                    background: 'var(--pk-accent-soft)',
-                    color: 'var(--pk-accent)',
-                    cursor: 'pointer',
-                    transition: 'opacity 150ms ease',
-                  }}
-                >
-                  {c}
-                  <Icon name="x" size={12} stroke={2.5} />
-                </span>
-              ))}
-            </div>
-            <button
-              onClick={() => setSelectedCategories([])}
-              style={{
-                fontSize: 12,
-                color: 'var(--pk-text-hint)',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                textDecoration: 'underline',
-              }}
-            >
-              Hapus semua filter
-            </button>
-          </div>
-        )}
-
-        <div
-          style={{
-            fontSize: 12,
-            fontWeight: 500,
-            textTransform: 'uppercase',
-            letterSpacing: '0.06em',
-            color: 'var(--pk-text-hint)',
-            marginBottom: 12,
-          }}
-        >
-          Harga Maks.
+        <div style={{ fontSize: 12, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--pk-text-hint)', marginBottom: 12 }}>
+          Rentang Harga
         </div>
-        <div style={{ marginBottom: 28 }}>
+        <div style={{ display: 'grid', gap: 8, marginBottom: 20 }}>
           <input
-            type="range"
-            min="0"
-            max="15000000"
-            step="100000"
-            value={priceMax}
-            onChange={(e) => setPriceMax(+e.target.value)}
-            style={{ width: '100%', accentColor: 'var(--pk-text)' }}
+            className="pk-input"
+            type="number"
+            min={0}
+            value={minPrice}
+            aria-label="Harga minimum"
+            onChange={(event) => updateParams({ min_price: event.target.value === '0' ? null : event.target.value, page: null }, true)}
+            placeholder="Harga minimum"
           />
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              fontSize: 12,
-              color: 'var(--pk-text-secondary)',
-              marginTop: 6,
-            }}
-          >
-            <span>Rp 0</span>
-            <span style={{ fontWeight: 500, color: 'var(--pk-text)' }}>{formatIDR(priceMax)}</span>
+          <input
+            className="pk-input"
+            type="number"
+            min={0}
+            value={maxPrice}
+            aria-label="Harga maksimum"
+            onChange={(event) => updateParams({ max_price: event.target.value === '15000000' ? null : event.target.value, page: null }, true)}
+            placeholder="Harga maksimum"
+          />
+          <div style={{ fontSize: 11, color: 'var(--pk-text-hint)' }}>
+            {formatIDR(minPrice)} - {formatIDR(maxPrice)}
           </div>
         </div>
 
-        <div
-          style={{
-            fontSize: 12,
-            fontWeight: 500,
-            textTransform: 'uppercase',
-            letterSpacing: '0.06em',
-            color: 'var(--pk-text-hint)',
-            marginBottom: 12,
-          }}
-        >
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', marginBottom: 24 }}>
+          <input
+            type="checkbox"
+            checked={inStock}
+            onChange={(event) => updateParams({ in_stock: event.target.checked ? null : 'false', page: null })}
+          />
+          Hanya stok tersedia
+        </label>
+
+        <div style={{ fontSize: 12, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--pk-text-hint)', marginBottom: 12 }}>
           Urutkan
         </div>
-        <select
-          className="pk-select"
-          value={sort}
-          onChange={(e) => setSort(e.target.value)}
-        >
-          <option value="relevant">Paling relevan (Terbaru)</option>
-          <option value="low">Harga terendah</option>
-          <option value="high">Harga tertinggi</option>
+        <select className="pk-select" value={sort} onChange={(event) => updateParams({ sort: event.target.value === 'created_desc' ? null : event.target.value, page: null })}>
+          <option value="created_desc">Terbaru</option>
+          <option value="price_asc">Harga terendah</option>
+          <option value="price_desc">Harga tertinggi</option>
         </select>
+
+        {hasFilters && (
+          <button type="button" className="pk-btn pk-btn-secondary pk-btn-block pk-btn-sm" onClick={resetFilters} style={{ marginTop: 16 }}>
+            Reset Semua Filter
+          </button>
+        )}
       </aside>
 
-      {/* Main */}
-      <main style={{ flex: 1 }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '0 16px',
-            border: '1px solid var(--pk-border)',
-            borderRadius: 8,
-            height: 44,
-            marginBottom: 20,
-            transition: 'border-color 150ms ease, box-shadow 150ms ease',
-          }}
-        >
+      <main style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 16px', border: '1px solid var(--pk-border)', borderRadius: 8, height: 44, marginBottom: 20 }}>
           <Icon name="search" size={16} style={{ color: 'var(--pk-text-hint)' }} />
           <input
-            placeholder="Cari nama produk, brand, atau kategori e.g. Kopi, Tas..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            style={{
-              flex: 1,
-              border: 'none',
-              outline: 'none',
-              fontSize: 14,
-              background: 'transparent',
-            }}
+            placeholder="Cari nama produk..."
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
+            style={{ flex: 1, border: 'none', outline: 'none', fontSize: 14, background: 'transparent' }}
           />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              style={{
-                border: 'none',
-                background: 'none',
-                cursor: 'pointer',
-                padding: 4,
-                color: 'var(--pk-text-hint)',
-                display: 'flex',
-              }}
-            >
+          {searchInput && (
+            <button type="button" onClick={() => setSearchInput('')} aria-label="Hapus pencarian" style={{ border: 0, background: 'transparent', cursor: 'pointer', color: 'var(--pk-text-hint)' }}>
               <Icon name="x" size={14} />
             </button>
           )}
         </div>
 
-        {/* Debounce indicator removed as requested */}
-
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'baseline',
-            marginBottom: 16,
-          }}
-        >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 16, marginBottom: 16 }}>
           <div style={{ fontSize: 14, color: 'var(--pk-text-secondary)' }}>
-            Menampilkan{' '}
-            <span style={{ color: 'var(--pk-text)', fontWeight: 500 }}>{filtered.length}</span> produk 
-            {productsQuery.isLoading && ' (memuat data...)'}
-            {selectedCategories.length > 0 && ` · Kategori: ${selectedCategories.join(', ')}`}
+            {productsQuery.isFetching ? 'Memperbarui hasil...' : `${pagination.total} produk ditemukan`}
+            {category && ` · ${category}`}
           </div>
+          {pagination.total > 0 && (
+            <div style={{ fontSize: 12, color: 'var(--pk-text-hint)' }}>
+              Halaman {page} dari {pagination.total_pages}
+            </div>
+          )}
         </div>
 
         {productsQuery.isError ? (
-          <div
-            style={{
-              padding: '64px 24px',
-              textAlign: 'center',
-              border: '1px dashed var(--pk-border)',
-              borderRadius: 12,
-            }}
-          >
-            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>
-              Produk gagal dimuat
-            </div>
-            <div style={{ fontSize: 14, color: 'var(--pk-text-secondary)' }}>
-              Periksa koneksi backend dan nilai NEXT_PUBLIC_API_URL.
-            </div>
-            <button type="button" className="pk-btn pk-btn-secondary pk-btn-sm" onClick={() => void productsQuery.refetch()} disabled={productsQuery.isFetching} style={{ marginTop: 16 }}>
-              {productsQuery.isFetching ? 'Mencoba lagi...' : 'Coba Lagi'}
+          <div style={{ padding: '64px 24px', textAlign: 'center', border: '1px dashed var(--pk-border)', borderRadius: 12 }}>
+            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Produk gagal dimuat</div>
+            <div style={{ fontSize: 14, color: 'var(--pk-text-secondary)' }}>Periksa koneksi lalu coba kembali.</div>
+            <button type="button" className="pk-btn pk-btn-secondary pk-btn-sm" onClick={() => void productsQuery.refetch()} style={{ marginTop: 16 }}>
+              Coba Lagi
             </button>
           </div>
-        ) : filtered.length === 0 ? (
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '64px 24px',
-              textAlign: 'center',
-              border: '1px dashed var(--pk-border)',
-              borderRadius: 12,
-            }}
-          >
-            <div
-              style={{
-                width: 56,
-                height: 56,
-                borderRadius: 12,
-                background: 'var(--pk-bg-subtle)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--pk-text-hint)',
-                marginBottom: 16,
-              }}
-            >
-              <Icon name="search" size={24} />
-            </div>
-            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>
-              {productsQuery.isLoading ? 'Sistem sedang memuat data...' : 'Tidak ada produk ditemukan'}
-            </div>
-            {!productsQuery.isLoading && (
-              <>
-                <div style={{ fontSize: 14, color: 'var(--pk-text-secondary)', maxWidth: 380, marginBottom: 20 }}>
-                  Coba perlebar batas harga maksimal, hapus kata kunci, atau pilih kategori lain.
-                </div>
-                <button
-                  className="pk-btn pk-btn-primary pk-btn-sm"
-                  onClick={() => {
-                    setSelectedCategories([]);
-                    setPriceMax(15000000);
-                    setSearchQuery('');
-                  }}
-                >
-                  Reset Filter
-                </button>
-              </>
-            )}
+        ) : productsQuery.isLoading ? (
+          <div className="pk-product-grid">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div key={index} className="pk-card" style={{ overflow: 'hidden' }}>
+                <div className="pk-skel" style={{ height: 160 }} />
+                <div style={{ padding: 14 }}><div className="pk-skel" style={{ height: 16 }} /></div>
+              </div>
+            ))}
+          </div>
+        ) : products.length === 0 ? (
+          <div style={{ padding: '64px 24px', textAlign: 'center', border: '1px dashed var(--pk-border)', borderRadius: 12 }}>
+            <Icon name="search" size={24} style={{ color: 'var(--pk-text-hint)' }} />
+            <h2 style={{ fontSize: 16 }}>Tidak ada produk ditemukan</h2>
+            <p style={{ color: 'var(--pk-text-secondary)', fontSize: 14 }}>Ubah kata kunci atau rentang harga Anda.</p>
+            <button type="button" className="pk-btn pk-btn-primary pk-btn-sm" onClick={resetFilters}>Reset Filter</button>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
-            {filtered.map((p) => (
-              <Link key={p.id} href={`/products/${p.id}`} style={{ textDecoration: 'none' }}>
-                <div className="pk-card pk-card-hover" style={{ cursor: 'pointer', overflow: 'hidden' }}>
-                  <ProductImage
-                    src={p.image_url}
-                    alt={p.name}
-                    height={160}
-                    style={{ borderRadius: 0 }}
-                  />
+          <div className="pk-product-grid">
+            {products.map((product) => (
+              <div key={product.id} className="pk-card pk-card-hover" style={{ overflow: 'hidden', position: 'relative' }}>
+                  <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 2 }}>
+                    <WishlistButton product={product} compact />
+                  </div>
+                <Link href={`/products/${product.id}`} style={{ textDecoration: 'none', display: 'block' }}>
+                  <ProductImage src={product.image_url} alt={product.name} height={160} style={{ borderRadius: 0 }} />
                   <div style={{ padding: 14 }}>
-                    <div
-                      style={{
-                        fontSize: 14,
-                        fontWeight: 500,
-                        marginBottom: 4,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        color: 'var(--pk-text)',
-                      }}
-                    >
-                      {p.name}
+                    <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--pk-text)' }}>
+                      {product.name}
                     </div>
-                    <div style={{ fontSize: 12, color: 'var(--pk-text-hint)', marginBottom: 10 }}>
-                      {p.seller?.name || 'Toko Anonim'}
-                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--pk-text-hint)', marginBottom: 10 }}>{product.seller?.name || 'Toko Anonim'}</div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--pk-text)' }}>
-                        {formatIDR(p.price)}
-                      </div>
-                      {p.stock <= 5 && (
-                        <span className="pk-badge pk-badge-neutral" style={{ fontSize: 11 }}>
-                          Sisa {p.stock}
-                        </span>
-                      )}
+                      <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--pk-text)' }}>{formatIDR(product.price)}</div>
+                      {product.stock <= 5 && <span className="pk-badge pk-badge-neutral" style={{ fontSize: 11 }}>Sisa {product.stock}</span>}
                     </div>
                   </div>
-                </div>
-              </Link>
+                </Link>
+              </div>
             ))}
           </div>
         )}
 
-        {/* Pagination Dummy UX */}
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            gap: 4,
-            marginTop: 40,
-          }}
-        >
-          <button className="pk-btn pk-btn-secondary pk-btn-sm">
-            <Icon name="chevronLeft" size={14} />
-          </button>
-          {[1].map((n) => (
-            <button
-              key={n}
-              className="pk-btn pk-btn-sm"
-              style={{
-                minWidth: 32,
-                padding: 0,
-                background: n === 1 ? 'var(--pk-text)' : 'transparent',
-                color: n === 1 ? '#fff' : 'var(--pk-text)',
-                border: n === 1 ? 'none' : '1px solid transparent',
-              }}
-            >
-              {n}
+        {pagination.total_pages > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 4, marginTop: 40 }}>
+            <button type="button" className="pk-btn pk-btn-secondary pk-btn-sm" disabled={page <= 1} onClick={() => updateParams({ page: String(page - 1) })}>
+              <Icon name="chevronLeft" size={14} /> Sebelumnya
             </button>
-          ))}
-          <button className="pk-btn pk-btn-secondary pk-btn-sm">
-            <Icon name="chevronRight" size={14} />
-          </button>
-        </div>
+            {pageNumbers.map((pageNumber) => (
+              <button
+                key={pageNumber}
+                type="button"
+                className="pk-btn pk-btn-sm"
+                onClick={() => updateParams({ page: pageNumber === 1 ? null : String(pageNumber) })}
+                style={{ minWidth: 34, background: pageNumber === page ? 'var(--pk-text)' : '#fff', color: pageNumber === page ? '#fff' : 'var(--pk-text)', border: '1px solid var(--pk-border)' }}
+              >
+                {pageNumber}
+              </button>
+            ))}
+            <button type="button" className="pk-btn pk-btn-secondary pk-btn-sm" disabled={page >= pagination.total_pages} onClick={() => updateParams({ page: String(page + 1) })}>
+              Berikutnya <Icon name="chevronRight" size={14} />
+            </button>
+          </div>
+        )}
       </main>
     </div>
+  );
+}
+
+export default function BrowseProductsPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: 80, textAlign: 'center', color: 'var(--pk-text-hint)' }}>Memuat katalog...</div>}>
+      <BrowseProductsContent />
+    </Suspense>
   );
 }

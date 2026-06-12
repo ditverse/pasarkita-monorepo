@@ -12,6 +12,8 @@ import { productsApi } from '@/lib/api/products';
 import { ratingsApi } from '@/lib/api/ratings';
 import { Product, RatingSummary } from '@/types/api';
 import { useCartStore } from '@/store/cart';
+import { useBuyerPreferencesStore } from '@/store/buyer-preferences';
+import WishlistButton from '@/components/pk/wishlist-button';
 import { toast } from 'sonner';
 
 export default function ProductDetailPage() {
@@ -21,23 +23,40 @@ export default function ProductDetailPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [ratingSummary, setRatingSummary] = useState<RatingSummary | null>(null);
+  const [reviewFilter, setReviewFilter] = useState<number | null>(null);
   const addItem = useCartStore((state) => state.addItem);
+  const addRecentlyViewed = useBuyerPreferencesStore((state) => state.addRecentlyViewed);
+  const recentlyViewed = useBuyerPreferencesStore((state) => state.recentlyViewed);
 
   useEffect(() => {
     if (!id) return;
     productsApi.getById(id as string)
       .then((res) => {
         setProduct(res.data.data);
-        // Fetch ratings setelah produk loaded
-        return ratingsApi.getByProduct(id as string);
+        void ratingsApi.getByProduct(id as string)
+          .then((ratingResponse) => setRatingSummary(ratingResponse.data.data))
+          .catch((error) => console.error('Gagal mendapatkan ulasan:', error));
       })
-      .then((res) => setRatingSummary(res.data.data))
       .catch((err) => {
         console.error('Gagal mendapatkan produk:', err);
         setLoadError(true);
       })
       .finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    if (!product) return;
+    addRecentlyViewed({
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      stock: product.stock,
+      category: product.category,
+      sellerName: product.seller?.name || 'Toko Anonim',
+      imageUrl: product.image_url,
+      savedAt: new Date().toISOString(),
+    });
+  }, [product, addRecentlyViewed]);
 
   if (loading) {
     return <div style={{ padding: '80px', textAlign: 'center', color: 'var(--pk-text-hint)' }}>Memuat produk...</div>;
@@ -91,7 +110,7 @@ export default function ProductDetailPage() {
   };
 
   return (
-    <div style={{ padding: '20px 80px 64px' }}>
+    <div className="pk-page-shell" style={{ padding: '20px 80px 64px' }}>
       <div style={{ fontSize: 13, color: 'var(--pk-text-hint)', marginBottom: 16 }}>
         <Link href="/" style={{ color: 'inherit', textDecoration: 'none' }}>Beranda</Link>
         <span style={{ margin: '0 6px' }}>/</span>
@@ -100,7 +119,7 @@ export default function ProductDetailPage() {
         <span style={{ color: 'var(--pk-text)' }}>{p.name}</span>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 48 }}>
+      <div className="pk-product-detail-layout" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 48 }}>
         {/* Images */}
         <div>
           <ProductImage
@@ -127,9 +146,12 @@ export default function ProductDetailPage() {
           >
             {p.name}
           </h1>
-          <button type="button" className="pk-btn pk-btn-ghost pk-btn-sm" onClick={handleShare} style={{ marginBottom: 12 }}>
-            <Icon name="arrowRight" size={14} /> Bagikan Produk
-          </button>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            <WishlistButton product={p} />
+            <button type="button" className="pk-btn pk-btn-ghost" onClick={handleShare}>
+              <Icon name="arrowRight" size={14} /> Bagikan
+            </button>
+          </div>
           <div
             style={{
               fontSize: 32,
@@ -311,14 +333,30 @@ export default function ProductDetailPage() {
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>Ulasan Pembeli</h3>
+                <select
+                  className="pk-select"
+                  value={reviewFilter ?? ''}
+                  onChange={(event) => setReviewFilter(event.target.value ? Number(event.target.value) : null)}
+                  aria-label="Filter ulasan berdasarkan bintang"
+                  style={{ width: 150 }}
+                >
+                  <option value="">Semua Bintang</option>
+                  {[5, 4, 3, 2, 1].map((star) => <option key={star} value={star}>{star} Bintang</option>)}
+                </select>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {ratingSummary.reviews.slice(0, 5).map((r) => (
+                {ratingSummary.reviews
+                  .filter((review) => reviewFilter === null || review.rating === reviewFilter)
+                  .slice(0, 5)
+                  .map((r) => (
                   <div key={r.id} className="pk-card" style={{ padding: 18 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
                       <Avatar name={r.buyer_name} size={32} bg="#F3F4F6" color="#111827" />
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 13, fontWeight: 500 }}>{r.buyer_name}</div>
+                        <span className="pk-badge pk-badge-active" style={{ marginTop: 4, fontSize: 10 }}>
+                          Pembelian Terverifikasi
+                        </span>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
                           <Stars rating={r.rating} size={11} />
                           <span style={{ fontSize: 11, color: 'var(--pk-text-hint)' }}>
@@ -334,6 +372,11 @@ export default function ProductDetailPage() {
                     )}
                   </div>
                 ))}
+                {ratingSummary.reviews.filter((review) => reviewFilter === null || review.rating === reviewFilter).length === 0 && (
+                  <div style={{ padding: 24, textAlign: 'center', color: 'var(--pk-text-hint)', border: '1px dashed var(--pk-border)', borderRadius: 12 }}>
+                    Belum ada ulasan {reviewFilter} bintang.
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -344,6 +387,24 @@ export default function ProductDetailPage() {
             </div>
           )}
         </div>
+      )}
+
+      {recentlyViewed.filter((item) => item.id !== p.id).length > 0 && (
+        <section style={{ marginTop: 48 }}>
+          <h2 style={{ fontSize: 20, margin: '0 0 18px' }}>Terakhir Dilihat</h2>
+          <div className="pk-product-grid">
+            {recentlyViewed.filter((item) => item.id !== p.id).slice(0, 4).map((item) => (
+              <Link key={item.id} href={`/products/${item.id}`} className="pk-card pk-card-hover" style={{ overflow: 'hidden', textDecoration: 'none' }}>
+                <ProductImage src={item.imageUrl} alt={item.name} height={150} style={{ borderRadius: 0 }} />
+                <div style={{ padding: 14 }}>
+                  <div style={{ color: 'var(--pk-text)', fontSize: 14, fontWeight: 600 }}>{item.name}</div>
+                  <div style={{ color: 'var(--pk-text-hint)', fontSize: 12, marginTop: 3 }}>{item.sellerName}</div>
+                  <div style={{ color: 'var(--pk-text)', fontWeight: 600, marginTop: 8 }}>{formatIDR(item.price)}</div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
       )}
     </div>
   );

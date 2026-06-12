@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -16,8 +16,6 @@ import { authApi } from '@/lib/api/auth';
 const infoSchema = z.object({
   name: z.string().min(2, 'Nama minimal 2 karakter'),
   email: z.string().email('Email tidak valid'),
-  phone: z.string().optional(),
-  address: z.string().optional(),
 });
 type InfoForm = z.infer<typeof infoSchema>;
 
@@ -45,7 +43,6 @@ function FieldError({ msg }: { msg?: string }) {
 function PanelInfo({ user }: { user: { name: string; email: string } }) {
   const setLogin = useAuthStore((s) => s.login);
   const token = useAuthStore((s) => s.token);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const {
     register,
@@ -54,22 +51,23 @@ function PanelInfo({ user }: { user: { name: string; email: string } }) {
     formState: { errors, isDirty, isSubmitting },
   } = useForm<InfoForm>({
     resolver: zodResolver(infoSchema),
-    defaultValues: { name: user.name, email: user.email, phone: '', address: '' },
+    defaultValues: { name: user.name, email: user.email },
   });
 
   useEffect(() => {
-    reset({ name: user.name, email: user.email, phone: '', address: '' });
+    reset({ name: user.name, email: user.email });
   }, [user.name, user.email, reset]);
 
   const onSubmit = async (data: InfoForm) => {
     try {
+      const res = await authApi.updateProfile(data);
+      const updatedUser = res.data.data;
+      if (token) setLogin(token, updatedUser);
+      reset({ name: updatedUser.name, email: updatedUser.email });
       toast.success('Perubahan disimpan');
-      if (token) {
-        const res = await authApi.me();
-        setLogin(token, { ...res.data.data, name: data.name, email: data.email });
-      }
-    } catch {
-      toast.error('Gagal menyimpan perubahan');
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { message?: string } } };
+      toast.error(apiError.response?.data?.message ?? 'Gagal menyimpan perubahan');
     }
   };
 
@@ -80,7 +78,7 @@ function PanelInfo({ user }: { user: { name: string; email: string } }) {
         Update detail akun Anda
       </p>
 
-      {/* Avatar row — sesuai desain: avatar besar + link Ganti Foto */}
+      {/* Avatar disimpan setelah kolom avatar_url dan storage profil tersedia. */}
       <div
         style={{
           display: 'flex',
@@ -95,23 +93,22 @@ function PanelInfo({ user }: { user: { name: string; email: string } }) {
         <div>
           <button
             type="button"
-            onClick={() => fileRef.current?.click()}
+            disabled
             style={{
               fontSize: 13,
               fontWeight: 500,
               color: 'var(--pk-accent)',
               background: 'transparent',
               border: 'none',
-              cursor: 'pointer',
+              cursor: 'not-allowed',
               padding: 0,
               display: 'block',
               marginBottom: 4,
             }}
           >
-            Ganti Foto
+            Foto profil belum tersedia
           </button>
           <span style={{ fontSize: 12, color: 'var(--pk-text-hint)' }}>JPG atau PNG, maks 2MB</span>
-          <input ref={fileRef} type="file" accept="image/jpeg,image/png" style={{ display: 'none' }} />
         </div>
       </div>
 
@@ -128,58 +125,9 @@ function PanelInfo({ user }: { user: { name: string; email: string } }) {
           <FieldError msg={errors.email?.message} />
         </div>
 
-        {/* Nomor Telepon — sesuai desain: prefix +62 terpisah */}
-        <div style={{ marginTop: 14 }}>
-          <label className="pk-label">Nomor Telepon</label>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              border: '1px solid var(--pk-border)',
-              borderRadius: 8,
-              height: 40,
-              overflow: 'hidden',
-            }}
-          >
-            <span
-              style={{
-                padding: '0 12px',
-                borderRight: '1px solid var(--pk-border)',
-                color: 'var(--pk-text-secondary)',
-                fontSize: 14,
-                height: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                background: 'var(--pk-bg-subtle)',
-                flexShrink: 0,
-              }}
-            >
-              +62
-            </span>
-            <input
-              {...register('phone')}
-              placeholder="812-3456-7890"
-              style={{
-                flex: 1,
-                border: 'none',
-                outline: 'none',
-                padding: '0 12px',
-                fontSize: 14,
-                height: '100%',
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Alamat */}
-        <div style={{ marginTop: 14 }}>
-          <label className="pk-label">Alamat</label>
-          <textarea
-            {...register('address')}
-            className="pk-textarea"
-            rows={3}
-            placeholder="Jl. Contoh No. 1, Kota, Provinsi"
-          />
+        <div style={{ marginTop: 18, padding: 14, borderRadius: 8, background: 'var(--pk-bg-subtle)', color: 'var(--pk-text-secondary)', fontSize: 12, lineHeight: 1.55 }}>
+          Nomor telepon, foto profil, dan buku alamat belum dapat disimpan karena
+          kolom database-nya belum tersedia. Alamat pengiriman tetap dapat diisi saat checkout.
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 24 }}>
@@ -216,9 +164,18 @@ function PanelSecurity() {
     formState: { errors, isSubmitting },
   } = useForm<SecurityForm>({ resolver: zodResolver(securitySchema) });
 
-  const onSubmit = async () => {
-    toast.info('Fitur ganti password belum tersedia');
-    reset();
+  const onSubmit = async (data: SecurityForm) => {
+    try {
+      await authApi.changePassword({
+        current_password: data.current_password,
+        new_password: data.new_password,
+      });
+      toast.success('Password berhasil diubah');
+      reset();
+    } catch (error: unknown) {
+      const apiError = error as { response?: { data?: { message?: string } } };
+      toast.error(apiError.response?.data?.message ?? 'Gagal mengubah password');
+    }
   };
 
   const fields: { key: 'a' | 'b' | 'c'; id: keyof SecurityForm; label: string }[] = [
@@ -363,12 +320,14 @@ export default function ProfilePage() {
   }
 
   const handleLogout = () => {
+    if (!window.confirm('Keluar dari akun PasarKita?')) return;
     logout();
     router.push('/');
   };
 
   return (
     <div
+      className="pk-profile-layout"
       style={{
         maxWidth: 1200,
         marginInline: 'auto',

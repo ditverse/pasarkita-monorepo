@@ -16,6 +16,7 @@ type CartStore = {
   addItem: (item: CartItem) => void;
   removeItem: (productId: string) => void;
   updateQty: (productId: string, qty: number) => void;
+  syncItem: (productId: string, updates: Pick<CartItem, 'name' | 'price' | 'stock' | 'sellerName' | 'imageUrl'>) => void;
   clearCart: () => void;
   total: () => number;
   itemCount: () => number;
@@ -49,6 +50,17 @@ export const useCartStore = create<CartStore>()(
         items: state.items.map((item) =>
           item.productId === productId
             ? { ...item, qty: Math.max(1, Math.min(qty, item.stock)) }
+            : item
+        ),
+      })),
+      syncItem: (productId, updates) => set((state) => ({
+        items: state.items.map((item) =>
+          item.productId === productId
+            ? {
+                ...item,
+                ...updates,
+                qty: Math.max(1, Math.min(item.qty, updates.stock)),
+              }
             : item
         ),
       })),

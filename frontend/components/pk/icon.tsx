@@ -3,7 +3,8 @@ type IconName =
   | 'check' | 'checkCircle' | 'xCircle' | 'cart' | 'user' | 'menu' | 'bag' | 'store'
   | 'box' | 'truck' | 'eye' | 'eyeOff' | 'filter' | 'grid' | 'barChart' | 'users'
   | 'trending' | 'package' | 'clipboard' | 'creditCard' | 'arrowRight' | 'arrowLeft'
-  | 'mapPin' | 'home' | 'more' | 'edit' | 'logout' | 'bell' | 'sparkle' | 'loader';
+  | 'mapPin' | 'home' | 'more' | 'edit' | 'logout' | 'bell' | 'sparkle' | 'loader'
+  | 'heart';
 
 const paths: Record<IconName, React.ReactNode> = {
   search: <><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></>,
@@ -43,6 +44,7 @@ const paths: Record<IconName, React.ReactNode> = {
   bell: <><path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10 20a2 2 0 0 0 4 0"/></>,
   sparkle: <><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/></>,
   loader: <><path d="M21 12a9 9 0 0 1-9 9"/><path d="M3 12a9 9 0 0 1 9-9"/></>,
+  heart: <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z"/>,
 };
 
 export default function Icon({

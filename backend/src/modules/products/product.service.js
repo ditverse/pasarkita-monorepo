@@ -67,8 +67,8 @@ const uploadProductImage = async (sellerId, file) => {
 
 const getProducts = async (query) => {
   // Parsing query
-  const limit = parseInt(query.limit) || 10;
-  const page = parseInt(query.page) || 1;
+  const limit = Math.min(Math.max(parseInt(query.limit) || 10, 1), 100);
+  const page = Math.max(parseInt(query.page) || 1, 1);
   const offset = (page - 1) * limit;
 
   let supaQuery = supabase
@@ -79,6 +79,29 @@ const getProducts = async (query) => {
 
   if (query.category) {
     supaQuery = supaQuery.eq('category', query.category);
+  }
+
+  const minPrice = Number.parseInt(query.min_price, 10);
+  if (Number.isFinite(minPrice) && minPrice >= 0) {
+    supaQuery = supaQuery.gte('price', minPrice);
+  }
+  const maxPrice = Number.parseInt(query.max_price, 10);
+  if (Number.isFinite(maxPrice) && maxPrice >= 0) {
+    supaQuery = supaQuery.lte('price', maxPrice);
+  }
+  if (
+    Number.isFinite(minPrice) &&
+    Number.isFinite(maxPrice) &&
+    minPrice > maxPrice
+  ) {
+    throw {
+      status: 400,
+      code: 'INVALID_PRICE_RANGE',
+      message: 'Harga minimum tidak boleh lebih besar dari harga maksimum',
+    };
+  }
+  if (query.in_stock === 'true') {
+    supaQuery = supaQuery.gt('stock', 0);
   }
 
   if (query.seller_id) {

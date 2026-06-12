@@ -44,6 +44,7 @@ export function NavbarDesktop() {
 
   return (
     <header
+      className="pk-main-navbar"
       style={{
         height: 64,
         borderBottom: '1px solid var(--pk-border)',
@@ -60,7 +61,7 @@ export function NavbarDesktop() {
         <Logo />
       </Link>
 
-      <nav style={{ flex: 1, display: 'flex', justifyContent: 'center', gap: 32 }}>
+      <nav className="pk-main-nav-links" style={{ flex: 1, display: 'flex', justifyContent: 'center', gap: 32 }}>
         {visibleLinks.map((l) => (
           <Link
             key={l.href}
@@ -83,6 +84,14 @@ export function NavbarDesktop() {
       </nav>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <Link
+          href="/wishlist"
+          className="pk-btn pk-btn-ghost pk-btn-sm"
+          style={{ height: 36, padding: '0 10px' }}
+          aria-label="Wishlist"
+        >
+          <Icon name="heart" size={18} />
+        </Link>
         <Link
           href="/cart"
           className="pk-btn pk-btn-ghost pk-btn-sm"

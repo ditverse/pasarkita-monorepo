@@ -147,12 +147,12 @@ function CheckoutContent() {
   };
 
   return (
-    <div style={{ padding: '32px 80px 64px', maxWidth: 1200, marginInline: 'auto' }}>
+    <div className="pk-page-shell" style={{ padding: '32px 80px 64px', maxWidth: 1200, marginInline: 'auto' }}>
       <h1 style={{ fontSize: 28, fontWeight: 600, letterSpacing: '-0.025em', margin: '0 0 32px' }}>
         Checkout
       </h1>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 420px', gap: 32 }}>
+      <div className="pk-checkout-layout" style={{ display: 'grid', gridTemplateColumns: '1fr 420px', gap: 32 }}>
         {/* Kiri: Ringkasan */}
         <div>
           <div className="pk-card" style={{ padding: 24 }}>

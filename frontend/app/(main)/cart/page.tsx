@@ -1,13 +1,23 @@
 'use client';
 
 import Link from 'next/link';
+import { useQueries } from '@tanstack/react-query';
 import ProductImage from '@/components/pk/product-image';
 import Icon from '@/components/pk/icon';
 import { formatIDR } from '@/lib/format';
 import { useCartStore } from '@/store/cart';
+import { productsApi } from '@/lib/api/products';
 
 export default function CartPage() {
-  const { items, updateQty, removeItem, clearCart } = useCartStore();
+  const { items, updateQty, removeItem, clearCart, syncItem } = useCartStore();
+  const productQueries = useQueries({
+    queries: items.map((item) => ({
+      queryKey: ['products', 'cart-sync', item.productId],
+      queryFn: async () => (await productsApi.getById(item.productId)).data.data,
+      retry: false,
+      staleTime: 30_000,
+    })),
+  });
   const subtotal = items.reduce((total, item) => total + item.price * item.qty, 0);
   const itemCount = items.reduce((total, item) => total + item.qty, 0);
 
@@ -42,17 +52,42 @@ export default function CartPage() {
         </button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(280px, 340px)', gap: 24, alignItems: 'start' }}>
+      <div className="pk-cart-layout" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(280px, 340px)', gap: 24, alignItems: 'start' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {items.map((item) => (
-            <div key={item.productId} className="pk-card" style={{ padding: 18, display: 'flex', gap: 16, alignItems: 'center' }}>
+          {items.map((item, index) => {
+            const currentProduct = productQueries[index]?.data;
+            const unavailable = productQueries[index]?.isError;
+            const priceChanged = Boolean(currentProduct && currentProduct.price !== item.price);
+            const stockChanged = Boolean(currentProduct && currentProduct.stock !== item.stock);
+            const needsSync = priceChanged || stockChanged;
+            const checkoutDisabled = unavailable || needsSync || !currentProduct || currentProduct.stock < 1;
+
+            return (
+            <div key={item.productId} className="pk-card" style={{ padding: 18, display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
               <ProductImage src={item.imageUrl} alt={item.name} height={80} style={{ width: 80, borderRadius: 8, flexShrink: 0 }} />
               <div style={{ minWidth: 0, flex: 1 }}>
                 <Link href={`/products/${item.productId}`} style={{ color: 'var(--pk-text)', fontSize: 14, fontWeight: 600, textDecoration: 'none' }}>
                   {item.name}
                 </Link>
                 <div style={{ fontSize: 12, color: 'var(--pk-text-hint)', marginTop: 3 }}>{item.sellerName}</div>
-                <div style={{ fontSize: 14, fontWeight: 600, marginTop: 8 }}>{formatIDR(item.price)}</div>
+                <div style={{ fontSize: 14, fontWeight: 600, marginTop: 8 }}>
+                  {priceChanged && currentProduct ? (
+                    <>
+                      <span style={{ color: 'var(--pk-text-hint)', textDecoration: 'line-through', marginRight: 8 }}>{formatIDR(item.price)}</span>
+                      <span>{formatIDR(currentProduct.price)}</span>
+                    </>
+                  ) : formatIDR(item.price)}
+                </div>
+                {unavailable && (
+                  <div className="pk-badge pk-badge-danger" style={{ marginTop: 8 }}>Produk tidak tersedia</div>
+                )}
+                {needsSync && currentProduct && (
+                  <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 8, background: 'var(--pk-warning-soft)', color: 'var(--pk-warning)', fontSize: 11 }}>
+                    {priceChanged && 'Harga berubah. '}
+                    {stockChanged && `Stok terbaru ${currentProduct.stock}. `}
+                    Perbarui sebelum checkout.
+                  </div>
+                )}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 10 }}>
                 <div style={{ display: 'flex', height: 34, border: '1px solid var(--pk-border)', borderRadius: 8, overflow: 'hidden' }}>
@@ -75,15 +110,34 @@ export default function CartPage() {
                 <button type="button" onClick={() => removeItem(item.productId)} style={{ border: 0, background: 'transparent', color: 'var(--pk-danger)', fontSize: 12, cursor: 'pointer' }}>
                   Hapus
                 </button>
-                <Link
-                  href={`/checkout?productId=${item.productId}&qty=${item.qty}`}
-                  className="pk-btn pk-btn-primary pk-btn-sm"
-                >
-                  Checkout
-                </Link>
+                {needsSync && currentProduct && (
+                  <button
+                    type="button"
+                    className="pk-btn pk-btn-secondary pk-btn-sm"
+                    onClick={() => syncItem(item.productId, {
+                      name: currentProduct.name,
+                      price: currentProduct.price,
+                      stock: currentProduct.stock,
+                      sellerName: currentProduct.seller?.name || item.sellerName,
+                      imageUrl: currentProduct.image_url,
+                    })}
+                  >
+                    Perbarui Data
+                  </button>
+                )}
+                {checkoutDisabled ? (
+                  <button type="button" className="pk-btn pk-btn-primary pk-btn-sm" disabled title={unavailable ? 'Produk tidak lagi tersedia' : needsSync ? 'Perbarui data produk terlebih dahulu' : 'Memeriksa produk terbaru'}>
+                    Checkout
+                  </button>
+                ) : (
+                  <Link href={`/checkout?productId=${item.productId}&qty=${item.qty}`} className="pk-btn pk-btn-primary pk-btn-sm">
+                    Checkout
+                  </Link>
+                )}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
 
         <aside className="pk-card" style={{ padding: 22, position: 'sticky', top: 88 }}>

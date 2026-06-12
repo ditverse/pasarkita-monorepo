@@ -94,4 +94,61 @@ const getMe = async (userId) => {
   return user;
 };
 
-module.exports = { register, login, getMe };
+const updateProfile = async (userId, payload) => {
+  const normalizedEmail = payload.email.trim().toLowerCase();
+  const { data: emailOwner, error: emailError } = await supabase
+    .from('users')
+    .select('id')
+    .eq('email', normalizedEmail)
+    .neq('id', userId)
+    .maybeSingle();
+
+  if (emailError) {
+    throw { status: 500, code: 'INTERNAL_ERROR', message: emailError.message };
+  }
+  if (emailOwner) {
+    throw { status: 409, code: 'EMAIL_ALREADY_USED', message: 'Email sudah digunakan akun lain' };
+  }
+
+  const { data, error } = await supabase
+    .from('users')
+    .update({ name: payload.name.trim(), email: normalizedEmail })
+    .eq('id', userId)
+    .select('id, name, email, role, is_active, created_at')
+    .single();
+
+  if (error || !data) {
+    throw { status: 500, code: 'INTERNAL_ERROR', message: error?.message || 'Gagal memperbarui profil' };
+  }
+  return data;
+};
+
+const changePassword = async (userId, payload) => {
+  const { data: user, error: findError } = await supabase
+    .from('users')
+    .select('password_hash')
+    .eq('id', userId)
+    .single();
+
+  if (findError || !user) {
+    throw { status: 404, code: 'NOT_FOUND', message: 'User tidak ditemukan' };
+  }
+
+  const isCurrentPasswordValid = await bcrypt.compare(payload.current_password, user.password_hash);
+  if (!isCurrentPasswordValid) {
+    throw { status: 400, code: 'INVALID_CURRENT_PASSWORD', message: 'Password saat ini tidak sesuai' };
+  }
+
+  const password_hash = await bcrypt.hash(payload.new_password, 10);
+  const { error } = await supabase
+    .from('users')
+    .update({ password_hash })
+    .eq('id', userId);
+
+  if (error) {
+    throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
+  }
+  return { changed: true };
+};
+
+module.exports = { register, login, getMe, updateProfile, changePassword };

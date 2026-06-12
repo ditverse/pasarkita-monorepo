@@ -2,7 +2,17 @@ import { api } from '../api';
 import { ApiResponse, PaginatedResponse, Product } from '@/types/api';
 
 export const productsApi = {
-  getAll: (params?: { search?: string; category?: string; sort?: string; page?: number; limit?: number; seller_id?: string }) =>
+  getAll: (params?: {
+    search?: string;
+    category?: string;
+    sort?: string;
+    page?: number;
+    limit?: number;
+    seller_id?: string;
+    min_price?: number;
+    max_price?: number;
+    in_stock?: boolean;
+  }) =>
     api.get<PaginatedResponse<Product>>('/products', { params }),
 
   getById: (id: string) =>

@@ -7,7 +7,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       <main style={{ flex: 1 }}>
         {children}
       </main>
-      <footer style={{ borderTop: '1px solid var(--pk-border)', padding: '32px 80px', display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--pk-text-hint)' }}>
+      <footer className="pk-main-footer" style={{ borderTop: '1px solid var(--pk-border)', padding: '32px 80px', display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--pk-text-hint)' }}>
         <div style={{ display: 'flex', gap: 24 }}>
           <span>© {new Date().getFullYear()} PasarKita</span>
           <a style={{ color: 'var(--pk-text-secondary)', cursor: 'pointer' }}>Tentang</a>

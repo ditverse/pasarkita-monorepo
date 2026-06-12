@@ -28,4 +28,22 @@ const getMe = async (req, res, next) => {
   }
 };
 
-module.exports = { register, login, getMe };
+const updateProfile = async (req, res, next) => {
+  try {
+    const data = await authService.updateProfile(req.user.id, req.body);
+    return successResponse(res, 200, 'Profil berhasil diperbarui', data);
+  } catch (err) {
+    next(err);
+  }
+};
+
+const changePassword = async (req, res, next) => {
+  try {
+    const data = await authService.changePassword(req.user.id, req.body);
+    return successResponse(res, 200, 'Password berhasil diubah', data);
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { register, login, getMe, updateProfile, changePassword };

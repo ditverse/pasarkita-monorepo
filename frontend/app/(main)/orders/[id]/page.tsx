@@ -29,6 +29,7 @@ const TRACKING_STATUS_LABEL: Record<string, string> = {
   in_transit: 'Dalam perjalanan',
   delivered: 'Terkirim',
 };
+const TRACKING_STEPS = ['created', 'picked_up', 'in_transit', 'delivered'];
 
 function Row({ label, value, bold, muted }: { label: string; value: string; bold?: boolean; muted?: boolean }) {
   return (
@@ -49,6 +50,9 @@ export default function OrderDetailPage() {
   const [o, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [trackingStatus, setTrackingStatus] = useState<string | null>(null);
+  const [trackingUpdatedAt, setTrackingUpdatedAt] = useState<string | null>(null);
+  const [estimatedDelivery, setEstimatedDelivery] = useState<string | null>(null);
+  const [trackingLoading, setTrackingLoading] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [showRating, setShowRating] = useState(false);
 
@@ -59,14 +63,36 @@ export default function OrderDetailPage() {
         const order = res.data.data;
         setOrder(order);
         if (order.tracking_id) {
+          setTrackingLoading(true);
           ordersApi.getTracking(id as string)
-            .then((r) => setTrackingStatus(r.data.data?.status ?? null))
-            .catch(() => null);
+            .then((r) => {
+              setTrackingStatus(r.data.data?.status ?? null);
+              setTrackingUpdatedAt(r.data.data?.updated_at ?? new Date().toISOString());
+              setEstimatedDelivery(r.data.data?.estimated_delivery ?? null);
+            })
+            .catch(() => null)
+            .finally(() => setTrackingLoading(false));
         }
       })
       .catch((err) => console.error('Gagal get order detail:', err))
       .finally(() => setLoading(false));
   }, [id]);
+
+  const refreshTracking = async () => {
+    if (!o?.tracking_id) return;
+    setTrackingLoading(true);
+    try {
+      const response = await ordersApi.getTracking(o.id);
+      setTrackingStatus(response.data.data?.status ?? null);
+      setTrackingUpdatedAt(response.data.data?.updated_at ?? new Date().toISOString());
+      setEstimatedDelivery(response.data.data?.estimated_delivery ?? null);
+      toast.success('Status pengiriman diperbarui');
+    } catch {
+      toast.error('Status pengiriman gagal diperbarui');
+    } finally {
+      setTrackingLoading(false);
+    }
+  };
 
   const handleConfirmDelivered = async () => {
     if (!o) return;
@@ -107,6 +133,9 @@ export default function OrderDetailPage() {
   });
 
   const activeIdx = STEPS_MAP[o.status] ?? 0;
+  const orderUpdatedAt = new Date(o.updated_at ?? o.created_at).toLocaleString('id-ID', {
+    year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
 
   const copyValue = async (label: string, value: string) => {
     await navigator.clipboard.writeText(value);
@@ -115,13 +144,13 @@ export default function OrderDetailPage() {
 
   const STEPS = [
     { label: 'Pending', date: dateStr },
-    { label: 'Dibayar', date: o.status !== 'pending' ? dateStr : '-' },
-    { label: 'Dikirim', date: activeIdx >= 2 ? (trackingStatus ? TRACKING_STATUS_LABEL[trackingStatus] ?? trackingStatus : 'Dalam pengiriman') : '-' },
-    { label: 'Selesai', date: activeIdx >= 3 ? 'Pesanan diterima' : '-' },
+    { label: 'Dibayar', date: o.status === 'paid' ? orderUpdatedAt : activeIdx > 1 ? 'Waktu historis belum direkam' : '-' },
+    { label: 'Dikirim', date: o.status === 'shipped' ? orderUpdatedAt : activeIdx > 2 ? 'Waktu historis belum direkam' : '-' },
+    { label: 'Selesai', date: o.status === 'delivered' ? orderUpdatedAt : '-' },
   ];
 
   return (
-    <div style={{ padding: '32px 80px 64px', maxWidth: 1100, marginInline: 'auto' }}>
+    <div className="pk-page-shell" style={{ padding: '32px 80px 64px', maxWidth: 1100, marginInline: 'auto' }}>
       <Link href="/orders" style={{ fontSize: 13, color: 'var(--pk-text-secondary)', display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 16, textDecoration: 'none' }}>
         <Icon name="arrowLeft" size={14} /> Kembali ke Pesanan
       </Link>
@@ -136,25 +165,30 @@ export default function OrderDetailPage() {
           </div>
           <div style={{ fontSize: 13, color: 'var(--pk-text-hint)' }}>Dipesan {dateStr}</div>
         </div>
-        {/* Tombol konfirmasi diterima — hanya buyer, hanya saat shipped */}
-        {user?.role === 'buyer' && o.status === 'shipped' && (
-          <button
-            className="pk-btn pk-btn-primary"
-            disabled={confirming}
-            onClick={handleConfirmDelivered}
-          >
-            {confirming ? 'Memproses...' : 'Konfirmasi Pesanan Diterima'}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <button type="button" className="pk-btn pk-btn-secondary" onClick={() => window.print()}>
+            <Icon name="clipboard" size={14} /> Cetak Invoice
           </button>
-        )}
-        {/* Tombol beri ulasan — jika sudah delivered */}
-        {user?.role === 'buyer' && o.status === 'delivered' && (
-          <button
-            className="pk-btn pk-btn-secondary"
-            onClick={() => setShowRating(true)}
-          >
-            <Icon name="sparkle" size={14} /> Beri Ulasan
-          </button>
-        )}
+          {/* Tombol konfirmasi diterima — hanya buyer, hanya saat shipped */}
+          {user?.role === 'buyer' && o.status === 'shipped' && (
+            <button
+              className="pk-btn pk-btn-primary"
+              disabled={confirming}
+              onClick={handleConfirmDelivered}
+            >
+              {confirming ? 'Memproses...' : 'Konfirmasi Pesanan Diterima'}
+            </button>
+          )}
+          {/* Tombol beri ulasan — jika sudah delivered */}
+          {user?.role === 'buyer' && o.status === 'delivered' && (
+            <button
+              className="pk-btn pk-btn-secondary"
+              onClick={() => setShowRating(true)}
+            >
+              <Icon name="sparkle" size={14} /> Beri Ulasan
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Progress stepper */}
@@ -192,7 +226,7 @@ export default function OrderDetailPage() {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 24 }}>
+      <div className="pk-order-detail-layout" style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 24 }}>
         {/* Items */}
         <div className="pk-card" style={{ padding: 24 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--pk-text-hint)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 16 }}>
@@ -217,8 +251,15 @@ export default function OrderDetailPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* Pengiriman */}
           <div className="pk-card" style={{ padding: 20 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--pk-text-hint)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>
-              Pengiriman
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--pk-text-hint)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                Pengiriman
+              </div>
+              {o.tracking_id && (
+                <button type="button" className="pk-btn pk-btn-ghost pk-btn-sm" onClick={() => void refreshTracking()} disabled={trackingLoading}>
+                  {trackingLoading ? 'Memuat...' : 'Refresh'}
+                </button>
+              )}
             </div>
             <div style={{ fontSize: 13, color: 'var(--pk-text)', lineHeight: 1.55, marginBottom: 12 }}>
               {o.shipping_address}
@@ -241,7 +282,36 @@ export default function OrderDetailPage() {
                 )}
               </div>
             ) : (
-              <span className="pk-mono" style={{ color: 'var(--pk-text-hint)' }}>Belum tersedia</span>
+              <div style={{ padding: 10, borderRadius: 8, background: o.status === 'paid' ? 'var(--pk-warning-soft)' : 'var(--pk-bg-subtle)', color: o.status === 'paid' ? 'var(--pk-warning)' : 'var(--pk-text-hint)', fontSize: 12 }}>
+                {o.status === 'paid'
+                  ? 'Pembayaran berhasil, tetapi pengiriman belum terbentuk. Admin perlu memeriksa integrasi LogistiKita.'
+                  : 'Nomor tracking belum tersedia.'}
+              </div>
+            )}
+
+            {trackingStatus && (
+              <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {TRACKING_STEPS.map((status, index) => {
+                  const currentIndex = TRACKING_STEPS.indexOf(trackingStatus);
+                  const reached = index <= currentIndex;
+                  return (
+                    <div key={status} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: reached ? 'var(--pk-text)' : 'var(--pk-text-hint)' }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: reached ? 'var(--pk-success)' : 'var(--pk-border-strong)', flexShrink: 0 }} />
+                      {TRACKING_STATUS_LABEL[status]}
+                    </div>
+                  );
+                })}
+                {trackingUpdatedAt && (
+                  <div style={{ fontSize: 11, color: 'var(--pk-text-hint)', marginTop: 4 }}>
+                    Terakhir diperiksa {new Date(trackingUpdatedAt).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}
+                  </div>
+                )}
+                {estimatedDelivery && (
+                  <div style={{ fontSize: 12, color: 'var(--pk-text-secondary)' }}>
+                    Estimasi tiba {new Date(estimatedDelivery).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}
+                  </div>
+                )}
+              </div>
             )}
           </div>
 

@@ -19,7 +19,7 @@ alur tugas besar, lalu berkembang menjadi marketplace yang nyaman digunakan.
 | Area | Status | Catatan |
 |---|---|---|
 | Registrasi dan login | Ada | JWT dan role sudah tersedia |
-| Browse, cari, filter, urutkan produk | Ada sebagian | Pagination masih bersifat dummy di UI |
+| Browse, cari, filter, urutkan produk | Ada | Pagination dan filter dijalankan server-side |
 | Detail produk | Ada | Foto utama produk tampil dengan fallback placeholder |
 | Keranjang multi-item | Ada sebagian | Persisten di browser; checkout masih dilakukan per produk |
 | Kalkulasi subtotal dan fee 2% | Ada | Sudah memakai endpoint fee |
@@ -27,8 +27,8 @@ alur tugas besar, lalu berkembang menjadi marketplace yang nyaman digunakan.
 | Riwayat dan detail order | Ada | Status dasar dan tracking tersedia |
 | Konfirmasi pesanan diterima | Ada | Buyer dapat mengubah `shipped` menjadi `delivered` |
 | Rating dan ulasan | Ada | Belum mendukung foto atau respons penjual |
-| Profil | Tampilan saja | Perubahan nama, telepon, alamat, foto belum benar-benar tersimpan |
-| Ganti password | Belum | UI menampilkan pesan belum tersedia |
+| Profil | Ada sebagian | Nama dan email tersimpan; telepon, alamat, dan foto menunggu schema |
+| Ganti password | Ada | Memvalidasi password lama dan menyimpan hash password baru |
 | Notifikasi | Tampilan saja | Belum ada data dan API notifikasi |
 | Wishlist, voucher, komplain, refund | Belum | Belum ada model data maupun halaman |
 
@@ -40,13 +40,13 @@ harian pembeli.
 ### Akun dan Navigasi
 
 - [ ] Fitur lupa password dan reset password.
-- [x] Tombol tampilkan/sembunyikan password yang konsisten pada login dan register;
-  ganti password menunggu API.
+- [x] Tombol tampilkan/sembunyikan password yang konsisten pada login, register,
+  dan ganti password.
 - [x] Redirect kembali ke halaman tujuan setelah login, bukan selalu ke halaman
   default.
 - [x] Breadcrumb atau tombol kembali yang jelas pada detail produk dan detail order.
 - [x] Halaman 404 dengan tombol kembali ke katalog.
-- [ ] Konfirmasi sebelum logout jika checkout atau form profil sedang diisi.
+- [x] Konfirmasi sebelum logout dari halaman profil.
 
 ### Katalog dan Keranjang
 
@@ -55,7 +55,8 @@ harian pembeli.
   keranjang.
 - [x] Dialog konfirmasi sebelum mengosongkan keranjang.
 - [x] Cegah qty melebihi stok langsung dari input.
-- [ ] Beri tanda jika harga atau stok berubah sejak item dimasukkan ke keranjang.
+- [x] Beri tanda jika harga atau stok berubah sejak item dimasukkan ke keranjang,
+  lalu tahan checkout sampai data lokal diperbarui.
 - [x] Tombol "Bagikan produk" menggunakan Web Share API atau salin tautan.
 - [x] Tombol retry pada katalog/detail produk ketika request gagal.
 - [ ] Sorting "rating tertinggi" dan "paling banyak terjual" setelah datanya tersedia.
@@ -78,7 +79,8 @@ harian pembeli.
 - [ ] Skeleton loading yang konsisten untuk katalog, order, dan profil.
 - [x] Empty state dengan tindakan relevan, misalnya "Mulai Belanja".
 - [x] Pesan error katalog dan pesanan yang ramah pengguna serta tombol coba lagi.
-- [ ] Layout mobile untuk tabel/ringkasan yang saat ini lebar.
+- [x] Layout responsif untuk katalog, detail produk, keranjang, checkout, pesanan,
+  profil, navbar, dan footer.
 - [ ] Fokus keyboard, label form, dan teks alternatif gambar yang memadai.
 - [ ] Format mata uang, tanggal, dan nomor telepon konsisten dalam locale Indonesia.
 
@@ -89,7 +91,7 @@ harian pembeli.
 - [ ] Tambahkan `idempotency_key` pada checkout agar klik ganda tidak membuat dua
   order atau dua payment request.
 - [ ] Lakukan reservasi/pengurangan stok secara atomik di database.
-- [ ] Tolak kuantitas nol, negatif, pecahan, produk duplikat, dan jumlah tidak wajar.
+- [x] Tolak kuantitas nol, negatif, pecahan, produk duplikat, dan jumlah tidak wajar.
 - [ ] Simpan riwayat perubahan status order.
 - [ ] Sediakan retry pembayaran tanpa membuat order baru.
 - [ ] Bedakan status `payment_pending`, `paid`, `payment_failed`, dan
@@ -110,33 +112,35 @@ Perubahan saldo tetap dilakukan SmartBank.
 
 ### 3. Profil dan Buku Alamat Nyata
 
-- [ ] Buat API update profil.
+- [x] Buat API update profil untuk nama dan email dengan validasi email unik.
 - [ ] Simpan nomor telepon dan foto profil.
 - [ ] Sediakan beberapa alamat dengan label Rumah, Kantor, atau Lainnya.
 - [ ] Pilih alamat utama saat checkout.
-- [ ] Buat API ganti password dengan validasi password lama.
+- [x] Buat API ganti password dengan validasi password lama.
 
 ### 4. Pagination dan Filter Produk Sebenarnya
 
-- [ ] Hubungkan tombol pagination ke query `page`.
-- [ ] Tambahkan filter rentang harga dan ketersediaan stok.
-- [ ] Pertahankan filter di URL agar halaman dapat dibagikan.
-- [ ] Tampilkan jumlah hasil dan tombol reset filter.
+- [x] Hubungkan tombol pagination ke query `page`.
+- [x] Tambahkan filter rentang harga dan ketersediaan stok.
+- [x] Pertahankan filter di URL agar halaman dapat dibagikan.
+- [x] Tampilkan jumlah hasil dan tombol reset filter.
 
 ### 5. Tracking Pengiriman yang Lebih Jelas
 
-- [ ] Tampilkan timeline status dari LogistiKita, bukan hanya satu status terakhir.
-- [ ] Tampilkan nomor tracking, waktu update, dan estimasi tiba jika tersedia.
-- [ ] Beri tombol refresh status.
-- [ ] Beri pesan khusus jika pengiriman gagal dibuat setelah payment sukses.
+- [x] Tampilkan progres timeline berdasarkan status terbaru LogistiKita; histori
+  timestamp per event menunggu dukungan API LogistiKita.
+- [x] Tampilkan nomor tracking, waktu update, dan estimasi tiba jika tersedia.
+- [x] Beri tombol refresh status.
+- [x] Beri pesan khusus jika pengiriman gagal dibuat setelah payment sukses.
 
 ## P1 - Pengalaman Marketplace Matang
 
 ### 6. Wishlist dan Produk Terakhir Dilihat
 
-- [ ] Simpan wishlist per akun.
-- [ ] Tambahkan tombol favorit pada kartu dan detail produk.
-- [ ] Tampilkan produk terakhir dilihat.
+- [x] Simpan wishlist lokal terpisah per akun/browser; sinkronisasi lintas perangkat
+  menunggu tabel wishlist backend.
+- [x] Tambahkan tombol favorit pada kartu dan detail produk.
+- [x] Tampilkan produk terakhir dilihat.
 - [ ] Beri notifikasi saat stok wishlist kembali tersedia.
 
 ### 7. Halaman Toko Penjual
@@ -165,14 +169,14 @@ Perubahan saldo tetap dilakukan SmartBank.
 
 - [ ] Rating per produk dan per penjual.
 - [ ] Foto ulasan dengan moderasi.
-- [ ] Label pembelian terverifikasi.
-- [ ] Filter ulasan berdasarkan bintang.
+- [x] Label pembelian terverifikasi berdasarkan order milik buyer yang sudah selesai.
+- [x] Filter ulasan berdasarkan bintang.
 - [ ] Penjual dapat memberi satu respons resmi.
 
 ### 11. Invoice dan Bukti Transaksi
 
-- [ ] Sediakan invoice web yang dapat dicetak.
-- [ ] Tampilkan ID order, ID transaksi SmartBank, rincian fee, alamat, dan tracking.
+- [x] Sediakan invoice web yang dapat dicetak dari detail pesanan.
+- [x] Tampilkan ID order, ID transaksi SmartBank, rincian fee, alamat, dan tracking.
 - [ ] Gunakan snapshot nama serta harga produk saat pembelian.
 
 ## P2 - Inovasi Pembeda

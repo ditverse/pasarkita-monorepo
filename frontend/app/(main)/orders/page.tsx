@@ -45,7 +45,7 @@ export default function OrdersListPage() {
   };
 
   return (
-    <div style={{ padding: '32px 80px 64px', maxWidth: 1200, marginInline: 'auto' }}>
+    <div className="pk-page-shell" style={{ padding: '32px 80px 64px', maxWidth: 1200, marginInline: 'auto' }}>
       <h1 style={{ fontSize: 28, fontWeight: 600, letterSpacing: '-0.025em', margin: '0 0 4px' }}>
         Pesanan Saya
       </h1>
@@ -53,7 +53,7 @@ export default function OrdersListPage() {
         Pantau semua transaksi dan status pengiriman Anda.
       </p>
 
-      <div style={{ borderBottom: '1px solid var(--pk-border)', display: 'flex', gap: 4, marginBottom: 24 }}>
+      <div className="pk-scroll" style={{ borderBottom: '1px solid var(--pk-border)', display: 'flex', gap: 4, marginBottom: 24, overflowX: 'auto' }}>
         {TABS.map((t) => {
           const isActive = tab === t.id;
           const count = getCount(t.id);

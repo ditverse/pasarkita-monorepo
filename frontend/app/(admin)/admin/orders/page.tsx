@@ -17,6 +17,7 @@ const STATUS_TABS = [
   { id: '', label: 'Semua' },
   { id: 'pending', label: 'Pending' },
   { id: 'paid', label: 'Dibayar' },
+  { id: 'processing', label: 'Diproses' },
   { id: 'shipped', label: 'Dikirim' },
   { id: 'delivered', label: 'Selesai' },
   { id: 'payment_failed', label: 'Gagal' },

@@ -9,20 +9,21 @@ operasional UMKM yang membantu mengelola katalog, stok, pesanan, dan performa.
 
 | Area | Status | Catatan |
 |---|---|---|
-| Daftar produk milik seller | Ada | Pencarian dan toggle aktif tersedia |
-| Tambah dan edit produk | Ada | Foto utama tersimpan di Supabase Storage setelah migration dijalankan |
+| Daftar produk milik seller | Ada | Pencarian, filter stok/status, sorting, pagination, dan toggle aktif tersedia |
+| Tambah dan edit produk | Ada | Validasi langsung, draft browser, batas stok minimum, dan foto Supabase tersedia |
 | Hapus/nonaktifkan produk | Ada | Berupa soft delete `is_active=false` |
-| Order masuk | Ada | Seller dapat menandai order `paid` menjadi `shipped` |
-| Detail order | Ada sebagian | Menggunakan halaman order umum |
-| Tracking LogistiKita | Ada sebagian | Update logistik tidak memblokir perubahan status |
-| Dashboard penjual | Belum | Sidebar hanya Produk dan Order Masuk |
-| Analytics penjualan | Belum | Tidak ada omzet, tren, atau produk terlaris |
-| Profil toko | Belum | Akun seller belum memiliki identitas toko terpisah |
+| Order masuk | Ada | Seller menjalankan alur `paid -> processing -> shipped` dengan konfirmasi pickup |
+| Detail order | Ada | Backend hanya mengembalikan item, nilai, dan identitas buyer yang relevan untuk seller aktif |
+| Tracking LogistiKita | Ada | Error sinkronisasi terlihat, perubahan ke `shipped` diblokir, dan retry tersedia |
+| Dashboard penjual | Ada | KPI order, omzet toko, fee, rating, stok kritis, dan grafik tersedia |
+| Analytics penjualan | Ada sebagian | Filter 7/30 hari dan insight dasar aktif; funnel serta heatmap belum tersedia |
+| Profil toko | Ada | Identitas toko terpisah dari akun login dan tampil di halaman publik |
 | Promosi dan voucher | Belum | Tidak ada modul promosi |
 | Respons ulasan | Belum | Seller belum dapat merespons review |
 | Notifikasi seller | Tampilan saja | Belum ada API/event |
 
-**Aktivasi upload gambar:** jalankan `backend/product-images.sql` melalui
+**Aktivasi upload gambar:** migration
+`backend/database/migrations/001_product_images.sql` sudah diterapkan melalui
 Supabase SQL Editor. Migration ini menambahkan kolom `products.image_url` dan
 bucket publik `product-images` dengan batas file 5MB.
 
@@ -41,56 +42,63 @@ bucket publik `product-images` dengan batas file 5MB.
 
 - [x] Konfirmasi sebelum menonaktifkan atau mengaktifkan produk.
 - [x] Tampilkan alasan produk tidak dapat diaktifkan ketika stok habis.
-- [ ] Peringatan saat keluar dari form dengan perubahan yang belum disimpan.
-- [ ] Simpan draft form produk di browser untuk mencegah input hilang.
+- [x] Peringatan saat keluar dari form dengan perubahan yang belum disimpan.
+- [x] Simpan draft form produk di browser untuk mencegah input hilang.
 - [ ] Preview halaman produk sebelum dipublikasikan.
-- [ ] Hitung karakter nama dan deskripsi beserta batasnya.
-- [ ] Validasi harga dan stok langsung saat input, bukan setelah submit.
+- [x] Hitung karakter nama dan deskripsi beserta batasnya.
+- [x] Validasi nama, deskripsi, harga, stok, dan batas stok langsung saat input
+  serta ulangi validasi yang sama di backend.
 - [ ] Tambahkan SKU/kode produk internal yang dapat dicari dan disalin.
-- [ ] Sorting produk berdasarkan nama, harga, stok, terbaru, dan status.
-- [ ] Pagination produk yang sebenarnya.
+- [x] Sorting produk berdasarkan nama, harga, stok, terbaru, dan status.
+- [x] Pagination produk yang sebenarnya.
 - [x] Tombol reset search/filter dan empty state yang membedakan "belum ada produk"
   dengan "hasil pencarian kosong".
 
 ### Pesanan
 
 - [x] Badge jumlah order baru pada sidebar.
-- [x] Konfirmasi sebelum mengubah status order menjadi dikirim.
-- [ ] Tombol salin order ID, transaction ID, alamat, dan tracking ID.
-- [ ] Search order berdasarkan ID atau nama produk.
-- [ ] Filter periode, status, dan kebutuhan tindakan.
-- [ ] Sorting order terbaru, terlama, dan mendekati batas proses.
+- [x] Konfirmasi pickup sebelum memproses dan konfirmasi sebelum menyerahkan order ke kurir.
+- [x] Tombol salin order ID, transaction ID, alamat, dan tracking ID.
+- [x] Search order berdasarkan ID, nama produk, transaction ID, atau tracking ID.
+- [x] Filter periode, status, dan kebutuhan tindakan.
+- [x] Sorting order terbaru, terlama, dan mendekati batas proses.
 - [ ] Catatan internal seller per order yang tidak terlihat buyer.
 - [x] Tombol retry ketika daftar order gagal dimuat.
-- [ ] Tampilkan alasan tombol "Tandai Dikirim" tidak tersedia.
+- [x] Tampilkan alasan tombol "Tandai Dikirim" tidak tersedia.
 
 ### Operasional Toko
 
-- [ ] Notifikasi order baru, stok menipis, dan ulasan baru.
-- [ ] Tombol buka halaman publik toko dari sidebar.
-- [ ] Jam tutup sementara atau mode libur dengan tanggal aktif kembali.
-- [ ] Konfirmasi sebelum mengaktifkan mode libur karena berdampak pada katalog.
-- [ ] Empty state dashboard yang menjelaskan langkah pertama seller baru.
+- [x] Notifikasi order baru, stok menipis, dan ulasan baru.
+- [x] Tombol buka halaman publik toko dari sidebar.
+- [x] Jam tutup sementara atau mode libur dengan tanggal aktif kembali.
+- [x] Konfirmasi sebelum mengaktifkan mode libur karena berdampak pada katalog.
+- [x] Empty state dashboard yang menjelaskan langkah pertama seller baru.
 - [ ] Tampilan mobile berupa card ketika tabel tidak cukup lebar.
-- [ ] Ekspor CSV sederhana untuk produk dan order seller.
+- [x] Ekspor CSV sederhana untuk produk dan order seller.
 
 ## P0 - Operasional Inti
 
 ### 1. Dashboard Ringkas Penjual
 
-- [ ] Order baru yang perlu diproses.
-- [ ] Order terlambat dikirim.
-- [ ] Produk stok habis dan stok menipis.
-- [ ] Omzet kotor, fee marketplace, dan estimasi pendapatan bersih.
-- [ ] Produk terlaris pada periode terpilih.
-- [ ] Rating rata-rata dan ulasan baru.
+- [x] Order baru yang perlu diproses.
+- [x] Order terlambat dikirim berdasarkan order `paid` lebih dari dua hari.
+- [x] Produk stok habis dan stok menipis.
+- [x] Omzet kotor, fee marketplace proporsional, dan estimasi pendapatan bersih.
+- [x] Produk terlaris pada periode terpilih.
+- [x] Rating rata-rata dan jumlah ulasan baru.
 
 **Grafik minimum:**
 
-1. Line chart omzet dan jumlah order per hari.
-2. Bar chart produk terlaris berdasarkan unit.
-3. Donut status order.
-4. Stok kritis dalam bentuk tabel tindakan, bukan grafik dekoratif.
+1. [x] Line chart omzet, estimasi bersih, dan jumlah order per hari.
+2. [x] Bar chart produk terlaris berdasarkan unit.
+3. [x] Donut status order.
+4. [x] Stok kritis dalam bentuk tabel tindakan, bukan grafik dekoratif.
+
+**Status implementasi:** endpoint `/api/seller/analytics` menghitung hanya item
+produk milik seller. Omzet tidak memakai total order lintas toko, sedangkan fee
+marketplace dialokasikan proporsional terhadap nilai item seller. Dashboard
+menyediakan periode 7 dan 30 hari serta tidak menganggap estimasi bersih sebagai
+saldo SmartBank.
 
 ### 2. Upload dan Manajemen Gambar Produk
 
@@ -102,27 +110,47 @@ bucket publik `product-images` dengan batas file 5MB.
 
 ### 3. Pengelolaan Pesanan yang Aman
 
-- [ ] Filter order dilakukan di database berdasarkan produk milik seller.
-- [ ] Pagination dan total order harus mencerminkan order seller, bukan seluruh sistem.
-- [ ] Seller hanya melihat item miliknya pada order multi-seller.
-- [ ] Validasi transisi status, misalnya `paid -> processing -> shipped`.
-- [ ] Seller memasukkan atau mengonfirmasi data pickup sebelum dikirim.
-- [ ] Catat waktu proses dan waktu kirim untuk evaluasi SLA.
+- [x] Filter order dilakukan di database berdasarkan produk milik seller.
+- [x] Pagination dan total order mencerminkan order seller, bukan seluruh sistem.
+- [x] Seller hanya melihat item, nilai transaksi, dan identitas buyer yang diperlukan
+  untuk order miliknya; email buyer serta nilai toko lain tidak dikirim ke seller.
+- [x] Validasi transisi status `paid -> processing -> shipped`.
+- [x] Seller memasukkan atau mengonfirmasi data pickup sebelum dikirim.
+- [x] Catat waktu proses dan waktu kirim untuk evaluasi SLA.
+
+**Status implementasi:** daftar dan detail order seller sekarang memakai scope
+produk seller di backend, filter dan pagination server-side, serta proyeksi nilai
+item toko sendiri. Migration `007_seller_fulfillment.sql` menambahkan status
+`processing`, snapshot alamat pickup, waktu proses/kirim, dan status sinkronisasi
+logistik. Perubahan fulfillment order multi-toko tetap ditolak agar satu seller
+tidak mengubah status toko lain, tetapi packing list tetap menyaring item per toko.
 
 ### 4. Manajemen Stok
 
-- [ ] Batas stok minimum per produk.
-- [ ] Peringatan stok menipis dan habis.
+- [x] Batas stok minimum per produk.
+- [x] Peringatan dan filter stok menipis serta habis berdasarkan batas per produk.
 - [ ] Riwayat mutasi stok: penjualan, penambahan, koreksi, pembatalan.
 - [ ] Cegah perubahan stok yang merusak reservasi order aktif.
 - [ ] Aksi bulk untuk aktif/nonaktif dan pembaruan stok.
 
+**Status implementasi:** migration `005_seller_inventory_basics.sql` menambahkan
+`minimum_stock` dan indikator stok rendah terhitung di database. Daftar produk
+memakai filter, sorting, dan pagination server-side. Form tambah/edit memakai
+draft lokal per seller dan tetap divalidasi ulang oleh backend.
+
 ### 5. Profil Toko
 
-- [ ] Nama toko, logo, deskripsi, alamat pickup, dan kontak.
-- [ ] Status verifikasi sederhana untuk kebutuhan demo.
-- [ ] Jam operasional dan estimasi waktu proses.
-- [ ] Halaman publik toko yang dapat dikunjungi buyer.
+- [x] Nama toko, logo, deskripsi, alamat pickup, dan kontak.
+- [x] Status verifikasi sederhana untuk kebutuhan demo yang aktif setelah profil
+  utama lengkap dan ditandai jelas bukan verifikasi produksi.
+- [x] Jam operasional dan estimasi waktu proses.
+- [x] Halaman publik toko yang dapat dikunjungi buyer.
+
+**Status implementasi:** migration `006_seller_profiles.sql` membuat identitas
+toko satu-ke-satu dengan akun seller dan bucket logo `store-assets`. Alamat
+pickup hanya tersedia pada seller center, sedangkan buyer melihat nama toko,
+logo, deskripsi, kontak, jam operasional, serta estimasi proses. Lima seller lama
+telah mendapat profil fallback dari nama akun tanpa mengubah data login.
 
 ## P1 - Pertumbuhan dan Kualitas Layanan
 
@@ -138,8 +166,8 @@ bucket publik `product-images` dengan batas file 5MB.
 | Kecepatan proses | KPI + tren | Mengurangi keterlambatan |
 | Rating dan sentimen tag | Bar/list | Menemukan masalah kualitas |
 
-Gunakan filter 7 hari, 30 hari, dan rentang tanggal. Analytics seller hanya
-memakai data toko tersebut.
+Gunakan filter 7 hari, 30 hari, dan rentang tanggal. Filter 7/30 hari serta scope
+data toko sudah aktif; rentang tanggal custom masih menjadi pekerjaan lanjutan.
 
 ### 7. Kualitas Listing
 
@@ -166,10 +194,10 @@ memakai data toko tersebut.
 
 ### 10. Invoice, Packing List, dan Pengiriman
 
-- [ ] Cetak packing list per order.
-- [ ] Tampilkan item seller saja pada order multi-seller.
-- [ ] Jadwalkan pickup atau konfirmasi serah terima ke LogistiKita.
-- [ ] Tampilkan error sinkronisasi logistik dan tombol retry.
+- [x] Cetak packing list per order.
+- [x] Tampilkan item seller saja pada order multi-seller.
+- [x] Jadwalkan pickup atau konfirmasi serah terima ke LogistiKita.
+- [x] Tampilkan error sinkronisasi logistik dan tombol retry.
 
 ## P2 - Inovasi Pembeda
 

@@ -189,7 +189,7 @@ function IntegrationStoryboard({ order }: { order: Order }) {
   const gatewayEvent = events.find((event) => event.service === 'gateway');
   const paymentEvent = findEvent('payment');
   const shippingEvent = findEvent('shipping');
-  const paid = ['paid', 'shipped', 'delivered'].includes(order.status);
+  const paid = ['paid', 'processing', 'shipped', 'delivered'].includes(order.status);
   const nodes = [
     { label: 'Buyer', status: 'complete', detail: 'Checkout dibuat', time: order.created_at },
     { label: 'PasarKita', status: 'complete', detail: `Order ${order.id.slice(0, 8).toUpperCase()}`, time: order.created_at },

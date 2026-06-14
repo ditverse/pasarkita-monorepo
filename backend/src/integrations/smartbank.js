@@ -1,24 +1,22 @@
 const axios = require('axios');
 const env = require('../config/env');
 const { writeIntegrationLog } = require('../utils/observability');
+const { getIntegrationTarget } = require('./target');
 
 /**
  * Kirim payment request ke SmartBank.
- * Mendukung dua mode:
- *   - SMARTBANK_URL set → langsung ke SmartBank (mock atau real)
- *   - GATEWAY_BASE_URL set → lewat API Gateway
+ * Production/staging wajib melalui API Gateway.
+ * SMARTBANK_URL hanya digunakan untuk mock development lokal.
  */
 const sendPaymentRequest = async ({ orderId, fromUser, amount, feeMarketplace, items }) => {
-  const url = env.SMARTBANK_URL
-    ? `${env.SMARTBANK_URL}/payment`
-    : `${env.GATEWAY_BASE_URL}/smartbank/payment`;
+  const target = getIntegrationTarget('smartbank', '/payment');
 
   const apiKey = env.GATEWAY_API_KEY || 'mock-key';
   const startedAt = Date.now();
 
   try {
     const response = await axios.post(
-      url,
+      target.url,
       {
         from_app: 'marketplace',
         from_user: fromUser,
@@ -30,12 +28,13 @@ const sendPaymentRequest = async ({ orderId, fromUser, amount, feeMarketplace, i
         headers: {
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
+          'Idempotency-Key': orderId,
         },
         timeout: 8000,
       }
     );
     await writeIntegrationLog({
-      service: env.SMARTBANK_URL ? 'smartbank' : 'gateway',
+      service: target.logService,
       operation: 'payment.create',
       success: true,
       durationMs: Date.now() - startedAt,
@@ -45,7 +44,7 @@ const sendPaymentRequest = async ({ orderId, fromUser, amount, feeMarketplace, i
     return response.data;
   } catch (error) {
     await writeIntegrationLog({
-      service: env.SMARTBANK_URL ? 'smartbank' : 'gateway',
+      service: target.logService,
       operation: 'payment.create',
       success: false,
       durationMs: Date.now() - startedAt,

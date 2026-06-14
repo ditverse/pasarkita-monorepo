@@ -19,6 +19,15 @@ const getProductById = async (req, res, next) => {
   }
 };
 
+const getPublicStore = async (req, res, next) => {
+  try {
+    const data = await productService.getPublicStore(req.params.sellerId);
+    return successResponse(res, 200, 'Profil toko', data);
+  } catch (err) {
+    next(err);
+  }
+};
+
 const getMyProducts = async (req, res, next) => {
   try {
     const result = await productService.getProductsBySeller(req.user.id, req.query);
@@ -73,13 +82,31 @@ const deleteProduct = async (req, res, next) => {
   }
 };
 
+const exportMyProducts = async (req, res, next) => {
+  try {
+    const result = await productService.exportProductsBySeller(req.user.id, req.query);
+    const timestamp = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="produk-toko-${timestamp}.csv"`);
+    if (result.truncated) {
+      res.setHeader('X-Export-Truncated', 'true');
+      res.setHeader('X-Export-Count', String(result.count));
+    }
+    return res.send('\uFEFF' + result.csv); // BOM untuk Excel
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getProducts,
   getProductById,
+  getPublicStore,
   getMyProducts,
   getMyProductById,
   uploadProductImage,
   createProduct,
   updateProduct,
   deleteProduct,
+  exportMyProducts,
 };

@@ -1,3 +1,25 @@
+export type UserProfile = {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string | null;
+  avatar_url?: string | null;
+  role: 'buyer' | 'seller' | 'superadmin';
+  created_at: string;
+};
+
+export type Address = {
+  id: string;
+  user_id: string;
+  label: string;
+  recipient_name: string;
+  phone: string;
+  full_address: string;
+  is_primary: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Product = {
   id: string;
   name: string;
@@ -5,12 +27,60 @@ export type Product = {
   category: string;
   price: number;
   stock: number;
+  minimum_stock?: number;
+  is_low_stock?: boolean;
   is_active: boolean;
   image_url?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  rating_average?: number | null;
+  rating_count?: number;
+  sold_units?: number;
   seller: {
     id: string;
     name: string;
   };
+};
+
+export type PublicStore = {
+  seller: {
+    id: string;
+    name: string;
+    store_name: string;
+    logo_url: string | null;
+    description: string | null;
+    contact_phone: string | null;
+    open_time: string | null;
+    close_time: string | null;
+    processing_days: number | null;
+    verification_status: 'unverified' | 'demo_verified';
+    created_at: string;
+    is_active: boolean;
+  };
+  stats: {
+    active_products: number;
+    sold_units: number;
+    rating_average: number | null;
+    rating_count: number;
+    tracking_coverage: number | null;
+  };
+};
+
+export type SellerStoreProfile = {
+  seller_id: string;
+  store_name: string;
+  logo_url: string | null;
+  description: string | null;
+  pickup_address: string | null;
+  contact_phone: string | null;
+  open_time: string;
+  close_time: string;
+  processing_days: number;
+  verification_status: 'unverified' | 'demo_verified';
+  is_on_vacation: boolean;
+  vacation_until: string | null; // ISO date string (YYYY-MM-DD)
+  created_at: string;
+  updated_at: string;
 };
 
 export type OrderItem = {
@@ -28,13 +98,21 @@ export type OrderItem = {
 
 export type Order = {
   id: string;
-  status: 'pending' | 'paid' | 'shipped' | 'delivered' | 'payment_failed';
+  status: 'pending' | 'paid' | 'processing' | 'shipped' | 'delivered' | 'payment_failed' | 'cancelled';
   subtotal: number;
   fee_marketplace: number;
   total: number;
   shipping_address: string;
   transaction_id: string | null;
   tracking_id: string | null;
+  processing_at?: string | null;
+  shipped_at?: string | null;
+  pickup_address_snapshot?: string | null;
+  shipping_sync_status?: 'not_requested' | 'pending' | 'synced' | 'failed';
+  shipping_sync_error?: string | null;
+  shipping_sync_updated_at?: string | null;
+  idempotency_key?: string | null;
+  stock_reserved: boolean;
   created_at: string;
   updated_at?: string;
   buyer_id?: string;
@@ -44,6 +122,17 @@ export type Order = {
     email: string;
   };
   items: OrderItem[];
+  seller_item_scope?: boolean;
+  seller_can_process?: boolean;
+  seller_can_ship?: boolean;
+  seller_action_reason?: string | null;
+  status_history?: Array<{
+    id: string;
+    status: Order['status'];
+    source: string;
+    note: string | null;
+    created_at: string;
+  }>;
   audit_history?: {
     available: boolean;
     message?: string;
@@ -65,10 +154,84 @@ export type Order = {
   };
 };
 
+export type PackingList = {
+  order_id: string;
+  created_at: string;
+  buyer_name: string;
+  shipping_address: string;
+  tracking_id: string | null;
+  pickup_address: string | null;
+  store_name: string;
+  contact_phone: string | null;
+  items: Array<{
+    product_id: string;
+    product_name: string;
+    qty: number;
+  }>;
+};
+
+export type BuyerNotification = {
+  id: string;
+  order_id: string | null;
+  type: 'order' | 'payment' | 'shipped' | 'rating' | 'system';
+  title: string;
+  message: string;
+  href: string | null;
+  read_at: string | null;
+  created_at: string;
+};
+
+export type SellerAnalytics = {
+  period: {
+    days: number;
+    start: string;
+    end: string;
+    generated_at: string;
+  };
+  summary: {
+    gross_sales: number;
+    marketplace_fee: number;
+    estimated_net: number;
+    paid_orders: number;
+    new_orders: number;
+    overdue_orders: number;
+    out_of_stock: number;
+    low_stock: number;
+    average_rating: number | null;
+    new_reviews: number;
+  };
+  timeseries: Array<{
+    bucket: string;
+    gross_sales: number;
+    estimated_net: number;
+    orders: number;
+  }>;
+  orders_by_status: Array<{
+    key: Order['status'];
+    count: number;
+    pct: number;
+  }>;
+  top_products: Array<{
+    product_id: string;
+    name: string;
+    sold: number;
+    gross_sales: number;
+  }>;
+  critical_stock: Array<{
+    id: string;
+    name: string;
+    stock: number;
+    minimum_stock: number;
+    status: 'out' | 'low';
+  }>;
+};
+
 export type User = {
   id: string;
   name: string;
   email: string;
+  phone?: string | null;
+  avatar_url?: string | null;
   role: 'buyer' | 'seller' | 'superadmin';
   is_active: boolean;
   created_at: string;
@@ -220,6 +383,8 @@ export type CheckoutResponse = {
     tracking_id: string;
     status: string;
   };
+  hardening_active: boolean;
+  idempotent_replay: boolean;
 };
 
 export type AnalyticsSummary = {
@@ -340,6 +505,28 @@ export type AnalyticsSummary = {
     available: boolean;
     reason?: string;
   }>;
+};
+export type Complaint = {
+  id: string;
+  order_id: string;
+  buyer_id: string;
+  seller_id: string;
+  type: 'damaged' | 'missing_item' | 'wrong_item' | 'not_received' | 'other';
+  description: string;
+  status: 'open' | 'seller_replied' | 'admin_review' | 'resolved' | 'rejected';
+  seller_response?: string | null;
+  admin_notes?: string | null;
+  resolution?: string | null;
+  created_at: string;
+  updated_at: string;
+  orders?: {
+    status: Order['status'];
+    total: number;
+    created_at: string;
+    tracking_id?: string | null;
+  };
+  buyer?: { name: string; email: string };
+  seller?: { name: string; email: string };
 };
 
 export type Rating = {

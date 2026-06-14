@@ -1,24 +1,36 @@
 'use client';
 
+import { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Logo from './logo';
 import Icon from './icon';
 import Avatar from './avatar';
+import NotificationDropdown from './notification-dropdown';
 import { useAuthStore } from '@/store/auth';
 import { ordersApi } from '@/lib/api/orders';
+import { notificationsApi } from '@/lib/api/notifications';
 import { queryKeys } from '@/lib/query-keys';
+import { BuyerNotification } from '@/types/api';
 
 const items = [
+  { id: 'dashboard', href: '/seller', label: 'Dashboard', icon: 'barChart' as const, exact: true },
   { id: 'products', href: '/seller/products', label: 'Produk', icon: 'box' as const },
   { id: 'orders', href: '/seller/orders', label: 'Order Masuk', icon: 'bag' as const },
+  { id: 'complaints', href: '/seller/complaints', label: 'Komplain', icon: 'clipboard' as const },
+  { id: 'settings', href: '/seller/settings', label: 'Pengaturan Toko', icon: 'store' as const },
 ];
 
 export default function SellerSidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { user, logout } = useAuthStore();
+
+  const [notifOpen, setNotifOpen] = useState(false);
+
+  // Badge order yang perlu ditindaklanjuti (paid)
   const paidOrdersQuery = useQuery({
     queryKey: queryKeys.orders.list('seller-sidebar', 'paid'),
     queryFn: async () => {
@@ -27,7 +39,43 @@ export default function SellerSidebar() {
     },
     enabled: Boolean(user?.id),
   });
-  
+
+  // Notifikasi seller — polling tiap 30 detik
+  const notifQueryKey = ['seller-notifications', user?.id];
+  const notifQuery = useQuery({
+    queryKey: notifQueryKey,
+    queryFn: async () => (await notificationsApi.getAll(30)).data.data,
+    enabled: Boolean(user?.id),
+    refetchInterval: 30_000,
+  });
+  const notifications = notifQuery.data ?? [];
+  const unreadCount = notifications.filter((n) => !n.read_at).length;
+
+  const markAllReadMutation = useMutation({
+    mutationFn: () => notificationsApi.markAllRead(),
+    onSuccess: () =>
+      queryClient.setQueryData<BuyerNotification[]>(notifQueryKey, (cur = []) =>
+        cur.map((n) => ({ ...n, read_at: n.read_at ?? new Date().toISOString() }))
+      ),
+  });
+
+  const markReadMutation = useMutation({
+    mutationFn: (id: string) => notificationsApi.markRead(id),
+    onSuccess: (_, id) =>
+      queryClient.setQueryData<BuyerNotification[]>(notifQueryKey, (cur = []) =>
+        cur.map((n) => (n.id === id ? { ...n, read_at: n.read_at ?? new Date().toISOString() } : n))
+      ),
+  });
+
+  const handleNotifSelect = useCallback(
+    (notification: BuyerNotification) => {
+      if (!notification.read_at) markReadMutation.mutate(notification.id);
+      setNotifOpen(false);
+      if (notification.href) router.push(notification.href);
+    },
+    [markReadMutation, router]
+  );
+
   const sellerName = user?.name || 'Seller';
   const newOrderCount = paidOrdersQuery.data?.length ?? 0;
 
@@ -56,9 +104,70 @@ export default function SellerSidebar() {
         flexShrink: 0,
       }}
     >
-      <div style={{ padding: '4px 8px 20px' }}>
+      {/* Logo + Notifikasi bell */}
+      <div style={{ padding: '4px 8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Logo size={16} />
+        {/* Bell button dengan badge */}
+        {user?.id && (
+          <div style={{ position: 'relative' }}>
+            <button
+              type="button"
+              onClick={() => setNotifOpen((v) => !v)}
+              aria-label={`Notifikasi${unreadCount > 0 ? `, ${unreadCount} belum dibaca` : ''}`}
+              style={{
+                width: 30,
+                height: 30,
+                borderRadius: 7,
+                border: notifOpen ? '1px solid var(--pk-border-strong)' : '1px solid var(--pk-border)',
+                background: notifOpen ? 'var(--pk-bg-subtle)' : 'transparent',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--pk-text-secondary)',
+                position: 'relative',
+                transition: 'all 150ms ease',
+              }}
+            >
+              <Icon name="bell" size={15} />
+              {unreadCount > 0 && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: 4,
+                    right: 4,
+                    width: 7,
+                    height: 7,
+                    borderRadius: '50%',
+                    background: 'var(--pk-danger)',
+                    border: '1.5px solid #fff',
+                  }}
+                />
+              )}
+            </button>
+
+            {/* Dropdown notifikasi */}
+            {notifOpen && (
+              <div
+                style={{
+                  position: 'fixed',
+                  top: 'auto',
+                  left: 210,
+                  zIndex: 200,
+                }}
+              >
+                <NotificationDropdown
+                  notifications={notifications}
+                  onMarkAllRead={() => markAllReadMutation.mutate()}
+                  onSelect={handleNotifSelect}
+                  onClose={() => setNotifOpen(false)}
+                />
+              </div>
+            )}
+          </div>
+        )}
       </div>
+
       <div
         style={{
           padding: '4px 8px 8px',
@@ -72,7 +181,7 @@ export default function SellerSidebar() {
         Seller
       </div>
       {items.map((i) => {
-        const isActive = pathname.startsWith(i.href);
+        const isActive = i.exact ? pathname === i.href : pathname.startsWith(i.href);
         return (
           <Link
             key={i.id}
@@ -115,6 +224,26 @@ export default function SellerSidebar() {
         );
       })}
       <div style={{ marginTop: 'auto', paddingTop: 16 }}>
+        {user?.id && (
+          <Link
+            href={`/stores/${user.id}`}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              height: 36,
+              padding: '0 10px',
+              borderRadius: 8,
+              color: 'var(--pk-text-secondary)',
+              fontSize: 13,
+              fontWeight: 500,
+              textDecoration: 'none',
+            }}
+          >
+            <Icon name="store" size={16} />
+            Halaman Toko
+          </Link>
+        )}
         <Link
           href="/"
           style={{

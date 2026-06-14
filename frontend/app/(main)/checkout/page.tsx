@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Icon from '@/components/pk/icon';
@@ -9,9 +9,11 @@ import { formatIDR } from '@/lib/format';
 import { api } from '@/lib/api';
 import { checkoutApi } from '@/lib/api/checkout';
 import { productsApi } from '@/lib/api/products';
+import { ordersApi } from '@/lib/api/orders';
+import { calculateWeeklySpending, getWeeklyBudget } from '@/lib/buyer-budget';
 import { useAuthStore } from '@/store/auth';
 import { toast } from 'sonner';
-import { Product } from '@/types/api';
+import { Order, Product } from '@/types/api';
 
 function Spinner({ size = 14 }: { size?: number }) {
   return (
@@ -35,6 +37,97 @@ function Row({ label, value, bold, muted }: { label: string; value: string; bold
   );
 }
 
+// ─── Selector Alamat ─────────────────────────────────────────────────────────
+
+function AddressSelector({ address, onChange }: { address: string; onChange: (val: string) => void }) {
+  const { data: addresses } = useQuery({
+    queryKey: ['addresses'],
+    queryFn: async () => {
+      const { profileApi } = await import('@/lib/api/profile');
+      return profileApi.getAddresses();
+    },
+  });
+
+  const [useManual, setUseManual] = useState(false);
+
+  // Jika ada alamat, set default ke alamat utama (jika address belum di set)
+  useEffect(() => {
+    if (addresses && addresses.length > 0 && !address && !useManual) {
+      const primary = addresses.find(a => a.is_primary) || addresses[0];
+      onChange(primary.full_address);
+    }
+  }, [addresses, address, onChange, useManual]);
+
+  if (!addresses || addresses.length === 0 || useManual) {
+    return (
+      <>
+        {addresses && addresses.length > 0 && (
+          <button
+            type="button"
+            className="pk-btn pk-btn-ghost pk-btn-sm"
+            style={{ marginBottom: 12, display: 'block' }}
+            onClick={() => setUseManual(false)}
+          >
+            ← Pakai Alamat Tersimpan
+          </button>
+        )}
+        <label className="pk-label">Alamat lengkap</label>
+        <textarea
+          className="pk-textarea"
+          rows={4}
+          value={address}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Jl. Contoh No. 1, Kota, Provinsi"
+        />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {addresses.map((a) => (
+          <label
+            key={a.id}
+            style={{
+              display: 'flex',
+              gap: 12,
+              padding: 16,
+              border: address === a.full_address ? '1.5px solid var(--pk-accent)' : '1px solid var(--pk-border)',
+              borderRadius: 12,
+              cursor: 'pointer',
+              background: address === a.full_address ? 'var(--pk-bg-subtle)' : 'transparent',
+            }}
+          >
+            <input
+              type="radio"
+              name="address_selector"
+              checked={address === a.full_address}
+              onChange={() => onChange(a.full_address)}
+              style={{ marginTop: 2 }}
+            />
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
+                {a.label} {a.is_primary && <span className="pk-badge pk-badge-green" style={{ marginLeft: 6 }}>Utama</span>}
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 500 }}>{a.recipient_name} ({a.phone})</div>
+              <div style={{ fontSize: 13, color: 'var(--pk-text-secondary)', marginTop: 2 }}>{a.full_address}</div>
+            </div>
+          </label>
+        ))}
+      </div>
+      <button
+        type="button"
+        className="pk-btn pk-btn-ghost pk-btn-sm"
+        style={{ marginTop: 16 }}
+        onClick={() => { setUseManual(true); onChange(''); }}
+      >
+        + Gunakan Alamat Lain (Manual)
+      </button>
+    </>
+  );
+}
+
 // ── Inner component yang pakai useSearchParams ────────────────
 // Harus dipisah agar bisa di-wrap Suspense (Next.js requirement)
 
@@ -48,6 +141,8 @@ function CheckoutContent() {
 
   const [loading, setLoading] = useState(false);
   const [address, setAddress] = useState('');
+  const idempotencyKeyRef = useRef<string | null>(null);
+  const weeklyBudget = user ? getWeeklyBudget(user.id) : null;
 
   useEffect(() => {
     if (!loading) return;
@@ -76,6 +171,15 @@ function CheckoutContent() {
     enabled: Boolean(user),
   });
 
+  const weeklyOrdersQuery = useQuery({
+    queryKey: ['orders', 'buyer-budget', user?.id],
+    queryFn: async (): Promise<Order[]> => {
+      const response = await ordersApi.getAll({ limit: 100, sort: 'created_desc' });
+      return response.data.data;
+    },
+    enabled: Boolean(user && weeklyBudget),
+  });
+
   if (productQuery.isLoading) {
     return (
       <div style={{ padding: 100, textAlign: 'center' }}>
@@ -101,6 +205,9 @@ function CheckoutContent() {
   const subtotal = product.price * qtyUrl;
   const feeMarketplace = Math.round(subtotal * 0.02);
   const total = subtotal + feeMarketplace;
+  const weeklySpending = calculateWeeklySpending(weeklyOrdersQuery.data ?? []);
+  const projectedSpending = weeklySpending + total;
+  const projectedRemaining = weeklyBudget == null ? null : weeklyBudget - projectedSpending;
 
   const handlePay = async () => {
     if (!user) {
@@ -118,14 +225,21 @@ function CheckoutContent() {
 
     setLoading(true);
     try {
+      idempotencyKeyRef.current ??= crypto.randomUUID();
       // Payload sesuai PRD: multi-item, snake_case
       const res = await checkoutApi.checkout({
+        idempotency_key: idempotencyKeyRef.current,
         items: [{ product_id: product.id, qty: qtyUrl }],
         shipping_address: address.trim(),
       });
       const orderId = res.data.data?.order_id;
-      toast.success('Checkout berhasil!');
-      router.push(`/checkout/success?orderId=${orderId}`);
+      if (res.data.data?.idempotent_replay && res.data.data.status === 'pending') {
+        toast.info('Checkout yang sama sedang diproses');
+        router.push(`/orders/${orderId}`);
+      } else {
+        toast.success(res.data.data?.idempotent_replay ? 'Checkout sebelumnya ditemukan' : 'Checkout berhasil!');
+        router.push(`/checkout/success?orderId=${orderId}`);
+      }
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { error?: { code?: string; details?: string }; message?: string } } };
       const code = axiosErr.response?.data?.error?.code;
@@ -191,14 +305,7 @@ function CheckoutContent() {
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--pk-text-hint)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 16 }}>
               Alamat Pengiriman
             </div>
-            <label className="pk-label">Alamat lengkap</label>
-            <textarea
-              className="pk-textarea"
-              rows={4}
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              placeholder="Jl. Contoh No. 1, Kota, Provinsi"
-            />
+            <AddressSelector address={address} onChange={setAddress} />
           </div>
 
           <div className="pk-card" style={{ padding: 24 }}>
@@ -231,6 +338,40 @@ function CheckoutContent() {
               </div>
             )}
           </div>
+
+          {weeklyBudget != null && (
+            <div
+              className="pk-card"
+              style={{
+                padding: 20,
+                borderColor: projectedRemaining != null && projectedRemaining < 0
+                  ? 'var(--pk-warning)'
+                  : 'var(--pk-border)',
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Dampak ke Anggaran Mingguan</div>
+              {weeklyOrdersQuery.isLoading ? (
+                <div className="pk-skel" style={{ height: 52, width: '100%' }} />
+              ) : weeklyOrdersQuery.isError ? (
+                <div style={{ fontSize: 12, color: 'var(--pk-text-hint)' }}>
+                  Ringkasan anggaran belum dapat dihitung. Transaksi tetap dapat dilanjutkan.
+                </div>
+              ) : (
+                <>
+                  <Row label="Belanja minggu ini" value={formatIDR(weeklySpending)} muted />
+                  <div style={{ marginTop: 8 }}>
+                    <Row label="Sisa setelah transaksi" value={formatIDR(projectedRemaining)} bold />
+                  </div>
+                  {projectedRemaining != null && projectedRemaining < 0 && (
+                    <div style={{ marginTop: 12, padding: 10, borderRadius: 8, background: 'var(--pk-warning-soft)', color: 'var(--pk-warning)', fontSize: 12, lineHeight: 1.5 }}>
+                      Transaksi ini melewati anggaran sebesar {formatIDR(Math.abs(projectedRemaining))}.
+                      Ini hanya pengingat dan tidak memblokir pembayaran.
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
 
           <button
             className="pk-btn pk-btn-primary pk-btn-lg pk-btn-block"

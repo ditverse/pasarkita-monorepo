@@ -1,8 +1,9 @@
-type Status = 'paid' | 'pending' | 'shipped' | 'delivered' | 'payment_failed' | 'active' | 'inactive' | 'banned';
+type Status = 'paid' | 'pending' | 'processing' | 'shipped' | 'delivered' | 'payment_failed' | 'active' | 'inactive' | 'banned';
 
 const map: Record<Status, { cls: string; label: string }> = {
   paid:            { cls: 'pk-badge-paid',      label: 'Dibayar' },
   pending:         { cls: 'pk-badge-pending',    label: 'Pending' },
+  processing:      { cls: 'pk-badge-paid',       label: 'Diproses' },
   shipped:         { cls: 'pk-badge-shipped',    label: 'Dikirim' },
   delivered:       { cls: 'pk-badge-delivered',  label: 'Selesai' },
   payment_failed:  { cls: 'pk-badge-failed',     label: 'Gagal' },

@@ -27,10 +27,6 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL('/auth/login', request.url));
   }
   
-  if (pathname === '/seller') {
-    return NextResponse.redirect(new URL('/seller/products', request.url));
-  }
-
   const isAuthRoute = pathname.startsWith('/auth');
 
   if (isAuthRoute) {
@@ -42,7 +38,7 @@ export function proxy(request: NextRequest) {
       if (role === 'superadmin') {
         return NextResponse.redirect(new URL('/admin', request.url));
       } else if (role === 'seller') {
-        return NextResponse.redirect(new URL('/seller/products', request.url));
+        return NextResponse.redirect(new URL('/seller', request.url));
       } else {
         return NextResponse.redirect(new URL('/orders', request.url));
       }

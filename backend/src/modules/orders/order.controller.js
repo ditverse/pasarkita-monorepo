@@ -69,4 +69,80 @@ const confirmDelivered = async (req, res, next) => {
   }
 };
 
-module.exports = { getOrders, getOrderById, updateOrderStatus, getTrackingStatus, confirmDelivered };
+const startProcessing = async (req, res, next) => {
+  try {
+    const data = await orderService.startProcessing(req.user, req.params.id, req.body.pickup_address);
+    return successResponse(res, 200, 'Pesanan mulai diproses', data);
+  } catch (err) {
+    next(err);
+  }
+};
+
+const shipOrder = async (req, res, next) => {
+  try {
+    const data = await orderService.shipOrder(req.user, req.params.id);
+    return successResponse(res, 200, 'Pesanan diserahkan ke pengiriman', data);
+  } catch (err) {
+    next(err);
+  }
+};
+
+const retryShipping = async (req, res, next) => {
+  try {
+    const data = await orderService.retryShipping(req.user, req.params.id);
+    return successResponse(res, 200, 'Sinkronisasi pengiriman berhasil', data);
+  } catch (err) {
+    next(err);
+  }
+};
+
+const getPackingList = async (req, res, next) => {
+  try {
+    const data = await orderService.getPackingList(req.user, req.params.id);
+    return successResponse(res, 200, 'Packing list', data);
+  } catch (err) {
+    next(err);
+  }
+};
+
+const exportSellerOrders = async (req, res, next) => {
+  try {
+    const result = await orderService.exportOrdersBySeller(req.user.id, req.query);
+    const timestamp = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="order-toko-${timestamp}.csv"`);
+    if (result.truncated) {
+      res.setHeader('X-Export-Truncated', 'true');
+      res.setHeader('X-Export-Count', String(result.count));
+    }
+    return res.send('\uFEFF' + result.csv);
+  } catch (err) {
+    next(err);
+  }
+};
+
+const cancelOrder = async (req, res, next) => {
+  try {
+    if (req.user.role !== 'buyer') {
+      return res.status(403).json({ success: false, message: 'Hanya pembeli yang bisa membatalkan pesanan mandiri' });
+    }
+    const data = await orderService.cancelOrder(req.params.id, req.user.id);
+    return successResponse(res, 200, 'Pesanan berhasil dibatalkan', data);
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = {
+  getOrders,
+  getOrderById,
+  updateOrderStatus,
+  getTrackingStatus,
+  confirmDelivered,
+  startProcessing,
+  shipOrder,
+  retryShipping,
+  getPackingList,
+  exportSellerOrders,
+  cancelOrder,
+};

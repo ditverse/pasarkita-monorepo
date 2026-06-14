@@ -32,7 +32,8 @@ secara selektif dan disesuaikan dengan scope PasarKita sebagai marketplace UMKM.
 | 15 | Simulator Dampak Fee | Selesai |
 | 16 | Integration Storyboard | Selesai parsial, menunggu correlation ID Gateway |
 
-**Aktivasi database:** jalankan `backend/observability.sql` di Supabase agar audit
+**Aktivasi database:** migration
+`backend/database/migrations/002_observability.sql` sudah diterapkan agar audit
 log dan integration health mulai menyimpan data.
 
 **Data demo:** `npm run seed:demo` dari folder `backend/` telah dijalankan pada
@@ -55,7 +56,7 @@ produk dilewati jika namanya sudah tersedia.
 | Ban/aktifkan user | Sudah | Alasan dan audit log tersedia |
 | Manajemen semua order | Ada | Admin dapat mengubah status |
 | Moderasi produk | Sudah | Antrean, aturan keputusan, status listing, dan audit tersedia |
-| Audit log dan monitoring integrasi | Sudah | Memerlukan `observability.sql` di Supabase |
+| Audit log dan monitoring integrasi | Sudah | Tabel observability dan index sudah aktif di Supabase |
 | Komplain/refund | Belum | Tidak ada workflow sengketa |
 
 ## Quick Wins - Fitur Kecil tetapi Logis
@@ -131,9 +132,9 @@ produk dilewati jika namanya sudah tersedia.
 ## P0 - Akurasi, Kontrol, dan Kepatuhan
 
 > **Status implementasi 10 Juni 2026:** source untuk nomor 1-16 sudah dibuat dan
-> lolos lint/build. Jalankan `backend/observability.sql` di Supabase untuk
-> mengaktifkan penyimpanan audit log dan integration health. Migration tidak
-> dijalankan otomatis agar tidak mengubah database bersama tanpa persetujuan.
+> lolos lint/build. Migration
+> `backend/database/migrations/002_observability.sql` sudah aktif untuk
+> mengaktifkan penyimpanan audit log dan integration health di Supabase.
 
 ### 1. Benahi Definisi Metrik
 

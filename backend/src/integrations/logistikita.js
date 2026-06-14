@@ -1,24 +1,22 @@
 const axios = require('axios');
 const env = require('../config/env');
 const { writeIntegrationLog } = require('../utils/observability');
+const { getIntegrationTarget } = require('./target');
 
 /**
  * Trigger pengiriman ke LogistiKita.
- * Mendukung dua mode:
- *   - LOGISTIKITA_URL set → langsung ke LogistiKita (mock atau real)
- *   - GATEWAY_BASE_URL set → lewat API Gateway
+ * Production/staging wajib melalui API Gateway.
+ * LOGISTIKITA_URL hanya digunakan untuk mock development lokal.
  */
 const triggerShipping = async ({ orderId, fromAddress, toAddress, itemsCount }) => {
-  const url = env.LOGISTIKITA_URL
-    ? `${env.LOGISTIKITA_URL}/shipping`
-    : `${env.GATEWAY_BASE_URL}/logistikita/shipping`;
+  const target = getIntegrationTarget('logistikita', '/shipping');
 
   const apiKey = env.GATEWAY_API_KEY || 'mock-key';
   const startedAt = Date.now();
 
   try {
     const response = await axios.post(
-      url,
+      target.url,
       {
         order_id: orderId,
         from_address: fromAddress ?? 'Gudang PasarKita',
@@ -34,7 +32,7 @@ const triggerShipping = async ({ orderId, fromAddress, toAddress, itemsCount }) 
       }
     );
     await writeIntegrationLog({
-      service: env.LOGISTIKITA_URL ? 'logistikita' : 'gateway',
+      service: target.logService,
       operation: 'shipping.create',
       success: true,
       durationMs: Date.now() - startedAt,
@@ -44,7 +42,7 @@ const triggerShipping = async ({ orderId, fromAddress, toAddress, itemsCount }) 
     return response.data;
   } catch (error) {
     await writeIntegrationLog({
-      service: env.LOGISTIKITA_URL ? 'logistikita' : 'gateway',
+      service: target.logService,
       operation: 'shipping.create',
       success: false,
       durationMs: Date.now() - startedAt,

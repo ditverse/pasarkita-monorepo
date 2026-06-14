@@ -347,6 +347,7 @@ export function FunnelChart({ data }: { data: AnalyticsSummary['transaction_funn
 const STATUS_COLORS: Record<string, string> = {
   pending: '#9CA3AF',
   paid: '#2563EB',
+  processing: '#7C3AED',
   shipped: '#0D9488',
   delivered: '#16A34A',
   payment_failed: '#DC2626',

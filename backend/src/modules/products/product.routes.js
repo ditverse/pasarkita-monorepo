@@ -3,6 +3,8 @@ const multer = require('multer');
 const router = express.Router();
 const productController = require('./product.controller');
 const { verifyToken, requireSeller } = require('../../middlewares/auth');
+const validate = require('../../middlewares/validate');
+const { createProductSchema, updateProductSchema } = require('./product.schema');
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -21,11 +23,13 @@ const upload = multer({
 
 router.get('/', productController.getProducts);
 router.get('/mine', verifyToken, requireSeller, productController.getMyProducts);
+router.get('/mine/export', verifyToken, requireSeller, productController.exportMyProducts);
 router.get('/mine/:id', verifyToken, requireSeller, productController.getMyProductById);
 router.post('/images', verifyToken, requireSeller, upload.single('image'), productController.uploadProductImage);
+router.get('/stores/:sellerId', productController.getPublicStore);
 router.get('/:id', productController.getProductById);
-router.post('/', verifyToken, requireSeller, productController.createProduct);
-router.put('/:id', verifyToken, productController.updateProduct);
+router.post('/', verifyToken, requireSeller, validate(createProductSchema), productController.createProduct);
+router.put('/:id', verifyToken, validate(updateProductSchema), productController.updateProduct);
 router.delete('/:id', verifyToken, productController.deleteProduct);
 
 module.exports = router;

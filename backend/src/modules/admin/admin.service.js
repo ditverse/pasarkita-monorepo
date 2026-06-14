@@ -10,7 +10,7 @@ const USER_SORTS = {
   name_asc: ['name', true],
   name_desc: ['name', false],
 };
-const PAID_STATUSES = new Set(['paid', 'shipped', 'delivered']);
+const PAID_STATUSES = new Set(['paid', 'processing', 'shipped', 'delivered']);
 const REPORT_TYPES = new Set(['orders', 'users', 'sellers', 'products', 'analytics']);
 
 const parsePositiveInt = (value, fallback, max = 100) => {
@@ -1168,7 +1168,7 @@ const buildReport = async (query) => {
       .select('id, buyer_id, status, subtotal, fee_marketplace, total, transaction_id, tracking_id, created_at, updated_at, buyer:users!buyer_id(name, email)')
       .order('created_at', { ascending: false })
       .limit(5000);
-    if (query.status && ['pending', 'paid', 'shipped', 'delivered', 'payment_failed'].includes(query.status)) {
+    if (query.status && ['pending', 'paid', 'processing', 'shipped', 'delivered', 'payment_failed'].includes(query.status)) {
       dbQuery = dbQuery.eq('status', query.status);
     }
     if (query.start) dbQuery = dbQuery.gte('created_at', reportDateIso(query.start));

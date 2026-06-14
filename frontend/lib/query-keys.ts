@@ -1,11 +1,16 @@
 export const queryKeys = {
   products: {
     home: (search: string) => ['products', 'home', search] as const,
-    seller: (sellerId: string | undefined, search: string) =>
-      ['products', 'seller', sellerId ?? null, search] as const,
+    seller: (sellerId: string | undefined, ...filters: unknown[]) =>
+      ['products', 'seller', sellerId ?? null, ...filters] as const,
   },
   orders: {
     list: (scope: string, ...filters: unknown[]) => ['orders', scope, ...filters] as const,
+  },
+  seller: {
+    analytics: (period: string, dateFrom?: string, dateTo?: string) =>
+      ['seller', 'analytics', period, dateFrom ?? null, dateTo ?? null] as const,
+    profile: () => ['seller', 'profile'] as const,
   },
   admin: {
     users: (

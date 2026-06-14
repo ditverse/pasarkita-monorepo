@@ -12,6 +12,10 @@ const adminRoutes = require('./modules/admin/admin.routes');
 const feeRoutes = require('./modules/fee/fee.routes');
 const smartbankRoutes = require('./modules/smartbank/smartbank.routes');
 const ratingRoutes = require('./modules/ratings/rating.routes');
+const notificationRoutes = require('./modules/notifications/notification.routes');
+const sellerRoutes = require('./modules/seller/seller.routes');
+const profileRoutes = require('./modules/profile/profile.routes');
+const complaintRoutes = require('./modules/complaints/complaint.routes');
 
 const app = express();
 
@@ -24,6 +28,7 @@ app.get('/api/health', (req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/profile', profileRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/checkout', checkoutRoutes);
 app.use('/api/orders', orderRoutes);
@@ -31,6 +36,9 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/fee', feeRoutes);
 app.use('/api/smartbank', smartbankRoutes);
 app.use('/api/ratings', ratingRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/seller', sellerRoutes);
+app.use('/api/complaints', complaintRoutes);
 
 app.use((req, res, next) => {
   res.status(404).json({ success: false, message: 'Endpoint not found' });

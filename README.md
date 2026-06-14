@@ -144,6 +144,7 @@ pasarkita/
 │   │   ├── middlewares/    # auth, validate, errorHandler
 │   │   ├── integrations/   # smartbank, logistikita
 │   │   └── utils/          # fee, response
+│   ├── database/           # Full schema, migration, dan verifikasi Supabase
 │   ├── vercel.json         # Konfigurasi Vercel routing
 │   └── package.json
 │
@@ -197,7 +198,26 @@ cp .env.example .env.development
 npm run dev       # Berjalan di port 3001
 ```
 
-### 3. Setup Frontend
+### 3. Setup Database
+
+Untuk project Supabase baru, jalankan:
+
+```text
+backend/database/schema/000_full_schema.sql
+```
+
+Untuk database yang sudah ada, jalankan migration berurutan melalui Supabase SQL
+Editor atau:
+
+```bash
+cd backend
+DATABASE_URL='postgresql://...' npm run db:migrate
+npm run db:verify
+```
+
+Panduan lengkap tersedia di `backend/database/README.md`.
+
+### 4. Setup Frontend
 
 ```bash
 cd frontend
@@ -207,7 +227,7 @@ cp .env.example .env.local
 npm run dev       # Berjalan di port 3000
 ```
 
-### 4. Jalankan Mock Server (opsional, untuk dev lokal)
+### 5. Jalankan Mock Server (opsional, untuk dev lokal)
 
 ```bash
 cd backend/mock
@@ -239,6 +259,10 @@ GATEWAY_BASE_URL=http://localhost:4000
 NODE_ENV=development
 PORT=3001
 ```
+
+`SMARTBANK_URL` dan `LOGISTIKITA_URL` hanya digunakan untuk mock ketika
+`NODE_ENV=development`. Environment staging/production selalu melalui
+`GATEWAY_BASE_URL` sesuai aturan integrasi tugas besar.
 
 ### Frontend (`frontend/.env.local`)
 

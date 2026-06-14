@@ -131,7 +131,7 @@ export default function AdminReportsPage() {
                   <select className="pk-select" value={status} onChange={(event) => { setStatus(event.target.value); setPreview(null); }}>
                     <option value="">Semua status</option>
                     {type === 'orders' ? (
-                      <><option value="pending">Pending</option><option value="paid">Paid</option><option value="shipped">Shipped</option><option value="delivered">Delivered</option><option value="payment_failed">Payment failed</option></>
+                      <><option value="pending">Pending</option><option value="paid">Paid</option><option value="processing">Processing</option><option value="shipped">Shipped</option><option value="delivered">Delivered</option><option value="payment_failed">Payment failed</option></>
                     ) : (
                       <><option value="active">Aktif</option><option value="inactive">Nonaktif</option></>
                     )}

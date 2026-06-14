@@ -36,4 +36,17 @@ const requireSeller = (req, res, next) => {
   next();
 };
 
-module.exports = { verifyToken, requireSuperadmin, requireSeller };
+const requireRole = (role) => {
+  return (req, res, next) => {
+    if (req.user?.role !== role && req.user?.role !== 'superadmin') {
+      return res.status(403).json({
+        success: false,
+        message: `Akses ditolak. Membutuhkan role: ${role}`,
+        error: { code: 'FORBIDDEN' }
+      });
+    }
+    next();
+  };
+};
+
+module.exports = { verifyToken, requireAuth: verifyToken, requireSuperadmin, requireSeller, requireRole };

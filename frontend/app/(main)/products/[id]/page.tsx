@@ -178,7 +178,11 @@ export default function ProductDetailPage() {
               <div style={{ fontSize: 14, fontWeight: 500 }}>{p.seller?.name || "Toko Anonim"}</div>
               <div style={{ fontSize: 12, color: 'var(--pk-text-hint)' }}>Penjual terverifikasi</div>
             </div>
-            <button className="pk-btn pk-btn-secondary pk-btn-sm">Kunjungi toko</button>
+            {p.seller?.id && (
+              <Link href={`/stores/${p.seller.id}`} className="pk-btn pk-btn-secondary pk-btn-sm">
+                Kunjungi toko
+              </Link>
+            )}
           </div>
 
           <div style={{ marginTop: 24 }}>

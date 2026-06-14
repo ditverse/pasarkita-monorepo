@@ -2,6 +2,7 @@ const supabase = require('../../config/supabase');
 const { calculateFee } = require('../../utils/fee');
 const { sendPaymentRequest } = require('../../integrations/smartbank');
 const { triggerShipping } = require('../../integrations/logistikita');
+const { notifySellerNewOrder, notifySellerLowStock } = require('../notifications/notification.service');
 
 /**
  * Proses checkout multi-item.
@@ -17,7 +18,7 @@ const { triggerShipping } = require('../../integrations/logistikita');
  *    - Sukses → update order ke 'paid', trigger LogistiKita
  *    - Gagal  → update order ke 'payment_failed', rollback stok
  */
-const processCheckout = async (buyerId, payload) => {
+const processLegacyCheckout = async (buyerId, payload) => {
   const { items, shipping_address } = payload;
 
   if (!items || !Array.isArray(items) || items.length === 0) {
@@ -99,10 +100,22 @@ const processCheckout = async (buyerId, payload) => {
   for (const item of items) {
     const product = products.find((p) => p.id === item.product_id);
     const newStock = product.stock - item.qty;
-    await supabase
+    const { data: updatedProduct } = await supabase
       .from('products')
       .update({ stock: newStock, ...(newStock <= 0 ? { is_active: false } : {}) })
-      .eq('id', item.product_id);
+      .eq('id', item.product_id)
+      .select('id, name, seller_id, minimum_stock')
+      .single();
+    // Notifikasi stok menipis/habis (fire-and-forget)
+    if (updatedProduct) {
+      void notifySellerLowStock(
+        updatedProduct.id,
+        updatedProduct.name,
+        updatedProduct.seller_id,
+        newStock,
+        updatedProduct.minimum_stock ?? 0
+      );
+    }
   }
 
   // ── 6. Kirim payment ke SmartBank ───────────────────────────
@@ -127,6 +140,9 @@ const processCheckout = async (buyerId, payload) => {
       .update({ status: 'paid', transaction_id: transactionId })
       .eq('id', order.id);
 
+    // Notifikasi order masuk ke seller (fire-and-forget)
+    void notifySellerNewOrder(order.id, orderItems);
+
     // ── 7. Trigger LogistiKita ─────────────────────────────────
     try {
       const shippingResult = await triggerShipping({
@@ -143,13 +159,26 @@ const processCheckout = async (buyerId, payload) => {
       if (trackingId) {
         await supabase
           .from('orders')
-          .update({ tracking_id: trackingId })
+          .update({
+            tracking_id: trackingId,
+            shipping_sync_status: 'synced',
+            shipping_sync_error: null,
+            shipping_sync_updated_at: new Date().toISOString(),
+          })
           .eq('id', order.id);
       }
     } catch (logisticsErr) {
       // LogistiKita gagal tidak membatalkan order — order tetap 'paid'
       // Admin bisa trigger ulang secara manual
       console.error('[Checkout] LogistiKita gagal (order tetap paid):', logisticsErr.message);
+      await supabase
+        .from('orders')
+        .update({
+          shipping_sync_status: 'failed',
+          shipping_sync_error: logisticsErr.message || 'LogistiKita tidak merespons',
+          shipping_sync_updated_at: new Date().toISOString(),
+        })
+        .eq('id', order.id);
     }
 
     return {
@@ -163,6 +192,8 @@ const processCheckout = async (buyerId, payload) => {
         tracking_id: trackingId,
         status: trackingStatus,
       },
+      hardening_active: false,
+      idempotent_replay: false,
     };
 
   } catch (paymentErr) {
@@ -192,6 +223,170 @@ const processCheckout = async (buyerId, payload) => {
       details: paymentErr.details,
       retry_after: paymentErr.retry_after,
     };
+  }
+};
+
+const isHardeningUnavailable = (error) =>
+  error?.code === 'PGRST202' ||
+  error?.code === '42883' ||
+  error?.message?.includes('create_checkout_order');
+
+const mapAtomicCheckoutError = (error) => {
+  const message = error?.message || '';
+  if (message.includes('INSUFFICIENT_STOCK')) {
+    const [, productName, available, requested] = message.match(/INSUFFICIENT_STOCK:([^:]+):(\d+):(\d+)/) || [];
+    return {
+      status: 400,
+      code: 'INSUFFICIENT_STOCK',
+      message: 'Stok tidak mencukupi',
+      details: productName
+        ? `Produk '${productName}': stok tersedia ${available}, diminta ${requested}`
+        : null,
+    };
+  }
+  if (message.includes('PRODUCT_NOT_FOUND')) {
+    return { status: 404, code: 'NOT_FOUND', message: 'Produk tidak ditemukan atau tidak aktif' };
+  }
+  if (message.includes('INVALID_QUANTITY') || message.includes('ITEMS_REQUIRED')) {
+    return { status: 400, code: 'VALIDATION_ERROR', message: 'Item checkout tidak valid' };
+  }
+  return { status: 500, code: 'INTERNAL_ERROR', message: 'Gagal membuat checkout atomik' };
+};
+
+const processAtomicCheckout = async (buyerId, payload) => {
+  const { data: checkoutResult, error } = await supabase.rpc('create_checkout_order', {
+    p_buyer_id: buyerId,
+    p_idempotency_key: payload.idempotency_key,
+    p_shipping_address: payload.shipping_address.trim(),
+    p_items: payload.items,
+  });
+
+  if (error) {
+    if (isHardeningUnavailable(error)) throw error;
+    throw mapAtomicCheckoutError(error);
+  }
+
+  const order = checkoutResult?.order;
+  if (!order) {
+    throw { status: 500, code: 'INTERNAL_ERROR', message: 'Checkout atomik tidak mengembalikan order' };
+  }
+
+  if (!checkoutResult.created) {
+    return {
+      order_id: order.id,
+      status: order.status,
+      subtotal: order.subtotal,
+      fee_marketplace: order.fee_marketplace,
+      total: order.total,
+      transaction_id: order.transaction_id,
+      shipping: {
+        tracking_id: order.tracking_id,
+        status: order.tracking_id ? 'created' : 'pending',
+      },
+      hardening_active: true,
+      idempotent_replay: true,
+    };
+  }
+
+  let transactionId = null;
+  let trackingId = null;
+  let trackingStatus = 'pending';
+
+  let paymentResult;
+  try {
+    paymentResult = await sendPaymentRequest({
+      orderId: order.id,
+      fromUser: buyerId,
+      amount: order.total,
+      feeMarketplace: order.fee_marketplace,
+      items: payload.items,
+    });
+  } catch (paymentError) {
+    await supabase.from('orders').update({ status: 'payment_failed' }).eq('id', order.id);
+    const releaseResult = await supabase.rpc('release_checkout_stock', { p_order_id: order.id });
+    if (releaseResult.error) {
+      console.error('[Checkout] Gagal melepas reservasi stok:', releaseResult.error);
+    }
+    throw {
+      status: paymentError.status ?? 402,
+      code: paymentError.code ?? 'PAYMENT_FAILED',
+      message: paymentError.message ?? 'Pembayaran gagal',
+      details: paymentError.details,
+      retry_after: paymentError.retry_after,
+    };
+  }
+
+  transactionId = paymentResult.data?.transaction_id ?? null;
+  const { error: paidError } = await supabase
+    .from('orders')
+    .update({ status: 'paid', transaction_id: transactionId, stock_reserved: false })
+    .eq('id', order.id);
+
+  if (paidError) {
+    console.error('[Checkout] Payment sukses tetapi order gagal diperbarui:', paidError);
+    throw {
+      status: 500,
+      code: 'PAYMENT_RECONCILIATION_REQUIRED',
+      message: 'Pembayaran diterima, tetapi status order perlu direkonsiliasi oleh admin',
+      details: `Order ID: ${order.id}`,
+    };
+  }
+
+  // Notifikasi order masuk ke seller (fire-and-forget)
+  void notifySellerNewOrder(order.id, payload.items);
+
+  try {
+    const shippingResult = await triggerShipping({
+      orderId: order.id,
+      fromAddress: 'Gudang PasarKita',
+      toAddress: payload.shipping_address.trim(),
+      itemsCount: payload.items.reduce((sum, item) => sum + item.qty, 0),
+    });
+    trackingId = shippingResult.data?.tracking_id ?? null;
+    trackingStatus = shippingResult.data?.status ?? 'created';
+    if (trackingId) {
+      await supabase
+        .from('orders')
+        .update({
+          tracking_id: trackingId,
+          shipping_sync_status: 'synced',
+          shipping_sync_error: null,
+          shipping_sync_updated_at: new Date().toISOString(),
+        })
+        .eq('id', order.id);
+    }
+  } catch (logisticsError) {
+    console.error('[Checkout] LogistiKita gagal (order tetap paid):', logisticsError.message);
+    await supabase
+      .from('orders')
+      .update({
+        shipping_sync_status: 'failed',
+        shipping_sync_error: logisticsError.message || 'LogistiKita tidak merespons',
+        shipping_sync_updated_at: new Date().toISOString(),
+      })
+      .eq('id', order.id);
+  }
+
+  return {
+    order_id: order.id,
+    status: 'paid',
+    subtotal: order.subtotal,
+    fee_marketplace: order.fee_marketplace,
+    total: order.total,
+    transaction_id: transactionId,
+    shipping: { tracking_id: trackingId, status: trackingStatus },
+    hardening_active: true,
+    idempotent_replay: false,
+  };
+};
+
+const processCheckout = async (buyerId, payload) => {
+  try {
+    return await processAtomicCheckout(buyerId, payload);
+  } catch (error) {
+    if (!isHardeningUnavailable(error)) throw error;
+    console.warn('[Checkout] migration 003_checkout_hardening.sql belum aktif; memakai checkout legacy.');
+    return processLegacyCheckout(buyerId, payload);
   }
 };
 

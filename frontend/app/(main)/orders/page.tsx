@@ -15,6 +15,7 @@ const TABS = [
   { id: 'all', label: 'Semua' },
   { id: 'pending', label: 'Pending' },
   { id: 'paid', label: 'Dibayar' },
+  { id: 'processing', label: 'Diproses' },
   { id: 'shipped', label: 'Dikirim' },
   { id: 'delivered', label: 'Selesai' },
   { id: 'payment_failed', label: 'Gagal' },
@@ -95,7 +96,21 @@ export default function OrdersListPage() {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {loading && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--pk-text-hint)' }}>Memuat pesanan...</div>}
+        {loading && Array.from({ length: 3 }).map((_, index) => (
+          <div key={index} className="pk-card" style={{ padding: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+              <div className="pk-skel" style={{ width: 150, height: 18 }} />
+              <div className="pk-skel" style={{ width: 100, height: 16 }} />
+            </div>
+            <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+              <div className="pk-skel" style={{ width: 56, height: 56 }} />
+              <div style={{ flex: 1 }}>
+                <div className="pk-skel" style={{ width: '55%', height: 16, marginBottom: 8 }} />
+                <div className="pk-skel" style={{ width: '35%', height: 12 }} />
+              </div>
+            </div>
+          </div>
+        ))}
 
         {!loading && isError && (
           <div style={{ padding: '40px', textAlign: 'center', border: '1px dashed var(--pk-border)', borderRadius: 12, color: 'var(--pk-text-secondary)' }}>

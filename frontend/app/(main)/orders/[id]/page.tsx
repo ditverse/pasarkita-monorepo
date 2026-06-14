@@ -13,12 +13,14 @@ import { ratingsApi } from '@/lib/api/ratings';
 import { useAuthStore } from '@/store/auth';
 import { toast } from 'sonner';
 import { Order } from '@/types/api';
+import ComplaintPanel from './complaint-panel';
 
 const STEPS_MAP: Record<string, number> = {
   pending: 0,
   paid: 1,
-  shipped: 2,
-  delivered: 3,
+  processing: 2,
+  shipped: 3,
+  delivered: 4,
   cancelled: -1,
   payment_failed: -1,
 };
@@ -30,6 +32,80 @@ const TRACKING_STATUS_LABEL: Record<string, string> = {
   delivered: 'Terkirim',
 };
 const TRACKING_STEPS = ['created', 'picked_up', 'in_transit', 'delivered'];
+
+function TransparencyPanel({ order }: { order: Order }) {
+  const paymentFailed = order.status === 'payment_failed';
+  const paymentConfirmed = Boolean(order.transaction_id);
+  const shippingConfirmed = Boolean(order.tracking_id);
+  const nodes = [
+    {
+      name: 'PasarKita',
+      state: 'Tercatat',
+      detail: `Order dibuat ${new Date(order.created_at).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' })}.`,
+      tone: 'success',
+    },
+    {
+      name: 'SmartBank',
+      state: paymentFailed ? 'Pembayaran gagal' : paymentConfirmed ? 'Terkonfirmasi' : 'Menunggu bukti',
+      detail: paymentFailed
+        ? 'SmartBank menolak atau tidak menyelesaikan payment request.'
+        : paymentConfirmed
+          ? `Transaction ID ${order.transaction_id}.`
+          : 'Transaction ID belum diterima oleh PasarKita.',
+      tone: paymentFailed ? 'danger' : paymentConfirmed ? 'success' : 'warning',
+    },
+    {
+      name: 'LogistiKita',
+      state: shippingConfirmed ? 'Pengiriman terbentuk' : 'Belum terverifikasi',
+      detail: shippingConfirmed
+        ? `Tracking ID ${order.tracking_id}.`
+        : paymentConfirmed
+          ? 'Pembayaran tercatat, tetapi tracking ID belum tersedia.'
+          : 'Pengiriman dibuat setelah pembayaran berhasil dikonfirmasi.',
+      tone: shippingConfirmed ? 'success' : paymentConfirmed ? 'warning' : 'neutral',
+    },
+  ];
+
+  const colors: Record<string, { bg: string; text: string; dot: string }> = {
+    success: { bg: 'var(--pk-success-soft)', text: 'var(--pk-success)', dot: 'var(--pk-success)' },
+    warning: { bg: 'var(--pk-warning-soft)', text: 'var(--pk-warning)', dot: 'var(--pk-warning)' },
+    danger: { bg: 'var(--pk-danger-soft)', text: 'var(--pk-danger)', dot: 'var(--pk-danger)' },
+    neutral: { bg: 'var(--pk-bg-subtle)', text: 'var(--pk-text-secondary)', dot: 'var(--pk-border-strong)' },
+  };
+
+  return (
+    <div className="pk-card" style={{ padding: 24, marginBottom: 24 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--pk-text-hint)' }}>
+        Pusat Transparansi Pesanan
+      </div>
+      <p style={{ fontSize: 13, color: 'var(--pk-text-secondary)', lineHeight: 1.55, margin: '8px 0 18px' }}>
+        Ringkasan ini hanya menampilkan bukti ID yang telah diterima PasarKita dari setiap layanan.
+      </p>
+      <div className="pk-store-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+        {nodes.map((node, index) => {
+          const color = colors[node.tone];
+          return (
+            <div key={node.name} style={{ position: 'relative', padding: 16, border: '1px solid var(--pk-border)', borderRadius: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 9, height: 9, borderRadius: '50%', background: color.dot, flexShrink: 0 }} />
+                <strong style={{ fontSize: 14 }}>{node.name}</strong>
+                {index < nodes.length - 1 && (
+                  <span aria-hidden="true" style={{ marginLeft: 'auto', color: 'var(--pk-text-hint)' }}>→</span>
+                )}
+              </div>
+              <div style={{ display: 'inline-block', marginTop: 12, padding: '3px 8px', borderRadius: 999, background: color.bg, color: color.text, fontSize: 11, fontWeight: 600 }}>
+                {node.state}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--pk-text-secondary)', lineHeight: 1.5, marginTop: 9, overflowWrap: 'anywhere' }}>
+                {node.detail}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function Row({ label, value, bold, muted }: { label: string; value: string; bold?: boolean; muted?: boolean }) {
   return (
@@ -102,7 +178,8 @@ export default function OrderDetailPage() {
     setConfirming(true);
     try {
       await ratingsApi.confirmDelivered(o.id);
-      setOrder((prev) => prev ? { ...prev, status: 'delivered' } : prev);
+      const refreshedOrder = await ordersApi.getById(o.id);
+      setOrder(refreshedOrder.data.data);
       toast.success('Pesanan dikonfirmasi selesai!');
       // Tampilkan modal rating setelah konfirmasi
       setShowRating(true);
@@ -133,20 +210,29 @@ export default function OrderDetailPage() {
   });
 
   const activeIdx = STEPS_MAP[o.status] ?? 0;
-  const orderUpdatedAt = new Date(o.updated_at ?? o.created_at).toLocaleString('id-ID', {
-    year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-  });
-
   const copyValue = async (label: string, value: string) => {
     await navigator.clipboard.writeText(value);
     toast.success(`${label} disalin`);
   };
 
+  const historyByStatus = new Map(
+    (o.status_history ?? []).map((event) => [event.status, event])
+  );
+  const formatStatusTime = (status: Order['status'], fallback?: string) => {
+    const value = historyByStatus.get(status)?.created_at ?? fallback;
+    return value
+      ? new Date(value).toLocaleString('id-ID', {
+          year: 'numeric', month: 'short', day: 'numeric',
+          hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta',
+        })
+      : '-';
+  };
   const STEPS = [
-    { label: 'Pending', date: dateStr },
-    { label: 'Dibayar', date: o.status === 'paid' ? orderUpdatedAt : activeIdx > 1 ? 'Waktu historis belum direkam' : '-' },
-    { label: 'Dikirim', date: o.status === 'shipped' ? orderUpdatedAt : activeIdx > 2 ? 'Waktu historis belum direkam' : '-' },
-    { label: 'Selesai', date: o.status === 'delivered' ? orderUpdatedAt : '-' },
+    { label: 'Pending', date: formatStatusTime('pending', o.created_at) },
+    { label: 'Dibayar', date: formatStatusTime('paid') },
+    { label: 'Diproses', date: formatStatusTime('processing', o.processing_at ?? undefined) },
+    { label: 'Dikirim', date: formatStatusTime('shipped') },
+    { label: 'Selesai', date: formatStatusTime('delivered') },
   ];
 
   return (
@@ -169,6 +255,31 @@ export default function OrderDetailPage() {
           <button type="button" className="pk-btn pk-btn-secondary" onClick={() => window.print()}>
             <Icon name="clipboard" size={14} /> Cetak Invoice
           </button>
+          {/* Tombol batal pesanan — hanya buyer, hanya saat pending */}
+          {user?.role === 'buyer' && o.status === 'pending' && (
+            <button
+              className="pk-btn pk-btn-ghost"
+              style={{ color: 'var(--pk-danger)' }}
+              disabled={confirming}
+              onClick={async () => {
+                if (!window.confirm('Yakin ingin membatalkan pesanan ini? Stok akan dikembalikan.')) return;
+                setConfirming(true);
+                try {
+                  await ordersApi.cancel(o.id);
+                  const refreshed = await ordersApi.getById(o.id);
+                  setOrder(refreshed.data.data);
+                  toast.success('Pesanan berhasil dibatalkan');
+                } catch (e: unknown) {
+                  const error = e as { response?: { data?: { message?: string } } };
+                  toast.error(error.response?.data?.message || 'Gagal membatalkan pesanan');
+                } finally {
+                  setConfirming(false);
+                }
+              }}
+            >
+              Batalkan Pesanan
+            </button>
+          )}
           {/* Tombol konfirmasi diterima — hanya buyer, hanya saat shipped */}
           {user?.role === 'buyer' && o.status === 'shipped' && (
             <button
@@ -226,7 +337,20 @@ export default function OrderDetailPage() {
         </div>
       )}
 
-      <div className="pk-order-detail-layout" style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 24 }}>
+      {o.status === 'payment_failed' && (
+        <div className="pk-card" style={{ padding: 20, marginBottom: 24, borderColor: 'var(--pk-danger)' }}>
+          <div style={{ fontWeight: 600, color: 'var(--pk-danger)' }}>Pembayaran gagal</div>
+          <div style={{ fontSize: 13, color: 'var(--pk-text-secondary)', marginTop: 5 }}>
+            Tercatat {formatStatusTime('payment_failed')}. Stok yang direservasi telah dikembalikan.
+          </div>
+        </div>
+      )}
+
+      <TransparencyPanel order={o} />
+      
+      <ComplaintPanel order={o} userRole={user?.role} />
+
+      <div className="pk-order-detail-layout" style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 24, marginTop: 24 }}>
         {/* Items */}
         <div className="pk-card" style={{ padding: 24 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--pk-text-hint)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 16 }}>

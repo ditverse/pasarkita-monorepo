@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -20,6 +20,7 @@ function BrowseProductsContent() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [searchInput, setSearchInput] = useState(searchParams.get('search') ?? '');
+  const restoredScroll = useRef(false);
   const debouncedSearch = useDebounce(searchInput, 400);
 
   const category = searchParams.get('category') ?? '';
@@ -82,6 +83,16 @@ function BrowseProductsContent() {
     return Array.from({ length: Math.max(0, end - start + 1) }, (_, index) => start + index);
   }, [page, pagination.total_pages]);
   const hasFilters = Boolean(debouncedSearch || category || minPrice || maxPrice !== 15000000 || !inStock || sort !== 'created_desc');
+  const scrollStorageKey = `pk-catalog-scroll:${pathname}?${searchParams.toString()}`;
+
+  useEffect(() => {
+    if (restoredScroll.current || productsQuery.isLoading) return;
+    const savedScroll = window.sessionStorage.getItem(scrollStorageKey);
+    if (savedScroll) {
+      requestAnimationFrame(() => window.scrollTo({ top: Number(savedScroll), behavior: 'auto' }));
+    }
+    restoredScroll.current = true;
+  }, [productsQuery.isLoading, scrollStorageKey]);
 
   const resetFilters = () => {
     setSearchInput('');
@@ -160,6 +171,8 @@ function BrowseProductsContent() {
           <option value="created_desc">Terbaru</option>
           <option value="price_asc">Harga terendah</option>
           <option value="price_desc">Harga tertinggi</option>
+          <option value="rating_desc">Rating tertinggi</option>
+          <option value="sold_desc">Paling banyak terjual</option>
         </select>
 
         {hasFilters && (
@@ -228,7 +241,11 @@ function BrowseProductsContent() {
                   <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 2 }}>
                     <WishlistButton product={product} compact />
                   </div>
-                <Link href={`/products/${product.id}`} style={{ textDecoration: 'none', display: 'block' }}>
+                <Link
+                  href={`/products/${product.id}`}
+                  onClick={() => window.sessionStorage.setItem(scrollStorageKey, String(window.scrollY))}
+                  style={{ textDecoration: 'none', display: 'block' }}
+                >
                   <ProductImage src={product.image_url} alt={product.name} height={160} style={{ borderRadius: 0 }} />
                   <div style={{ padding: 14 }}>
                     <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--pk-text)' }}>
@@ -239,6 +256,15 @@ function BrowseProductsContent() {
                       <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--pk-text)' }}>{formatIDR(product.price)}</div>
                       {product.stock <= 5 && <span className="pk-badge pk-badge-neutral" style={{ fontSize: 11 }}>Sisa {product.stock}</span>}
                     </div>
+                    {(sort === 'rating_desc' || sort === 'sold_desc') && (
+                      <div style={{ marginTop: 8, fontSize: 11, color: 'var(--pk-text-hint)' }}>
+                        {sort === 'rating_desc'
+                          ? product.rating_average === null
+                            ? 'Belum ada rating'
+                            : `Rating ${product.rating_average} (${product.rating_count} ulasan)`
+                          : `${product.sold_units ?? 0} unit terjual`}
+                      </div>
+                    )}
                   </div>
                 </Link>
               </div>

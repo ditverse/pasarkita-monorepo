@@ -4,18 +4,25 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useQuery } from '@tanstack/react-query';
 import * as z from 'zod';
 import { toast } from 'sonner';
 import Avatar from '@/components/pk/avatar';
 import Icon from '@/components/pk/icon';
 import { useAuthStore } from '@/store/auth';
 import { authApi } from '@/lib/api/auth';
+import { ordersApi } from '@/lib/api/orders';
+import { calculateWeeklySpending, getCurrentWeekRange, getWeeklyBudget, saveWeeklyBudget } from '@/lib/buyer-budget';
+import { formatIDR } from '@/lib/format';
+import { Order } from '@/types/api';
+import PanelAddressBook from './address-book';
 
 // ─── Schemas ────────────────────────────────────────────────────────────────
 
 const infoSchema = z.object({
   name: z.string().min(2, 'Nama minimal 2 karakter'),
   email: z.string().email('Email tidak valid'),
+  phone: z.string().optional().nullable(),
 });
 type InfoForm = z.infer<typeof infoSchema>;
 
@@ -40,7 +47,7 @@ function FieldError({ msg }: { msg?: string }) {
 
 // ─── Panel: Informasi Pribadi ─────────────────────────────────────────────────
 
-function PanelInfo({ user }: { user: { name: string; email: string } }) {
+function PanelInfo({ user }: { user: { name: string; email: string; phone?: string | null } }) {
   const setLogin = useAuthStore((s) => s.login);
   const token = useAuthStore((s) => s.token);
 
@@ -51,25 +58,26 @@ function PanelInfo({ user }: { user: { name: string; email: string } }) {
     formState: { errors, isDirty, isSubmitting },
   } = useForm<InfoForm>({
     resolver: zodResolver(infoSchema),
-    defaultValues: { name: user.name, email: user.email },
+    defaultValues: { name: user.name, email: user.email, phone: user.phone || '' },
   });
 
   useEffect(() => {
-    reset({ name: user.name, email: user.email });
-  }, [user.name, user.email, reset]);
+    reset({ name: user.name, email: user.email, phone: user.phone || '' });
+  }, [user.name, user.email, user.phone, reset]);
 
   const onSubmit = async (data: InfoForm) => {
     try {
       const res = await authApi.updateProfile(data);
       const updatedUser = res.data.data;
       if (token) setLogin(token, updatedUser);
-      reset({ name: updatedUser.name, email: updatedUser.email });
+      reset({ name: updatedUser.name, email: updatedUser.email, phone: updatedUser.phone || '' });
       toast.success('Perubahan disimpan');
     } catch (error: unknown) {
       const apiError = error as { response?: { data?: { message?: string } } };
       toast.error(apiError.response?.data?.message ?? 'Gagal menyimpan perubahan');
     }
   };
+
 
   return (
     <div className="pk-card" style={{ padding: 32 }}>
@@ -121,14 +129,17 @@ function PanelInfo({ user }: { user: { name: string; email: string } }) {
         {/* Email */}
         <div style={{ marginTop: 14 }}>
           <label className="pk-label">Email</label>
-          <input {...register('email')} className="pk-input" style={{ marginBottom: 4 }} />
+          <input {...register('email')} className="pk-input" style={{ marginBottom: 4 }} disabled />
           <FieldError msg={errors.email?.message} />
         </div>
 
-        <div style={{ marginTop: 18, padding: 14, borderRadius: 8, background: 'var(--pk-bg-subtle)', color: 'var(--pk-text-secondary)', fontSize: 12, lineHeight: 1.55 }}>
-          Nomor telepon, foto profil, dan buku alamat belum dapat disimpan karena
-          kolom database-nya belum tersedia. Alamat pengiriman tetap dapat diisi saat checkout.
+        {/* Telepon */}
+        <div style={{ marginTop: 14 }}>
+          <label className="pk-label">Nomor Telepon</label>
+          <input {...register('phone')} className="pk-input" style={{ marginBottom: 4 }} />
+          <FieldError msg={errors.phone?.message} />
         </div>
+
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 24 }}>
           <button
@@ -232,6 +243,131 @@ function PanelSecurity() {
   );
 }
 
+// ─── Panel: Anggaran Belanja ─────────────────────────────────────────────────
+
+function PanelBudget({ userId }: { userId: string }) {
+  const [savedBudget, setSavedBudget] = useState<number | null>(() => getWeeklyBudget(userId));
+  const [budgetInput, setBudgetInput] = useState(() => {
+    const budget = getWeeklyBudget(userId);
+    return budget ? String(budget) : '';
+  });
+
+  const ordersQuery = useQuery({
+    queryKey: ['orders', 'buyer-budget', userId],
+    queryFn: async (): Promise<Order[]> => {
+      const response = await ordersApi.getAll({ limit: 100, sort: 'created_desc' });
+      return response.data.data;
+    },
+  });
+
+  const spending = calculateWeeklySpending(ordersQuery.data ?? []);
+  const remaining = savedBudget == null ? null : savedBudget - spending;
+  const progress = savedBudget == null ? 0 : Math.min(100, Math.round((spending / savedBudget) * 100));
+  const { start, end } = getCurrentWeekRange();
+  const periodEnd = new Date(end);
+  periodEnd.setDate(periodEnd.getDate() - 1);
+
+  const saveBudget = () => {
+    const normalized = Number(budgetInput.replace(/[^\d]/g, ''));
+    if (!Number.isFinite(normalized) || normalized < 10000) {
+      toast.error('Batas mingguan minimal Rp 10.000');
+      return;
+    }
+
+    saveWeeklyBudget(userId, normalized);
+    setSavedBudget(normalized);
+    setBudgetInput(String(normalized));
+    toast.success('Anggaran mingguan disimpan');
+  };
+
+  const removeBudget = () => {
+    saveWeeklyBudget(userId, null);
+    setSavedBudget(null);
+    setBudgetInput('');
+    toast.success('Anggaran mingguan dinonaktifkan');
+  };
+
+  return (
+    <div className="pk-card" style={{ padding: 32 }}>
+      <h2 style={{ fontSize: 18, fontWeight: 600, margin: '0 0 4px' }}>Anggaran Belanja Sehat</h2>
+      <p style={{ fontSize: 13, color: 'var(--pk-text-secondary)', margin: '0 0 24px', lineHeight: 1.55 }}>
+        Tetapkan pengingat batas belanja mingguan. PasarKita tetap tidak akan memblokir transaksi Anda.
+      </p>
+
+      <label className="pk-label" htmlFor="weekly-budget">Batas belanja per minggu</label>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+        <div style={{ position: 'relative', flex: 1 }}>
+          <span style={{ position: 'absolute', left: 12, top: 10, color: 'var(--pk-text-hint)', fontSize: 13 }}>Rp</span>
+          <input
+            id="weekly-budget"
+            className="pk-input"
+            inputMode="numeric"
+            value={budgetInput}
+            onChange={(event) => setBudgetInput(event.target.value.replace(/[^\d]/g, ''))}
+            placeholder="500000"
+            style={{ paddingLeft: 36 }}
+          />
+        </div>
+        <button type="button" className="pk-btn pk-btn-primary" onClick={saveBudget}>
+          Simpan
+        </button>
+      </div>
+
+      <div style={{ marginTop: 24, padding: 20, borderRadius: 12, background: 'var(--pk-bg-subtle)' }}>
+        <div style={{ fontSize: 12, color: 'var(--pk-text-hint)', marginBottom: 6 }}>
+          Senin {start.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+          {' - '}
+          Minggu {periodEnd.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+        </div>
+        {ordersQuery.isLoading ? (
+          <div className="pk-skel" style={{ width: '100%', height: 76 }} />
+        ) : ordersQuery.isError ? (
+          <div style={{ color: 'var(--pk-danger)', fontSize: 13 }}>
+            Riwayat belanja belum dapat dihitung. Coba muat ulang halaman.
+          </div>
+        ) : (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+              <div>
+                <div style={{ fontSize: 12, color: 'var(--pk-text-hint)' }}>Sudah dibelanjakan</div>
+                <div style={{ fontSize: 20, fontWeight: 700, marginTop: 3 }}>{formatIDR(spending)}</div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 12, color: 'var(--pk-text-hint)' }}>Sisa anggaran</div>
+                <div style={{ fontSize: 20, fontWeight: 700, marginTop: 3, color: remaining != null && remaining < 0 ? 'var(--pk-danger)' : 'var(--pk-text)' }}>
+                  {savedBudget == null ? 'Belum diatur' : formatIDR(remaining)}
+                </div>
+              </div>
+            </div>
+            {savedBudget != null && (
+              <div style={{ height: 8, borderRadius: 999, background: 'var(--pk-border)', marginTop: 18, overflow: 'hidden' }}>
+                <div
+                  style={{
+                    width: `${progress}%`,
+                    height: '100%',
+                    background: progress >= 100 ? 'var(--pk-danger)' : progress >= 80 ? 'var(--pk-warning)' : 'var(--pk-success)',
+                  }}
+                />
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      <p style={{ fontSize: 12, color: 'var(--pk-text-hint)', lineHeight: 1.55, margin: '16px 0 0' }}>
+        Perhitungan memakai order berstatus dibayar, dikirim, atau selesai pada minggu berjalan.
+        Pengaturan disimpan khusus untuk akun ini pada browser yang sedang digunakan.
+      </p>
+
+      {savedBudget != null && (
+        <button type="button" className="pk-btn pk-btn-ghost pk-btn-sm" onClick={removeBudget} style={{ marginTop: 12, color: 'var(--pk-danger)' }}>
+          Nonaktifkan Anggaran
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ─── Panel: Akun SmartBank ────────────────────────────────────────────────────
 
 function PanelSmartBank() {
@@ -280,10 +416,12 @@ function PanelSmartBank() {
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
-type Tab = 'info' | 'security' | 'smartbank';
+type Tab = 'info' | 'address' | 'budget' | 'security' | 'smartbank';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'info', label: 'Informasi Pribadi' },
+  { id: 'address', label: 'Buku Alamat' },
+  { id: 'budget', label: 'Anggaran Belanja' },
   { id: 'security', label: 'Keamanan' },
   { id: 'smartbank', label: 'Akun SmartBank' },
 ];
@@ -313,8 +451,18 @@ export default function ProfilePage() {
 
   if (!_hasHydrated || !user) {
     return (
-      <div style={{ padding: '80px', textAlign: 'center', color: 'var(--pk-text-hint)' }}>
-        Memuat...
+      <div className="pk-page-shell" style={{ maxWidth: 1000, marginInline: 'auto', padding: '40px 80px 64px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 40 }}>
+          <div>
+            <div className="pk-skel" style={{ width: 64, height: 64, borderRadius: '50%', marginBottom: 14 }} />
+            <div className="pk-skel" style={{ width: 140, height: 18 }} />
+          </div>
+          <div className="pk-card" style={{ padding: 32 }}>
+            <div className="pk-skel" style={{ width: 180, height: 22, marginBottom: 24 }} />
+            <div className="pk-skel" style={{ width: '100%', height: 40, marginBottom: 14 }} />
+            <div className="pk-skel" style={{ width: '100%', height: 40 }} />
+          </div>
+        </div>
       </div>
     );
   }
@@ -406,6 +554,8 @@ export default function ProfilePage() {
       {/* ── Main panel ── */}
       <main>
         {tab === 'info' && <PanelInfo user={user} />}
+        {tab === 'address' && <PanelAddressBook />}
+        {tab === 'budget' && <PanelBudget userId={user.id} />}
         {tab === 'security' && <PanelSecurity />}
         {tab === 'smartbank' && <PanelSmartBank />}
       </main>

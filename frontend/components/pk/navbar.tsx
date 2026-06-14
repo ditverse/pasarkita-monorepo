@@ -1,14 +1,17 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Logo from './logo';
 import Icon from './icon';
 import Avatar from './avatar';
-import NotificationDropdown, { type Notification } from './notification-dropdown';
+import NotificationDropdown from './notification-dropdown';
 import { useAuthStore } from '@/store/auth';
 import { useCartStore } from '@/store/cart';
+import { notificationsApi } from '@/lib/api/notifications';
+import { BuyerNotification } from '@/types/api';
 
 const NAV_LINKS = [
   { href: '/products', label: 'Browse' },
@@ -16,11 +19,10 @@ const NAV_LINKS = [
   { href: '/seller/products', label: 'Jual Produk' },
 ];
 
-// Notifikasi kosong by default — akan diisi saat backend notifikasi tersedia
-const INITIAL_NOTIFICATIONS: Notification[] = [];
-
 export function NavbarDesktop() {
   const pathname = usePathname();
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const active = NAV_LINKS.find((l) => pathname.startsWith(l.href))?.href ?? '';
   const { token, user, _hasHydrated } = useAuthStore();
   const cartCount = useCartStore((state) =>
@@ -29,13 +31,48 @@ export function NavbarDesktop() {
   const isLoggedIn = _hasHydrated && Boolean(token && user);
 
   const [notifOpen, setNotifOpen] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>(INITIAL_NOTIFICATIONS);
+  const notificationQuery = useQuery({
+    queryKey: ['notifications', user?.id],
+    queryFn: async () => (await notificationsApi.getAll()).data.data,
+    enabled: isLoggedIn,
+    refetchInterval: 30_000,
+  });
+  const notifications = notificationQuery.data ?? [];
 
-  const unreadCount = notifications.filter((n) => n.unread).length;
+  const unreadCount = notifications.filter((notification) => !notification.read_at).length;
+
+  const markAllReadMutation = useMutation({
+    mutationFn: () => notificationsApi.markAllRead(),
+    onSuccess: () => queryClient.setQueryData<BuyerNotification[]>(
+      ['notifications', user?.id],
+      (current = []) => current.map((notification) => ({
+        ...notification,
+        read_at: notification.read_at ?? new Date().toISOString(),
+      }))
+    ),
+  });
+
+  const markReadMutation = useMutation({
+    mutationFn: (id: string) => notificationsApi.markRead(id),
+    onSuccess: (_, id) => queryClient.setQueryData<BuyerNotification[]>(
+      ['notifications', user?.id],
+      (current = []) => current.map((notification) =>
+        notification.id === id
+          ? { ...notification, read_at: notification.read_at ?? new Date().toISOString() }
+          : notification
+      )
+    ),
+  });
 
   const handleMarkAllRead = useCallback(() => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
-  }, []);
+    markAllReadMutation.mutate();
+  }, [markAllReadMutation]);
+
+  const handleNotificationSelect = useCallback((notification: BuyerNotification) => {
+    if (!notification.read_at) markReadMutation.mutate(notification.id);
+    setNotifOpen(false);
+    if (notification.href) router.push(notification.href);
+  }, [markReadMutation, router]);
 
   const visibleLinks = NAV_LINKS.filter((l) => {
     if (l.href === '/orders') return isLoggedIn;
@@ -152,6 +189,7 @@ export function NavbarDesktop() {
               <NotificationDropdown
                 notifications={notifications}
                 onMarkAllRead={handleMarkAllRead}
+                onSelect={handleNotificationSelect}
                 onClose={() => setNotifOpen(false)}
               />
             )}

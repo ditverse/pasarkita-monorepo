@@ -4,7 +4,7 @@ type IconName =
   | 'box' | 'truck' | 'eye' | 'eyeOff' | 'filter' | 'grid' | 'barChart' | 'users'
   | 'trending' | 'package' | 'clipboard' | 'creditCard' | 'arrowRight' | 'arrowLeft'
   | 'mapPin' | 'home' | 'more' | 'edit' | 'logout' | 'bell' | 'sparkle' | 'loader'
-  | 'heart';
+  | 'heart' | 'printer' | 'download';
 
 const paths: Record<IconName, React.ReactNode> = {
   search: <><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></>,
@@ -45,6 +45,8 @@ const paths: Record<IconName, React.ReactNode> = {
   sparkle: <><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/></>,
   loader: <><path d="M21 12a9 9 0 0 1-9 9"/><path d="M3 12a9 9 0 0 1 9-9"/></>,
   heart: <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z"/>,
+  printer: <><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></>,
+  download: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></>,
 };
 
 export default function Icon({

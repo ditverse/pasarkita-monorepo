@@ -12,7 +12,7 @@ alur tugas besar, lalu berkembang menjadi marketplace yang nyaman digunakan.
   fee marketplace 2%, dan trigger pengiriman.
 - `checklist_tubes_rpl2.html`: keranjang, integrasi SmartBank melalui Gateway,
   status order, dan integrasi LogistiKita.
-- Source aktual frontend dan backend PasarKita per 9 Juni 2026.
+- Source aktual frontend dan backend PasarKita per 14 Juni 2026.
 
 ## Status Fitur Saat Ini
 
@@ -23,14 +23,15 @@ alur tugas besar, lalu berkembang menjadi marketplace yang nyaman digunakan.
 | Detail produk | Ada | Foto utama produk tampil dengan fallback placeholder |
 | Keranjang multi-item | Ada sebagian | Persisten di browser; checkout masih dilakukan per produk |
 | Kalkulasi subtotal dan fee 2% | Ada | Sudah memakai endpoint fee |
-| Checkout dan pembayaran SmartBank | Ada | Belum idempotent dan belum aman dari race stok |
-| Riwayat dan detail order | Ada | Status dasar dan tracking tersedia |
+| Checkout dan pembayaran SmartBank | Ada | Checkout idempotent dan reservasi stok atomik sudah aktif melalui RPC Supabase |
+| Riwayat dan detail order | Ada | Histori status bertimestamp dan tracking tersedia |
 | Konfirmasi pesanan diterima | Ada | Buyer dapat mengubah `shipped` menjadi `delivered` |
 | Rating dan ulasan | Ada | Belum mendukung foto atau respons penjual |
 | Profil | Ada sebagian | Nama dan email tersimpan; telepon, alamat, dan foto menunggu schema |
 | Ganti password | Ada | Memvalidasi password lama dan menyimpan hash password baru |
-| Notifikasi | Tampilan saja | Belum ada data dan API notifikasi |
-| Wishlist, voucher, komplain, refund | Belum | Belum ada model data maupun halaman |
+| Notifikasi | Ada | Payment, pengiriman, penyelesaian, status baca, dan deep-link order tersimpan di backend |
+| Wishlist | Ada lokal | Persisten per akun/browser; sinkron lintas perangkat menunggu backend |
+| Voucher, komplain, refund | Belum | Belum ada model data maupun halaman |
 
 ## Quick Wins - Fitur Kecil tetapi Logis
 
@@ -59,8 +60,9 @@ harian pembeli.
   lalu tahan checkout sampai data lokal diperbarui.
 - [x] Tombol "Bagikan produk" menggunakan Web Share API atau salin tautan.
 - [x] Tombol retry pada katalog/detail produk ketika request gagal.
-- [ ] Sorting "rating tertinggi" dan "paling banyak terjual" setelah datanya tersedia.
-- [ ] Simpan posisi scroll dan filter ketika kembali dari detail produk.
+- [x] Sorting "rating tertinggi" dan "paling banyak terjual" berdasarkan rating
+  aktual dan unit pada order valid.
+- [x] Simpan posisi scroll dan filter ketika kembali dari detail produk.
 
 ### Checkout dan Pesanan
 
@@ -71,34 +73,42 @@ harian pembeli.
 - [x] Tombol "Beli Lagi" dari order selesai.
 - [x] Tombol retry pada halaman checkout gagal.
 - [x] Tampilkan alasan tombol aksi disabled, misalnya stok habis atau saldo kurang.
-- [ ] Tampilkan tanggal dan jam status order, bukan hanya urutan status.
+- [x] Tampilkan tanggal dan jam status order berdasarkan histori event database,
+  bukan hanya urutan status.
 - [x] Konfirmasi sebelum buyer menandai pesanan telah diterima.
 
 ### Kualitas Antarmuka
 
-- [ ] Skeleton loading yang konsisten untuk katalog, order, dan profil.
+- [x] Skeleton loading yang konsisten untuk katalog, order, profil, dan halaman toko.
 - [x] Empty state dengan tindakan relevan, misalnya "Mulai Belanja".
 - [x] Pesan error katalog dan pesanan yang ramah pengguna serta tombol coba lagi.
 - [x] Layout responsif untuk katalog, detail produk, keranjang, checkout, pesanan,
   profil, navbar, dan footer.
-- [ ] Fokus keyboard, label form, dan teks alternatif gambar yang memadai.
+- [x] Fokus keyboard terlihat jelas, form utama berlabel, dan gambar produk memiliki
+  teks alternatif.
 - [ ] Format mata uang, tanggal, dan nomor telepon konsisten dalam locale Indonesia.
 
 ## P0 - Wajib dan Risiko Tinggi
 
 ### 1. Checkout Aman dan Idempotent
 
-- [ ] Tambahkan `idempotency_key` pada checkout agar klik ganda tidak membuat dua
+- [x] Tambahkan `idempotency_key` pada checkout agar klik ganda tidak membuat dua
   order atau dua payment request.
-- [ ] Lakukan reservasi/pengurangan stok secara atomik di database.
+- [x] Lakukan reservasi/pengurangan stok secara atomik di database.
 - [x] Tolak kuantitas nol, negatif, pecahan, produk duplikat, dan jumlah tidak wajar.
-- [ ] Simpan riwayat perubahan status order.
+- [x] Simpan riwayat perubahan status order melalui trigger database agar checkout,
+  seller, buyer, dan admin tercatat konsisten.
 - [ ] Sediakan retry pembayaran tanpa membuat order baru.
 - [ ] Bedakan status `payment_pending`, `paid`, `payment_failed`, dan
   `expired`.
 
 **Kriteria selesai:** request checkout yang sama hanya menghasilkan satu order,
 stok tidak bisa menjadi negatif, dan kegagalan payment dapat dipulihkan.
+
+**Status implementasi:** migration sudah diterapkan pada Supabase. Smoke test
+transaksional membuktikan satu idempotency key hanya menghasilkan satu order,
+stok berkurang sekali, replay mengembalikan order yang sama, dan pelepasan
+reservasi memulihkan stok. Seluruh data smoke test di-rollback.
 
 ### 2. Rincian Biaya yang Transparan
 
@@ -113,9 +123,17 @@ Perubahan saldo tetap dilakukan SmartBank.
 ### 3. Profil dan Buku Alamat Nyata
 
 - [x] Buat API update profil untuk nama dan email dengan validasi email unik.
-- [ ] Simpan nomor telepon dan foto profil.
-- [ ] Sediakan beberapa alamat dengan label Rumah, Kantor, atau Lainnya.
-- [ ] Pilih alamat utama saat checkout.
+- [x] **A. Profil Lengkap & Buku Alamat (Address Book)**
+  - [x] Endpoint untuk menambahkan avatar, no HP, dll
+  - [x] CRUD buku alamat
+  - [x] Pilihan alamat utama (Primary)
+  - [x] Di halaman checkout bisa pilih dari buku alamat (saat ini cuma input string)
+- [x] **B. Pembatalan Pesanan Mandiri**
+  - [x] Selama status masih *Pending* atau belum diproses seller
+  - [x] Otomatis cancel dan restore stok
+- [x] **C. Status Tracking Transparan**
+  - [x] LogistiKita integrasi (fiktif, tapi timeline / history tracking harus clear di UI)
+  - [x] Riwayat pesanan yang lebih mendetail (tanggal bayar, tanggal diproses, estimasi tiba)
 - [x] Buat API ganti password dengan validasi password lama.
 
 ### 4. Pagination dan Filter Produk Sebenarnya
@@ -145,9 +163,10 @@ Perubahan saldo tetap dilakukan SmartBank.
 
 ### 7. Halaman Toko Penjual
 
-- [ ] Tampilkan profil toko, daftar produk, rating, dan jumlah produk terjual.
-- [ ] Sediakan pencarian produk di dalam toko.
-- [ ] Tampilkan indikator performa sederhana seperti ketepatan pengiriman.
+- [x] Tampilkan profil toko, daftar produk, rating, dan jumlah unit terjual.
+- [x] Sediakan pencarian produk di dalam toko.
+- [x] Tampilkan indikator cakupan tracking sebagai performa operasional yang dapat
+  diverifikasi; ketepatan waktu menunggu timestamp SLA per status.
 
 ### 8. Pembatalan, Komplain, dan Refund
 
@@ -159,11 +178,13 @@ Perubahan saldo tetap dilakukan SmartBank.
 
 ### 9. Notifikasi Transaksional
 
-- [ ] Notifikasi payment berhasil/gagal.
-- [ ] Notifikasi order diproses, dikirim, tiba, atau dibatalkan.
-- [ ] Notifikasi respons komplain dan pengingat memberi ulasan.
-- [ ] Status baca tersimpan di backend.
-- [ ] Setiap notifikasi mengarah ke halaman yang relevan.
+- [x] Notifikasi payment berhasil/gagal.
+- [ ] Notifikasi order diproses, dikirim, tiba, atau dibatalkan; status dikirim dan
+  selesai sudah aktif, sedangkan pembatalan menunggu workflow pembatalan.
+- [ ] Notifikasi respons komplain; menunggu workflow komplain.
+- [x] Pengingat memberi ulasan dikirim ketika order selesai.
+- [x] Status baca tersimpan di backend.
+- [x] Setiap notifikasi mengarah ke detail order yang relevan.
 
 ### 10. Ulasan yang Lebih Berguna
 
@@ -177,7 +198,10 @@ Perubahan saldo tetap dilakukan SmartBank.
 
 - [x] Sediakan invoice web yang dapat dicetak dari detail pesanan.
 - [x] Tampilkan ID order, ID transaksi SmartBank, rincian fee, alamat, dan tracking.
-- [ ] Gunakan snapshot nama serta harga produk saat pembelian.
+- [x] Gunakan snapshot nama serta harga produk saat pembelian.
+
+**Status implementasi:** harga sudah tersimpan sejak awal. Snapshot nama telah
+diaktifkan dan sembilan item order lama berhasil di-backfill tanpa nilai kosong.
 
 ## P2 - Inovasi Pembeda
 
@@ -189,20 +213,28 @@ tidak memiliki bukti.
 
 ### 13. Rekomendasi Hemat dan Relevan
 
-- Rekomendasi berbasis kategori dan histori lihat tanpa harus memakai AI kompleks.
-- "Lengkapi keranjang" berdasarkan pasangan produk yang sering dibeli bersama.
-- Peringatan jika item serupa dari toko yang sama dapat menghemat ongkir.
+- [x] Rekomendasi berbasis kategori dan histori lihat tanpa memakai AI kompleks,
+  dengan alasan rekomendasi yang dapat dipahami buyer.
+- [ ] "Lengkapi keranjang" berdasarkan pasangan produk yang sering dibeli bersama.
+- [ ] Peringatan jika item serupa dari toko yang sama dapat menghemat ongkir.
 
 ### 14. Anggaran Belanja Sehat
 
-Buyer dapat menentukan batas belanja mingguan. Sebelum checkout, sistem memberi
-ringkasan netral tentang sisa anggaran tanpa memblokir transaksi secara paksa.
+- [x] Buyer dapat menentukan atau menonaktifkan batas belanja mingguan dari profil.
+- [x] Tampilkan total belanja dari order valid pada minggu berjalan.
+- [x] Sebelum checkout, tampilkan sisa anggaran dan peringatan netral tanpa
+  memblokir transaksi.
+- [x] Pisahkan pengaturan lokal berdasarkan akun agar tidak tercampur pada browser
+  yang sama; sinkronisasi lintas perangkat menunggu penyimpanan backend.
 
 ### 15. Pusat Transparansi Pesanan
 
-Satu panel menjelaskan aliran order dari PasarKita ke Gateway, SmartBank, dan
-LogistiKita menggunakan status yang mudah dipahami. Fitur ini cocok untuk demo
-integrasi tugas besar sekaligus memberi kepercayaan kepada pengguna.
+- [x] Satu panel menjelaskan aliran order dari PasarKita, SmartBank, dan
+  LogistiKita menggunakan status yang mudah dipahami.
+- [x] Bedakan status terkonfirmasi, gagal, menunggu bukti, dan belum terverifikasi
+  berdasarkan transaction ID serta tracking ID yang benar-benar tersimpan.
+- [x] Jelaskan bahwa panel hanya menampilkan bukti yang telah diterima PasarKita
+  agar tidak memberi klaim integrasi yang menyesatkan.
 
 ## Urutan Implementasi Disarankan
 

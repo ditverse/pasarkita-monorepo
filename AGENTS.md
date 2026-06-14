@@ -51,7 +51,8 @@ Database/deploy:
 - `backend/src/config`: validasi env dan client Supabase.
 - `backend/src/middlewares`: auth JWT/role, validation, error handler.
 - `backend/src/integrations`: wrapper SmartBank dan LogistiKita via API Gateway.
-- `backend/database.sql`: SQL yang ditemukan untuk `orders` dan `order_items`.
+- `backend/database/`: baseline schema lengkap, migration berurutan, runner
+  `psql`, dan verifikasi schema Supabase.
 - `backend/docs/prd-backend.md`: PRD backend yang lebih luas dari kode saat ini.
 - `frontend/app`: route groups App Router `(main)`, `(admin)`, `(seller)`, `auth`.
 - `frontend/components/pk`: komponen UI PasarKita custom.
@@ -173,11 +174,9 @@ Catatan penting:
   sensitif: jangan tampilkan nilainya, jangan menyalin rahasia ke output, dan
   jangan menambah secret baru ke git.
 - `frontend/.env.local` ada secara lokal tetapi tidak terdaftar di git index.
-- `backend/database.sql` hanya membuat `orders` dan `order_items`. Schema SQL untuk
-  `users` dan `products` tidak ditemukan sebagai migration/file SQL terpisah,
-  walaupun `seed.js` dan service backend mengasumsikan tabel tersebut ada.
-- Tidak ditemukan folder migration. PRD backend memiliki referensi schema yang
-  lebih lengkap, tetapi bukan migration executable.
+- `backend/database/schema/000_full_schema.sql` digunakan untuk project Supabase
+  baru. Database yang sudah ada memakai file berurutan di
+  `backend/database/migrations/`.
 
 ## Testing dan Verifikasi
 
@@ -233,7 +232,8 @@ frontend dan payload wrapper belum sepenuhnya cocok dengan backend saat ini.
 - Tidak ada `package.json` root, sehingga tidak ada command monorepo root.
 - Mock server yang dideskripsikan README/PRD tidak ditemukan implementasinya.
 - Tidak ada test files atau test framework yang dikonfigurasi eksplisit.
-- Tidak ada migration directory; hanya `backend/database.sql` untuk sebagian tabel.
+- Migration database tersedia di `backend/database/migrations/`; eksekusinya
+  memerlukan SQL Editor Supabase atau `DATABASE_URL` untuk `psql`.
 - README mencantumkan `/api/fee/calculate`, dan frontend punya
   `checkoutApi.calculateFee`, tetapi backend tidak memasang route fee.
 - Nilai `NEXT_PUBLIC_API_URL` perlu dikonfirmasi apakah harus menyertakan `/api`.

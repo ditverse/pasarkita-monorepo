@@ -234,7 +234,7 @@ Masalah:
 File:
 
 - `frontend/types/api.ts`
-- `backend/database.sql`
+- `backend/database/schema/000_full_schema.sql`
 - `backend/src/modules/orders/order.service.js`
 - `frontend/app/(main)/orders/page.tsx`
 - `frontend/app/(main)/orders/[id]/page.tsx`
@@ -401,13 +401,14 @@ Severity: tinggi untuk setup baru.
 
 Masalah:
 
-- `backend/database.sql` hanya membuat `orders` dan `order_items`.
+- Schema database kini dipusatkan di `backend/database/`, dengan full schema
+  untuk project baru dan migration berurutan untuk database yang sudah ada.
 - Kode membutuhkan tabel `users` dan `products`.
 - Tidak ditemukan folder migrations.
 
 File:
 
-- `backend/database.sql`
+- `backend/database/schema/000_full_schema.sql`
 - `backend/seed.js`
 - `backend/src/modules/auth/auth.service.js`
 - `backend/src/modules/products/product.service.js`

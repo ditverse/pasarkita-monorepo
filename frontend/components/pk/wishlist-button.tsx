@@ -15,7 +15,7 @@ export default function WishlistButton({
 }) {
   const user = useAuthStore((state) => state.user);
   const ownerKey = user?.id ?? 'guest';
-  const items = useBuyerPreferencesStore((state) => state.wishlists[ownerKey] ?? []);
+  const items = useBuyerPreferencesStore((state) => state.wishlists[ownerKey]) ?? [];
   const toggleWishlist = useBuyerPreferencesStore((state) => state.toggleWishlist);
   const isSaved = items.some((item) => item.id === product.id);
 

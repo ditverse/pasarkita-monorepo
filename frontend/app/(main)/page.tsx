@@ -10,6 +10,8 @@ import { formatIDR } from '@/lib/format';
 import { productsApi } from '@/lib/api/products';
 import { useDebounce } from '@/lib/hooks/useDebounce';
 import { queryKeys } from '@/lib/query-keys';
+import { buildProductRecommendations } from '@/lib/product-recommendations';
+import { useBuyerPreferencesStore } from '@/store/buyer-preferences';
 import { Product } from '@/types/api';
 
 const CATEGORIES = ['Fashion', 'Makanan', 'Kerajinan', 'Elektronik', 'Kecantikan', 'Rumah', 'Buku', 'Olahraga'];
@@ -19,6 +21,7 @@ export default function HomePage() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('Semua');
+  const recentlyViewed = useBuyerPreferencesStore((state) => state.recentlyViewed);
 
   const debouncedSearch = useDebounce(searchQuery, 400);
 
@@ -32,6 +35,20 @@ export default function HomePage() {
       return res.data.data ?? [];
     },
   });
+
+  const recommendationQuery = useQuery({
+    queryKey: ['products', 'recommendations', recentlyViewed.map((item) => item.id).join(',')],
+    queryFn: async (): Promise<Product[]> => {
+      const response = await productsApi.getAll({ limit: 50, sort: 'sold_desc', in_stock: true });
+      return response.data.data ?? [];
+    },
+    enabled: recentlyViewed.length > 0,
+  });
+
+  const recommendations = buildProductRecommendations(
+    recommendationQuery.data ?? [],
+    recentlyViewed
+  );
 
   // Client-side filtering for category
   const filteredProducts = activeCategory === 'Semua' 
@@ -223,6 +240,73 @@ export default function HomePage() {
           ))}
         </div>
       </section>
+
+      {recentlyViewed.length > 0 && (
+        <section style={{ padding: '0 80px 48px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 16, marginBottom: 18 }}>
+            <div>
+              <h2 style={{ fontSize: 20, fontWeight: 600, margin: 0, letterSpacing: '-0.02em' }}>
+                Rekomendasi dari Riwayat Anda
+              </h2>
+              <p style={{ fontSize: 13, color: 'var(--pk-text-hint)', margin: '5px 0 0' }}>
+                Berdasarkan kategori yang baru dilihat, lalu diurutkan dengan data penjualan dan rating.
+              </p>
+            </div>
+            <Link href="/products?sort=sold_desc" style={{ fontSize: 13, color: 'var(--pk-accent)', whiteSpace: 'nowrap' }}>
+              Lihat produk populer →
+            </Link>
+          </div>
+
+          {recommendationQuery.isLoading ? (
+            <div className="pk-product-grid">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div key={index} className="pk-card" style={{ overflow: 'hidden' }}>
+                  <div className="pk-skel" style={{ height: 170 }} />
+                  <div style={{ padding: 14 }}>
+                    <div className="pk-skel" style={{ height: 16, width: '78%', marginBottom: 10 }} />
+                    <div className="pk-skel" style={{ height: 13, width: '55%' }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : recommendationQuery.isError ? (
+            <div style={{ padding: 20, border: '1px dashed var(--pk-border)', borderRadius: 12, color: 'var(--pk-text-secondary)', fontSize: 13 }}>
+              Rekomendasi belum dapat dimuat. Katalog utama tetap tersedia di bawah.
+            </div>
+          ) : recommendations.length > 0 ? (
+            <div className="pk-product-grid">
+              {recommendations.map(({ product, reason }) => (
+                <Link
+                  key={product.id}
+                  href={`/products/${product.id}`}
+                  className="pk-card pk-card-hover"
+                  style={{ overflow: 'hidden', textDecoration: 'none' }}
+                >
+                  <ProductImage src={product.image_url} alt={product.name} height={170} style={{ borderRadius: 0 }} />
+                  <div style={{ padding: 14 }}>
+                    <div style={{ color: 'var(--pk-accent)', fontSize: 11, fontWeight: 600, marginBottom: 6 }}>
+                      {reason}
+                    </div>
+                    <div style={{ color: 'var(--pk-text)', fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {product.name}
+                    </div>
+                    <div style={{ color: 'var(--pk-text-hint)', fontSize: 12, marginTop: 3 }}>
+                      {product.seller?.name || 'Toko Anonim'}
+                    </div>
+                    <div style={{ color: 'var(--pk-text)', fontSize: 15, fontWeight: 700, marginTop: 9 }}>
+                      {formatIDR(product.price)}
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div style={{ padding: 20, border: '1px dashed var(--pk-border)', borderRadius: 12, color: 'var(--pk-text-secondary)', fontSize: 13 }}>
+              Belum ada produk lain yang cocok dengan riwayat Anda.
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Product grid */}
       <section style={{ padding: '0 80px 64px' }}>

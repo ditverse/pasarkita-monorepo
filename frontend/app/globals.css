@@ -156,6 +156,10 @@
 
 .pk, .pk * { box-sizing: border-box; -webkit-font-smoothing: antialiased; }
 .pk { color: var(--pk-text); background: var(--pk-bg); font-size: 14px; line-height: 1.5; letter-spacing: -0.006em; }
+.pk :focus-visible {
+  outline: 2px solid var(--pk-accent);
+  outline-offset: 2px;
+}
 
 .pk-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
@@ -258,6 +262,10 @@
     grid-template-columns: minmax(0, 1fr) !important;
   }
 
+  .pk-store-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
   .pk-profile-layout {
     padding-inline: 16px !important;
     gap: 24px !important;
@@ -285,5 +293,22 @@
 
   .pk-cart-layout .pk-card {
     min-width: 0;
+  }
+}
+
+@media print {
+  .pk-print-hidden,
+  aside,
+  nav {
+    display: none !important;
+  }
+
+  body {
+    background: #fff !important;
+  }
+
+  .pk-card {
+    box-shadow: none !important;
+    border-color: #d1d5db !important;
   }
 }

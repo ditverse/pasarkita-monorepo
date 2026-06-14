@@ -17,6 +17,7 @@ const items = [
   { id: 'users', href: '/admin/users', label: 'Semua User', icon: 'users' as const },
   { id: 'orders', href: '/admin/orders', label: 'Semua Order', icon: 'bag' as const },
   { id: 'moderation', href: '/admin/moderation', label: 'Moderasi', icon: 'package' as const },
+  { id: 'complaints', href: '/admin/complaints', label: 'Komplain & Sengketa', icon: 'clipboard' as const },
   { id: 'analytics', href: '/admin/analytics', label: 'Analytics', icon: 'barChart' as const },
   { id: 'reports', href: '/admin/reports', label: 'Laporan', icon: 'clipboard' as const },
   { id: 'fee', href: '/admin/fee-simulator', label: 'Simulator Fee', icon: 'creditCard' as const },

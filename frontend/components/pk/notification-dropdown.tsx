@@ -2,35 +2,28 @@
 
 import { useEffect, useRef } from 'react';
 import Icon from './icon';
-
-export type Notification = {
-  id: string;
-  type: 'order' | 'payment' | 'new_order' | 'shipped' | 'rating' | 'system';
-  title: string;
-  desc: string;
-  time: string;
-  unread: boolean;
-};
+import { BuyerNotification } from '@/types/api';
 
 // Konfigurasi tampilan per tipe notifikasi
-const TYPE_CONFIG: Record<Notification['type'], { icon: string; color: string; bg: string }> = {
+const TYPE_CONFIG: Record<BuyerNotification['type'], { icon: string; color: string; bg: string }> = {
   order:     { icon: 'bag',         color: 'var(--pk-accent)',   bg: 'var(--pk-accent-soft)' },
   payment:   { icon: 'checkCircle', color: 'var(--pk-success)',  bg: '#F0FDF4' },
-  new_order: { icon: 'bell',        color: 'var(--pk-warning)',  bg: '#FEF3C7' },
   shipped:   { icon: 'truck',       color: '#0D9488',            bg: '#F0FDFA' },
   rating:    { icon: 'sparkle',     color: '#F59E0B',            bg: '#FEF3C7' },
   system:    { icon: 'bell',        color: 'var(--pk-text-secondary)', bg: 'var(--pk-bg-subtle)' },
 };
 
 interface NotificationDropdownProps {
-  notifications: Notification[];
+  notifications: BuyerNotification[];
   onMarkAllRead: () => void;
+  onSelect: (notification: BuyerNotification) => void;
   onClose: () => void;
 }
 
 export default function NotificationDropdown({
   notifications,
   onMarkAllRead,
+  onSelect,
   onClose,
 }: NotificationDropdownProps) {
   const ref = useRef<HTMLDivElement>(null);
@@ -46,7 +39,7 @@ export default function NotificationDropdown({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [onClose]);
 
-  const unreadCount = notifications.filter((n) => n.unread).length;
+  const unreadCount = notifications.filter((notification) => !notification.read_at).length;
 
   return (
     <div
@@ -127,16 +120,22 @@ export default function NotificationDropdown({
         <div style={{ overflowY: 'auto', flex: 1 }}>
           {notifications.map((n, i) => {
             const cfg = TYPE_CONFIG[n.type] ?? TYPE_CONFIG.system;
+            const unread = !n.read_at;
             return (
-              <div
+              <button
+                type="button"
                 key={n.id}
+                onClick={() => onSelect(n)}
                 style={{
+                  width: '100%',
+                  border: 'none',
+                  textAlign: 'left',
                   padding: '12px 16px',
                   display: 'flex',
                   gap: 12,
                   borderTop: i === 0 ? 'none' : '1px solid var(--pk-border)',
-                  borderLeft: n.unread ? '3px solid var(--pk-accent)' : '3px solid transparent',
-                  background: n.unread ? 'rgba(37,99,235,0.03)' : '#fff',
+                  borderLeft: unread ? '3px solid var(--pk-accent)' : '3px solid transparent',
+                  background: unread ? 'rgba(37,99,235,0.03)' : '#fff',
                   cursor: 'pointer',
                   transition: 'background 120ms ease',
                 }}
@@ -171,7 +170,7 @@ export default function NotificationDropdown({
                       whiteSpace: 'nowrap',
                     }}
                   >
-                    {n.desc}
+                    {n.message}
                   </div>
                 </div>
 
@@ -185,29 +184,22 @@ export default function NotificationDropdown({
                     paddingTop: 2,
                   }}
                 >
-                  {n.time}
+                  {formatNotificationTime(n.created_at)}
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>
       )}
-
-      {/* Footer */}
-      {notifications.length > 0 && (
-        <div
-          style={{
-            padding: 10,
-            borderTop: '1px solid var(--pk-border)',
-            textAlign: 'center',
-            flexShrink: 0,
-          }}
-        >
-          <a style={{ fontSize: 12, color: 'var(--pk-text-secondary)', cursor: 'pointer' }}>
-            Lihat semua notifikasi →
-          </a>
-        </div>
-      )}
     </div>
   );
+}
+
+function formatNotificationTime(value: string) {
+  const date = new Date(value);
+  const diffMinutes = Math.max(0, Math.floor((Date.now() - date.getTime()) / 60000));
+  if (diffMinutes < 1) return 'Baru';
+  if (diffMinutes < 60) return `${diffMinutes}m`;
+  if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}j`;
+  return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', timeZone: 'Asia/Jakarta' });
 }

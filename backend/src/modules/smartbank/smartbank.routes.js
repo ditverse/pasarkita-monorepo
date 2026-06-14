@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 const env = require('../../config/env');
+const { getIntegrationTarget } = require('../../integrations/target');
 const { verifyToken } = require('../../middlewares/auth');
 const { successResponse } = require('../../utils/response');
 
@@ -12,11 +13,9 @@ const { successResponse } = require('../../utils/response');
 router.get('/balance', verifyToken, async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const url = env.SMARTBANK_URL
-      ? `${env.SMARTBANK_URL}/balance/${userId}`
-      : `${env.GATEWAY_BASE_URL}/smartbank/balance/${userId}`;
+    const target = getIntegrationTarget('smartbank', `/balance/${userId}`);
 
-    const response = await axios.get(url, {
+    const response = await axios.get(target.url, {
       headers: { Authorization: `Bearer ${env.GATEWAY_API_KEY || 'mock-key'}` },
       timeout: 5000,
     });

@@ -1,6 +1,7 @@
 const { z } = require('zod');
 
 const checkoutSchema = z.object({
+  idempotency_key: z.string().uuid('Idempotency key tidak valid'),
   items: z.array(
     z.object({
       product_id: z.string().uuid('Product ID tidak valid'),

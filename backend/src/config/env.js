@@ -9,6 +9,7 @@ const envSchema = z.object({
   GATEWAY_API_KEY: z.string().optional(),
   SMARTBANK_URL: z.string().optional(),
   LOGISTIKITA_URL: z.string().optional(),
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.string().transform(Number).default("3001"),
 });
 

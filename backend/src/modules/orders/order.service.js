@@ -35,7 +35,7 @@ const parsePositiveInt = (value, fallback, max = 100) => {
   return Math.min(parsed, max);
 };
 
-const { kmpSearch } = require('../utils/kmp-search');
+const { kmpSearch } = require('../../utils/kmp-search');
 
 const findAdminOrderIds = async (search) => {
   const term = search.trim();

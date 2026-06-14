@@ -35,20 +35,19 @@ const parsePositiveInt = (value, fallback, max = 100) => {
   return Math.min(parsed, max);
 };
 
+const { kmpSearch } = require('../utils/kmp-search');
+
 const findAdminOrderIds = async (search) => {
   const term = search.trim();
   if (!term) return null;
   const safeTerm = term.replace(/[%_,]/g, '');
 
+  // 1. Ambil semua pembeli (ini bisa jadi lambat kalau datanya banyak, idealnya batch atau pre-filter huruf pertama)
+  // Karena kita dipaksa membersihkan semua ILIKE, kita ambil semua lalu filter memory dengan KMP.
   const [ordersResult, buyersResult] = await Promise.all([
     supabase.from('orders').select('id, transaction_id, tracking_id'),
     safeTerm
-      ? supabase
-        .from('users')
-        .select('id')
-        .eq('role', 'buyer')
-        .or(`name.ilike.%${safeTerm}%,email.ilike.%${safeTerm}%`)
-        .limit(100)
+      ? supabase.from('users').select('id, name, email').eq('role', 'buyer')
       : Promise.resolve({ data: [], error: null }),
   ]);
 
@@ -59,13 +58,18 @@ const findAdminOrderIds = async (search) => {
     throw { status: 500, code: 'INTERNAL_ERROR', message: buyersResult.error.message };
   }
 
-  const normalized = term.toLowerCase();
-  const buyerIds = new Set((buyersResult.data || []).map((buyer) => buyer.id));
+  // KMP MATCHING
+  const buyerIds = new Set(
+    (buyersResult.data || [])
+      .filter((b) => kmpSearch(b.name || '', safeTerm) || kmpSearch(b.email || '', safeTerm))
+      .map((buyer) => buyer.id)
+  );
+
   const matchingOrderIds = (ordersResult.data || [])
     .filter((order) =>
-      order.id.toLowerCase().startsWith(normalized) ||
-      order.transaction_id?.toLowerCase().includes(normalized) ||
-      order.tracking_id?.toLowerCase().includes(normalized)
+      order.id.toLowerCase().startsWith(safeTerm.toLowerCase()) || // ID exact prefix match
+      kmpSearch(order.transaction_id || '', safeTerm) ||
+      kmpSearch(order.tracking_id || '', safeTerm)
     )
     .map((order) => order.id);
 
@@ -108,17 +112,17 @@ const getSellerOrderScope = async (sellerId, search = '') => {
   const matchingIds = new Set(
     scopedItems
       .filter((item) =>
-        item.product_name_at_purchase?.toLowerCase().includes(term) ||
-        item.product?.name?.toLowerCase().includes(term)
+        kmpSearch(item.product_name_at_purchase || '', search) ||
+        kmpSearch(item.product?.name || '', search)
       )
       .map((item) => item.order_id)
   );
 
   for (const order of scopedOrders || []) {
     if (
-      order.id.toLowerCase().startsWith(term) ||
-      order.transaction_id?.toLowerCase().includes(term) ||
-      order.tracking_id?.toLowerCase().includes(term)
+      order.id.toLowerCase().startsWith(term) || // ID tetap exact prefix
+      kmpSearch(order.transaction_id || '', search) ||
+      kmpSearch(order.tracking_id || '', search)
     ) {
       matchingIds.add(order.id);
     }

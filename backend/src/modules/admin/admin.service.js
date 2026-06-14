@@ -100,17 +100,12 @@ const getUsers = async (query) => {
 
   let dbQuery = supabase
     .from('users')
-    .select('id, name, email, role, is_active, created_at', { count: 'exact' })
-    .order(sortColumn, { ascending: sortAscending })
-    .range(offset, offset + limit - 1);
+    .select('id, name, email, role, is_active, created_at')
+    .order(sortColumn, { ascending: sortAscending });
 
   if (query.role && VALID_ROLES.has(query.role)) dbQuery = dbQuery.eq('role', query.role);
   if (query.status && VALID_USER_STATUSES.has(query.status)) {
     dbQuery = dbQuery.eq('is_active', query.status === 'active');
-  }
-  if (query.search?.trim()) {
-    const escaped = query.search.trim().replace(/[%_,]/g, '');
-    if (escaped) dbQuery = dbQuery.or(`name.ilike.%${escaped}%,email.ilike.%${escaped}%`);
   }
   if (query.created_from) {
     const createdFrom = new Date(`${query.created_from}T00:00:00+07:00`);
@@ -127,12 +122,20 @@ const getUsers = async (query) => {
     dbQuery = dbQuery.lte('created_at', toIso(createdTo));
   }
 
-  const { data, count, error } = await dbQuery;
+  // Fetch data untuk filter manual
+  const { data: rawData, error } = await dbQuery.limit(5000);
   if (error) throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
 
-  const total = count || 0;
+  const term = query.search?.trim().replace(/[%_,]/g, '') || '';
+  const { kmpSearch } = require('../../utils/kmp-search');
+
+  const filtered = term
+    ? (rawData || []).filter((u) => kmpSearch(u.name || '', term) || kmpSearch(u.email || '', term))
+    : (rawData || []);
+
+  const total = filtered.length;
   return {
-    data: data || [],
+    data: filtered.slice(offset, offset + limit),
     pagination: { page, limit, total, total_pages: Math.ceil(total / limit) },
   };
 };
@@ -233,21 +236,24 @@ const getModerationSellers = async (query) => {
   const offset = (page - 1) * limit;
   let dbQuery = supabase
     .from('users')
-    .select('id, name, email, is_active, created_at', { count: 'exact' })
+    .select('id, name, email, is_active, created_at')
     .eq('role', 'seller')
-    .order('created_at', { ascending: false })
-    .range(offset, offset + limit - 1);
+    .order('created_at', { ascending: false });
 
   if (query.status && VALID_USER_STATUSES.has(query.status)) {
     dbQuery = dbQuery.eq('is_active', query.status === 'active');
   }
-  if (query.search?.trim()) {
-    const escaped = query.search.trim().replace(/[%_,]/g, '');
-    if (escaped) dbQuery = dbQuery.or(`name.ilike.%${escaped}%,email.ilike.%${escaped}%`);
-  }
 
-  const { data: sellers, count, error } = await dbQuery;
+  // Fetch data untuk filter manual
+  const { data: rawData, error } = await dbQuery.limit(5000);
   if (error) throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
+
+  const term = query.search?.trim().replace(/[%_,]/g, '') || '';
+  const { kmpSearch } = require('../../utils/kmp-search');
+
+  const sellers = term
+    ? (rawData || []).filter((s) => kmpSearch(s.name || '', term) || kmpSearch(s.email || '', term))
+    : (rawData || []);
 
   const sellerIds = (sellers || []).map((seller) => seller.id);
   let products = [];
@@ -277,9 +283,11 @@ const getModerationSellers = async (query) => {
     summaryBySeller.set(product.seller_id, current);
   });
 
-  const total = count || 0;
+  const total = sellers.length;
+  const paginatedSellers = sellers.slice(offset, offset + limit);
+
   return {
-    data: (sellers || []).map((seller) => ({
+    data: paginatedSellers.map((seller) => ({
       ...seller,
       verification_status: 'not_configured',
       product_summary: summaryBySeller.get(seller.id) || {
@@ -300,11 +308,9 @@ const getModerationProducts = async (query) => {
   let dbQuery = supabase
     .from('products')
     .select(
-      'id, seller_id, name, description, category, price, stock, is_active, created_at, seller:users!seller_id(id, name, email, is_active)',
-      { count: 'exact' }
+      'id, seller_id, name, description, category, price, stock, is_active, created_at, seller:users!seller_id(id, name, email, is_active)'
     )
-    .order('created_at', { ascending: false })
-    .range(offset, offset + limit - 1);
+    .order('created_at', { ascending: false });
 
   if (query.status === 'active') dbQuery = dbQuery.eq('is_active', true);
   if (query.status === 'inactive') dbQuery = dbQuery.eq('is_active', false);
@@ -312,17 +318,21 @@ const getModerationProducts = async (query) => {
   if (query.seller_id) dbQuery = dbQuery.eq('seller_id', query.seller_id);
   if (query.stock === 'low') dbQuery = dbQuery.lte('stock', 5);
   if (query.stock === 'empty') dbQuery = dbQuery.eq('stock', 0);
-  if (query.search?.trim()) {
-    const escaped = query.search.trim().replace(/[%_,]/g, '');
-    if (escaped) dbQuery = dbQuery.ilike('name', `%${escaped}%`);
-  }
 
-  const { data, count, error } = await dbQuery;
+  // Ambil data untuk KMP filter manual
+  const { data: rawData, error } = await dbQuery.limit(5000);
   if (error) throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
 
-  const total = count || 0;
+  const term = query.search?.trim().replace(/[%_,]/g, '') || '';
+  const { kmpSearch } = require('../../utils/kmp-search');
+
+  const filtered = term
+    ? (rawData || []).filter((product) => kmpSearch(product.name || '', term))
+    : (rawData || []);
+
+  const total = filtered.length;
   return {
-    data: data || [],
+    data: filtered.slice(offset, offset + limit),
     pagination: { page, limit, total, total_pages: Math.ceil(total / limit) },
   };
 };

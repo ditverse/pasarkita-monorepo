@@ -132,16 +132,18 @@ const notifySellerLowStock = async (productId, productName, sellerId, newStock, 
 
     // Deduplikasi: cek notifikasi stok dalam 24 jam terakhir untuk produk ini
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const { data: existing } = await supabase
+    const { data: recentNotifs } = await supabase
       .from('notifications')
-      .select('id')
+      .select('id, message')
       .eq('user_id', sellerId)
       .eq('type', 'system')
       .gte('created_at', since)
-      .ilike('message', `%${productId}%`)
-      .limit(1);
+      .limit(50); // Ambil secukupnya untuk deduplikasi memory
+      
+    const { kmpSearch } = require('../../utils/kmp-search');
+    const hasRecent = (recentNotifs || []).some(n => kmpSearch(n.message || '', productId));
 
-    if (existing?.length > 0) return; // Sudah ada notif stok dalam 24 jam
+    if (hasRecent) return; // Sudah ada notif stok dalam 24 jam
 
     const title = isOut ? 'Stok Produk Habis!' : 'Stok Produk Menipis';
     const message = isOut

@@ -1,5 +1,6 @@
 const supabase = require('../../config/supabase');
 const { randomUUID } = require('crypto');
+const { kmpFilterProducts } = require('../../utils/kmp-search');
 
 const PRODUCT_IMAGE_BUCKET = 'product-images';
 const IMAGE_EXTENSIONS = {
@@ -120,17 +121,30 @@ const getProducts = async (query) => {
     supaQuery = supaQuery.eq('seller_id', query.seller_id);
   }
 
-  if (query.search) {
-    supaQuery = supaQuery.ilike('name', `%${query.search}%`);
-  }
+  // ══════════════════════════════════════════════════════════════
+  // ALGORITMA STRING MATCHING — KMP (Knuth-Morris-Pratt)
+  // Semua pencarian produk menggunakan KMP di level aplikasi.
+  // Data difetch dari DB, lalu difilter KMP di memori.
+  // Kompleksitas KMP: O(n + m) per produk
+  // Dokumentasi: docs/algorithms/string-matching-algorithm.md
+  // ══════════════════════════════════════════════════════════════
 
   if (query.sort === 'rating_desc' || query.sort === 'sold_desc') {
-    const { data: allProducts, error: productError } = await supaQuery
-      .order('created_at', { ascending: false })
-      .limit(1000);
+    // Saat sorting terlaris/rating, semua produk di-load ke memory.
+    // Di sini kita gunakan KMP untuk string matching di level aplikasi.
+    let allProducts;
+    {
+      const { data, error: productError } = await supaQuery
+        .order('created_at', { ascending: false })
+        .limit(1000);
 
-    if (productError) {
-      throw { status: 500, code: 'INTERNAL_ERROR', message: productError.message };
+      if (productError) {
+        throw { status: 500, code: 'INTERNAL_ERROR', message: productError.message };
+      }
+      // KMP STRING MATCHING: Filter produk di memori menggunakan KMP
+      allProducts = query.search
+        ? kmpFilterProducts(data || [], query.search, 'name')
+        : (data || []);
     }
 
     const productIds = (allProducts || []).map((product) => product.id);
@@ -167,6 +181,11 @@ const getProducts = async (query) => {
       soldTotals.set(item.product_id, (soldTotals.get(item.product_id) || 0) + item.qty);
     });
 
+    // ══════════════════════════════════════════════════════════
+    // ALGORITMA GREEDY — Ranking Produk Terlaris / Rating Tertinggi
+    // Strategi: Hitung skor lokal per produk → sort → ambil halaman
+    // Dokumentasi: docs/algorithms/greedy-algorithm.md
+    // ══════════════════════════════════════════════════════════
     const rankedProducts = (allProducts || []).map((product) => {
       const rating = ratingTotals.get(product.id);
       return {
@@ -194,7 +213,7 @@ const getProducts = async (query) => {
     };
   }
 
-  // Handle sort
+  // Handle sort (non-ranked: harga, terbaru)
   if (query.sort === 'price_asc') {
     supaQuery = supaQuery.order('price', { ascending: true });
   } else if (query.sort === 'price_desc') {
@@ -203,21 +222,25 @@ const getProducts = async (query) => {
     supaQuery = supaQuery.order('created_at', { ascending: false }); // Default
   }
 
-  supaQuery = supaQuery.range(offset, offset + limit - 1);
-
-  const { data, count, error } = await supaQuery;
+  // Fetch data lalu filter KMP + pagination manual
+  const { data: rawData, error } = await supaQuery.limit(1000);
 
   if (error) {
     throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
   }
 
+  // KMP STRING MATCHING: Filter produk menggunakan KMP
+  const filtered = query.search
+    ? kmpFilterProducts(rawData || [], query.search, 'name')
+    : (rawData || []);
+
   return {
-    data: data || [],
+    data: filtered.slice(offset, offset + limit),
     pagination: {
       page,
       limit,
-      total: count || 0,
-      total_pages: Math.ceil((count || 0) / limit)
+      total: filtered.length,
+      total_pages: Math.ceil(filtered.length / limit)
     }
   };
 };
@@ -349,13 +372,10 @@ const getProductsBySeller = async (sellerId, query) => {
     SELLER_PRODUCT_SORTS[query.sort] || SELLER_PRODUCT_SORTS.created_desc;
   let dbQuery = supabase
     .from('products')
-    .select('*', { count: 'exact' })
+    .select('*')
     .eq('seller_id', sellerId)
     .order(sortColumn, { ascending: sortAscending });
 
-  if (query.search?.trim()) {
-    dbQuery = dbQuery.ilike('name', `%${query.search.trim()}%`);
-  }
   if (query.status === 'active') {
     dbQuery = dbQuery.eq('is_active', true);
   } else if (query.status === 'inactive') {
@@ -366,20 +386,26 @@ const getProductsBySeller = async (sellerId, query) => {
   } else if (query.stock === 'low') {
     dbQuery = dbQuery.eq('is_low_stock', true);
   }
-  dbQuery = dbQuery.range(offset, offset + limit - 1);
 
-  const { data, count, error } = await dbQuery;
+  // Fetch semua data lalu filter KMP + pagination manual
+  const { data: rawData, error } = await dbQuery.limit(5000); // Ambil lebih banyak untuk pagination manual
+
   if (error) {
     throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
   }
 
+  // KMP STRING MATCHING: Filter produk menggunakan KMP
+  const filtered = query.search?.trim()
+    ? kmpFilterProducts(rawData || [], query.search.trim(), 'name')
+    : (rawData || []);
+
   return {
-    data: data || [],
+    data: filtered.slice(offset, offset + limit),
     pagination: {
       page,
       limit,
-      total: count || 0,
-      total_pages: Math.ceil((count || 0) / limit),
+      total: filtered.length,
+      total_pages: Math.ceil(filtered.length / limit),
     }
   };
 }
@@ -501,12 +527,13 @@ const exportProductsBySeller = async (sellerId, query) => {
   } else if (query.stock === 'low') {
     dbQuery = dbQuery.eq('is_low_stock', true);
   }
-  if (query.search?.trim()) {
-    dbQuery = dbQuery.ilike('name', `%${query.search.trim()}%`);
-  }
-
-  const { data, error } = await dbQuery;
+  const { data: rawData, error } = await dbQuery;
   if (error) throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
+
+  // KMP STRING MATCHING: Filter produk menggunakan KMP untuk export
+  const data = query.search?.trim()
+    ? kmpFilterProducts(rawData || [], query.search.trim(), 'name')
+    : (rawData || []);
 
   const rows = data || [];
   const headers = ['ID', 'Nama Produk', 'Kategori', 'Deskripsi', 'Harga', 'Stok', 'Stok Minimum', 'Status', 'Gambar URL', 'Dibuat', 'Diperbarui'];

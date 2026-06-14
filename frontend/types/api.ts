@@ -533,6 +533,7 @@ export type Rating = {
   id: string;
   rating: number;
   comment: string | null;
+  image_urls: string[];
   date: string;
   buyer_name: string;
 };

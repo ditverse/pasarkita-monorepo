@@ -24,6 +24,8 @@ export default function ProductDetailPage() {
   const [loadError, setLoadError] = useState(false);
   const [ratingSummary, setRatingSummary] = useState<RatingSummary | null>(null);
   const [reviewFilter, setReviewFilter] = useState<number | null>(null);
+  const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
+  const [photoModalOpen, setPhotoModalOpen] = useState(false);
   const addItem = useCartStore((state) => state.addItem);
   const addRecentlyViewed = useBuyerPreferencesStore((state) => state.addRecentlyViewed);
   const recentlyViewed = useBuyerPreferencesStore((state) => state.recentlyViewed);
@@ -370,9 +372,23 @@ export default function ProductDetailPage() {
                       </div>
                     </div>
                     {r.comment && (
-                      <p style={{ fontSize: 13, color: 'var(--pk-text-secondary)', margin: 0, lineHeight: 1.55 }}>
+                      <p style={{ fontSize: 13, color: 'var(--pk-text-secondary)', margin: '10px 0 0', lineHeight: 1.55 }}>
                         {r.comment}
                       </p>
+                    )}
+                    {r.image_urls && r.image_urls.length > 0 && (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(60px, 1fr))', gap: 8, marginTop: 12 }}>
+                        {r.image_urls.map((url, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => { setSelectedPhotos(r.image_urls); setPhotoModalOpen(true); }}
+                            style={{ width: '100%', paddingBottom: '100%', position: 'relative', border: 'none', borderRadius: 6, overflow: 'hidden', cursor: 'pointer', background: 'var(--pk-bg-subtle)' }}
+                          >
+                            <img src={url} alt={`Review photo ${idx + 1}`} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+                          </button>
+                        ))}
+                      </div>
                     )}
                   </div>
                 ))}
@@ -409,6 +425,19 @@ export default function ProductDetailPage() {
             ))}
           </div>
         </section>
+      )}
+
+      {photoModalOpen && selectedPhotos.length > 0 && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0, 0, 0, 0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={() => setPhotoModalOpen(false)}>
+          <button onClick={() => setPhotoModalOpen(false)} style={{ position: 'absolute', top: 16, right: 16, width: 40, height: 40, borderRadius: '50%', background: 'rgba(255, 255, 255, 0.1)', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}>
+            <Icon name="x" size={24} />
+          </button>
+          <div style={{ display: 'flex', gap: 16, alignItems: 'center', overflowX: 'auto', maxWidth: '90vw' }} onClick={(e) => e.stopPropagation()}>
+            {selectedPhotos.map((url, idx) => (
+              <img key={idx} src={url} alt={`Photo ${idx + 1}`} style={{ maxHeight: '80vh', maxWidth: '90vw', borderRadius: 8, objectFit: 'contain' }} />
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );

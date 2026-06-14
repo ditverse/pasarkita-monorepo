@@ -1,6 +1,15 @@
 const ratingService = require('./rating.service');
 const { successResponse } = require('../../utils/response');
 
+const uploadReviewImage = async (req, res, next) => {
+  try {
+    const data = await ratingService.uploadReviewImage(req.user.id, req.file);
+    return successResponse(res, 200, 'Foto berhasil diunggah', data);
+  } catch (err) {
+    next(err);
+  }
+};
+
 const submitRating = async (req, res, next) => {
   try {
     const data = await ratingService.submitRating(req.user.id, req.body);
@@ -29,4 +38,4 @@ const checkRated = async (req, res, next) => {
   }
 };
 
-module.exports = { submitRating, getProductRatings, checkRated };
+module.exports = { uploadReviewImage, submitRating, getProductRatings, checkRated };

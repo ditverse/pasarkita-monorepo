@@ -77,6 +77,8 @@ function createInitialRatings(items: OrderItem[]) {
 export default function RatingModal({ orderId, items, onClose, onSubmitted }: RatingModalProps) {
   const [ratings, setRatings] = useState<Record<string, number>>(() => createInitialRatings(items));
   const [comments, setComments] = useState<Record<string, string>>({});
+  const [photos, setPhotos] = useState<Record<string, File[]>>({});
+  const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async () => {
@@ -84,22 +86,57 @@ export default function RatingModal({ orderId, items, onClose, onSubmitted }: Ra
     try {
       // Submit rating untuk setiap item
       await Promise.all(
-        items.map((item) =>
-          ratingsApi.submit({
+        items.map(async (item) => {
+          let uploadedImageUrls: string[] = [];
+
+          // Upload foto jika ada
+          const itemPhotos = photos[item.product_id] || [];
+          if (itemPhotos.length > 0) {
+            uploadedImageUrls = await Promise.all(
+              itemPhotos.map(async (file) => {
+                const res = await ratingsApi.uploadImage(file);
+                return res.data.data.image_url;
+              })
+            );
+          }
+
+          return ratingsApi.submit({
             order_id: orderId,
             product_id: item.product_id,
             rating: ratings[item.product_id] ?? 4,
             comment: comments[item.product_id]?.trim() || undefined,
-          }).catch(() => null) // skip jika sudah pernah rating
-        )
+            image_urls: uploadedImageUrls,
+          }).catch(() => null); // skip jika sudah pernah rating
+        })
       );
       toast.success('Ulasan berhasil dikirim. Terima kasih!');
       onSubmitted();
-    } catch {
-      toast.error('Gagal mengirim ulasan');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Gagal mengirim ulasan');
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handlePhotoSelect = (productId: string, newFiles: File[]) => {
+    setPhotos((prev) => {
+      const current = prev[productId] || [];
+      const combined = [...current, ...newFiles];
+      return {
+        ...prev,
+        [productId]: combined.slice(0, 3),
+      };
+    });
+  };
+
+  const handlePhotoRemove = (productId: string, index: number) => {
+    setPhotos((prev) => {
+      const current = prev[productId] || [];
+      return {
+        ...prev,
+        [productId]: current.filter((_, i) => i !== index),
+      };
+    });
   };
 
   return (
@@ -178,6 +215,129 @@ export default function RatingModal({ orderId, items, onClose, onSubmitted }: Ra
               onChange={(e) => setComments((prev) => ({ ...prev, [item.product_id]: e.target.value }))}
               style={{ minHeight: 80 }}
             />
+
+            {/* Photo Upload */}
+            <div style={{ marginTop: 16 }}>
+              <label className="pk-label">
+                Tambah Foto{' '}
+                <span style={{ color: 'var(--pk-text-hint)', fontWeight: 400 }}>
+                  (maks 3, opsional)
+                </span>
+              </label>
+              <div
+                style={{
+                  border: '2px dashed var(--pk-border)',
+                  borderRadius: 8,
+                  padding: 16,
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  transition: 'background 150ms',
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.currentTarget.style.background = 'var(--pk-bg-subtle)';
+                }}
+                onDragLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.currentTarget.style.background = 'transparent';
+                  const files = Array.from(e.dataTransfer.files).filter((f) =>
+                    ['image/jpeg', 'image/png', 'image/webp'].includes(f.type)
+                  );
+                  if (files.length > 0) handlePhotoSelect(item.product_id, files);
+                }}
+              >
+                <input
+                  type="file"
+                  multiple
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={(e) => {
+                    const files = Array.from(e.currentTarget.files || []);
+                    if (files.length > 0) handlePhotoSelect(item.product_id, files);
+                    e.currentTarget.value = '';
+                  }}
+                  style={{ display: 'none' }}
+                  id={`photo-input-${item.product_id}`}
+                  disabled={uploading || submitting}
+                />
+                <label
+                  htmlFor={`photo-input-${item.product_id}`}
+                  style={{ cursor: 'pointer', display: 'block' }}
+                >
+                  <Icon name="image" size={24} style={{ color: 'var(--pk-text-hint)', marginBottom: 8 }} />
+                  <div style={{ fontSize: 13, fontWeight: 500 }}>
+                    Pilih foto atau drag & drop
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--pk-text-hint)', marginTop: 4 }}>
+                    JPG, PNG, atau WebP (maks 5MB per file)
+                  </div>
+                </label>
+              </div>
+
+              {/* Photo Preview */}
+              {(photos[item.product_id] || []).length > 0 && (
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))',
+                    gap: 8,
+                    marginTop: 12,
+                  }}
+                >
+                  {(photos[item.product_id] || []).map((file, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        position: 'relative',
+                        width: '100%',
+                        paddingBottom: '100%',
+                        borderRadius: 8,
+                        overflow: 'hidden',
+                        background: 'var(--pk-bg-subtle)',
+                      }}
+                    >
+                      <img
+                        src={URL.createObjectURL(file)}
+                        alt={`Preview ${idx + 1}`}
+                        style={{
+                          position: 'absolute',
+                          inset: 0,
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handlePhotoRemove(item.product_id, idx)}
+                        disabled={uploading || submitting}
+                        style={{
+                          position: 'absolute',
+                          top: -6,
+                          right: -6,
+                          width: 24,
+                          height: 24,
+                          borderRadius: '50%',
+                          background: '#EF4444',
+                          border: 'none',
+                          color: 'white',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 12,
+                          fontWeight: 'bold',
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         ))}
 

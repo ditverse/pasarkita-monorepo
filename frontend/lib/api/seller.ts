@@ -1,9 +1,11 @@
 import { api } from '../api';
-import { ApiResponse, SellerAnalytics, SellerStoreProfile } from '@/types/api';
+import { ApiResponse, SellerAnalytics, SellerStoreProfile, SellerReviewsResponse } from '@/types/api';
 
 export const sellerApi = {
   getAnalytics: (params?: { period?: '7d' | '30d'; date_from?: string; date_to?: string }) =>
     api.get<ApiResponse<SellerAnalytics>>('/seller/analytics', { params }),
+  getReviews: (params?: { replied?: boolean; rating?: number; page?: number; limit?: number }) =>
+    api.get<ApiResponse<SellerReviewsResponse>>('/seller/reviews', { params }),
   getProfile: () =>
     api.get<ApiResponse<SellerStoreProfile>>('/seller/profile'),
   updateProfile: (body: {

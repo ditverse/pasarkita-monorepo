@@ -20,6 +20,7 @@ const items = [
   { id: 'orders', href: '/seller/orders', label: 'Order Masuk', icon: 'bag' as const },
   { id: 'chats', href: '/seller/chats', label: 'Chat Produk', icon: 'message' as const },
   { id: 'complaints', href: '/seller/complaints', label: 'Komplain', icon: 'clipboard' as const },
+  { id: 'reviews', href: '/seller/reviews', label: 'Ulasan', icon: 'heart' as const },
   { id: 'settings', href: '/seller/settings', label: 'Pengaturan Toko', icon: 'store' as const },
 ];
 

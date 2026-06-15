@@ -434,6 +434,21 @@ export default function ProductDetailPage() {
                         ))}
                       </div>
                     )}
+                    {r.seller_reply && (
+                      <div style={{ marginTop: 12, marginLeft: 16, padding: '10px 14px', background: 'var(--pk-bg-subtle)', borderRadius: 8, borderLeft: '3px solid var(--pk-accent)' }}>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--pk-accent)', marginBottom: 4 }}>
+                          Balasan Penjual
+                        </div>
+                        <p style={{ fontSize: 12, color: 'var(--pk-text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                          {r.seller_reply}
+                        </p>
+                        {r.seller_replied_at && (
+                          <div style={{ fontSize: 10, color: 'var(--pk-text-hint)', marginTop: 4 }}>
+                            {new Date(r.seller_replied_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
                 {ratingSummary.reviews.filter((review) => reviewFilter === null || review.rating === reviewFilter).length === 0 && (

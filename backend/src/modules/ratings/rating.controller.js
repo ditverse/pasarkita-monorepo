@@ -38,4 +38,28 @@ const checkRated = async (req, res, next) => {
   }
 };
 
-module.exports = { uploadReviewImage, submitRating, getProductRatings, checkRated };
+const replyToRating = async (req, res, next) => {
+  try {
+    const data = await ratingService.replyToRating(req.user.id, req.params.ratingId, req.body.reply);
+    return successResponse(res, 200, 'Balasan berhasil dikirim', data);
+  } catch (err) {
+    next(err);
+  }
+};
+
+const getSellerReviews = async (req, res, next) => {
+  try {
+    const { replied, rating, page, limit } = req.query;
+    const options = {};
+    if (replied !== undefined) options.replied = replied === 'true';
+    if (rating) options.rating = Number(rating);
+    if (page) options.page = Number(page);
+    if (limit) options.limit = Number(limit);
+    const data = await ratingService.getSellerReviews(req.user.id, options);
+    return successResponse(res, 200, 'Ulasan produk toko', data);
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { uploadReviewImage, submitRating, getProductRatings, checkRated, replyToRating, getSellerReviews };

@@ -30,4 +30,8 @@ export const ratingsApi = {
 
   confirmDelivered: (orderId: string) =>
     api.post<ApiResponse<{ id: string; status: string }>>(`/orders/${orderId}/confirm`),
+
+  /** Seller membalas ulasan */
+  replyToRating: (ratingId: string, reply: string) =>
+    api.post<ApiResponse<{ id: string; seller_reply: string }>>(`/ratings/${ratingId}/reply`, { reply }),
 };

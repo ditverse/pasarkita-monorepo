@@ -2,7 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const router = express.Router();
 const ratingController = require('./rating.controller');
-const { verifyToken } = require('../../middlewares/auth');
+const { verifyToken, requireSeller } = require('../../middlewares/auth');
 
 // Multer untuk upload foto ulasan — max 5 MB per file, satu file per request
 const upload = multer({
@@ -31,5 +31,8 @@ router.get('/product/:productId', ratingController.getProductRatings);
 
 // Cek apakah sudah rating — buyer
 router.get('/check/:orderId/:productId', verifyToken, ratingController.checkRated);
+
+// Seller balas ulasan — seller only
+router.post('/:ratingId/reply', verifyToken, requireSeller, ratingController.replyToRating);
 
 module.exports = router;

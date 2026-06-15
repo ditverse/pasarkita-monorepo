@@ -1,4 +1,5 @@
 const sellerService = require('./seller.service');
+const ratingService = require('../ratings/rating.service');
 const { successResponse } = require('../../utils/response');
 
 const getAnalytics = async (req, res, next) => {
@@ -46,4 +47,19 @@ const setVacation = async (req, res, next) => {
   }
 };
 
-module.exports = { getAnalytics, getProfile, updateProfile, uploadLogo, setVacation };
+const getReviews = async (req, res, next) => {
+  try {
+    const { replied, rating, page, limit } = req.query;
+    const options = {};
+    if (replied !== undefined) options.replied = replied === 'true';
+    if (rating) options.rating = Number(rating);
+    if (page) options.page = Number(page);
+    if (limit) options.limit = Number(limit);
+    const data = await ratingService.getSellerReviews(req.user.id, options);
+    return successResponse(res, 200, 'Ulasan produk toko', data);
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { getAnalytics, getProfile, updateProfile, uploadLogo, setVacation, getReviews };

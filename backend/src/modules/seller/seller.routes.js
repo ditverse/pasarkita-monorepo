@@ -22,6 +22,7 @@ const upload = multer({
 
 router.use(verifyToken, requireSeller);
 router.get('/analytics', sellerController.getAnalytics);
+router.get('/reviews', sellerController.getReviews);
 router.get('/profile', sellerController.getProfile);
 router.put('/profile', validate(updateStoreProfileSchema), sellerController.updateProfile);
 router.post('/profile/logo', upload.single('logo'), sellerController.uploadLogo);

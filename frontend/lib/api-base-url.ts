@@ -9,9 +9,12 @@ export function getApiBaseUrl() {
 
   const trimmedUrl = rawUrl.replace(/\/+$/, '');
 
-  if (trimmedUrl.endsWith(API_PREFIX)) {
+  // Jika sudah berakhir dengan /api (atau /api/), kembalikan apa adanya.
+  // Guard ini menghindari dobel `/api`.
+  if (trimmedUrl === 'http://localhost:3001/api' || trimmedUrl.endsWith('/api')) {
     return trimmedUrl;
   }
 
   return `${trimmedUrl}${API_PREFIX}`;
+
 }

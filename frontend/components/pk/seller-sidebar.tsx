@@ -18,6 +18,7 @@ const items = [
   { id: 'dashboard', href: '/seller', label: 'Dashboard', icon: 'barChart' as const, exact: true },
   { id: 'products', href: '/seller/products', label: 'Produk', icon: 'box' as const },
   { id: 'orders', href: '/seller/orders', label: 'Order Masuk', icon: 'bag' as const },
+  { id: 'chats', href: '/seller/chats', label: 'Chat Produk', icon: 'message' as const },
   { id: 'complaints', href: '/seller/complaints', label: 'Komplain', icon: 'clipboard' as const },
   { id: 'settings', href: '/seller/settings', label: 'Pengaturan Toko', icon: 'store' as const },
 ];

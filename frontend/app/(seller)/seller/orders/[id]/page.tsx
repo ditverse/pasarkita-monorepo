@@ -14,6 +14,7 @@ import { sellerApi } from '@/lib/api/seller';
 import { useAuthStore } from '@/store/auth';
 import { getApiErrorMessage } from '@/lib/api-error';
 import type { Order } from '@/types/api';
+import OrderChatPanel from '@/components/pk/order-chat-panel';
 
 function CopyButton({ label, value }: { label: string; value?: string | null }) {
   if (!value) return null;
@@ -389,6 +390,8 @@ export default function SellerOrderDetailPage() {
           <InfoRow label="Nama Pembeli" value={order.buyer?.name ?? 'Tidak tersedia'} />
           <InfoRow label="Alamat Pengiriman" value={order.shipping_address} />
         </div>
+
+        <OrderChatPanel orderId={order.id} />
 
         {/* Item produk */}
         <div className="pk-card" style={{ padding: 20, background: '#fff' }}>

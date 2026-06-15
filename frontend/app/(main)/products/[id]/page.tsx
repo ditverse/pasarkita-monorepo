@@ -15,6 +15,9 @@ import { useCartStore } from '@/store/cart';
 import { useBuyerPreferencesStore } from '@/store/buyer-preferences';
 import WishlistButton from '@/components/pk/wishlist-button';
 import { toast } from 'sonner';
+import { useAuthStore } from '@/store/auth';
+import { chatsApi, type ProductChatThread } from '@/lib/api/chats';
+import ProductChatPanel from '@/components/pk/product-chat-panel';
 
 export default function ProductDetailPage() {
   const { id } = useParams();
@@ -26,7 +29,10 @@ export default function ProductDetailPage() {
   const [reviewFilter, setReviewFilter] = useState<number | null>(null);
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
   const [photoModalOpen, setPhotoModalOpen] = useState(false);
+  const [chatThread, setChatThread] = useState<ProductChatThread | null>(null);
+  const [chatStarting, setChatStarting] = useState(false);
   const addItem = useCartStore((state) => state.addItem);
+  const user = useAuthStore((state) => state.user);
   const addRecentlyViewed = useBuyerPreferencesStore((state) => state.addRecentlyViewed);
   const recentlyViewed = useBuyerPreferencesStore((state) => state.recentlyViewed);
 
@@ -111,6 +117,30 @@ export default function ProductDetailPage() {
     }
   };
 
+  const handleStartChat = async () => {
+    if (!user) {
+      toast.error('Login sebagai buyer untuk chat penjual');
+      window.location.href = '/auth/login';
+      return;
+    }
+    if (user.role !== 'buyer') {
+      toast.error('Chat penjual dari halaman produk hanya tersedia untuk buyer');
+      return;
+    }
+
+    setChatStarting(true);
+    try {
+      const response = await chatsApi.startProductChat(p.id);
+      setChatThread(response.data.data);
+      toast.success('Chat penjual dibuka');
+    } catch (error: unknown) {
+      const message = (error as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'Gagal membuka chat penjual';
+      toast.error(message);
+    } finally {
+      setChatStarting(false);
+    }
+  };
+
   return (
     <div className="pk-page-shell" style={{ padding: '20px 80px 64px' }}>
       <div style={{ fontSize: 13, color: 'var(--pk-text-hint)', marginBottom: 16 }}>
@@ -185,7 +215,21 @@ export default function ProductDetailPage() {
                 Kunjungi toko
               </Link>
             )}
+            <button type="button" className="pk-btn pk-btn-secondary pk-btn-sm" disabled={chatStarting} onClick={() => void handleStartChat()}>
+              <Icon name="message" size={14} /> {chatStarting ? 'Membuka...' : 'Chat Penjual'}
+            </button>
           </div>
+
+          {chatThread && (
+            <div style={{ marginTop: 16 }}>
+              <ProductChatPanel
+                threadId={chatThread.id}
+                title="Chat Penjual"
+                subtitle={`${p.seller?.name || 'Penjual'} - ${p.name}`}
+                onClose={() => setChatThread(null)}
+              />
+            </div>
+          )}
 
           <div style={{ marginTop: 24 }}>
             <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Deskripsi</div>

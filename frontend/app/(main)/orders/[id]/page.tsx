@@ -14,6 +14,8 @@ import { useAuthStore } from '@/store/auth';
 import { toast } from 'sonner';
 import { Order } from '@/types/api';
 import ComplaintPanel from './complaint-panel';
+import OrderChatPanel from '@/components/pk/order-chat-panel';
+
 
 const STEPS_MAP: Record<string, number> = {
   pending: 0,
@@ -349,6 +351,9 @@ export default function OrderDetailPage() {
       <TransparencyPanel order={o} />
       
       <ComplaintPanel order={o} userRole={user?.role} />
+
+      <OrderChatPanel orderId={o.id} />
+
 
       <div className="pk-order-detail-layout" style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 24, marginTop: 24 }}>
         {/* Items */}

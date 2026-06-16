@@ -158,6 +158,17 @@ export function NavbarDesktop() {
           )}
         </Link>
 
+        {isLoggedIn && (
+          <Link
+            href="/chats"
+            className="pk-btn pk-btn-ghost pk-btn-sm"
+            style={{ height: 36, padding: '0 10px' }}
+            aria-label="Chat"
+          >
+            <Icon name="message" size={18} />
+          </Link>
+        )}
+
         {/* Bell — hanya untuk user yang sudah login */}
         {isLoggedIn && (
           <div style={{ position: 'relative' }}>

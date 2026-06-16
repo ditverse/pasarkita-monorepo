@@ -28,19 +28,22 @@ SET
 
 -- 3. RLS Policy — Upload hanya oleh authenticated user
 --    Path convention: {userId}/{uuid}.{ext}
-CREATE POLICY IF NOT EXISTS "review_images_upload"
+DROP POLICY IF EXISTS "review_images_upload" ON storage.objects;
+CREATE POLICY "review_images_upload"
   ON storage.objects FOR INSERT
   TO authenticated
   WITH CHECK (bucket_id = 'review-images');
 
 -- 4. RLS Policy — Public bisa membaca semua foto ulasan
-CREATE POLICY IF NOT EXISTS "review_images_public_read"
+DROP POLICY IF EXISTS "review_images_public_read" ON storage.objects;
+CREATE POLICY "review_images_public_read"
   ON storage.objects FOR SELECT
   TO public
   USING (bucket_id = 'review-images');
 
 -- 5. RLS Policy — Pemilik file bisa menghapus foto miliknya
-CREATE POLICY IF NOT EXISTS "review_images_owner_delete"
+DROP POLICY IF EXISTS "review_images_owner_delete" ON storage.objects;
+CREATE POLICY "review_images_owner_delete"
   ON storage.objects FOR DELETE
   TO authenticated
   USING (

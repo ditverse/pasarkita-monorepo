@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,7 +8,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
     :root {
       --pk-bg: #FFFFFF;
@@ -49,6 +56,7 @@
       top: 0;
       z-index: 10;
     }
+
     .header-logo {
       display: flex;
       align-items: center;
@@ -57,35 +65,71 @@
       font-weight: 600;
       letter-spacing: -0.02em;
     }
+
     .header-logo-icon {
-      width: 28px; height: 28px;
+      width: 28px;
+      height: 28px;
       background: var(--pk-text);
       color: #fff;
       border-radius: 7px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 12px; font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
     }
-    .header-divider { width: 1px; height: 20px; background: var(--pk-border); }
-    .header-title { font-size: 13px; color: var(--pk-text-secondary); font-weight: 500; }
+
+    .header-divider {
+      width: 1px;
+      height: 20px;
+      background: var(--pk-border);
+    }
+
+    .header-title {
+      font-size: 13px;
+      color: var(--pk-text-secondary);
+      font-weight: 500;
+    }
+
     .header-badge {
       margin-left: auto;
-      display: inline-flex; align-items: center; gap: 6px;
-      padding: 4px 10px; border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
       background: var(--pk-success-soft);
       color: var(--pk-success);
-      font-size: 12px; font-weight: 500;
+      font-size: 12px;
+      font-weight: 500;
     }
+
     .header-badge-dot {
-      width: 6px; height: 6px; border-radius: 50%;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
       background: var(--pk-success);
     }
 
     /* Layout */
-    .container { max-width: 1100px; margin: 0 auto; padding: 32px 24px 64px; }
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 32px 24px 64px;
+    }
 
     /* Grid */
-    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
 
     /* Card */
     .card {
@@ -93,14 +137,30 @@
       border: 1px solid var(--pk-border);
       border-radius: 12px;
     }
+
     .card-header {
       padding: 18px 20px 14px;
       border-bottom: 1px solid var(--pk-border);
-      display: flex; justify-content: space-between; align-items: center;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
-    .card-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
-    .card-subtitle { font-size: 12px; color: var(--pk-text-hint); margin-top: 2px; }
-    .card-body { padding: 20px; }
+
+    .card-title {
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+
+    .card-subtitle {
+      font-size: 12px;
+      color: var(--pk-text-hint);
+      margin-top: 2px;
+    }
+
+    .card-body {
+      padding: 20px;
+    }
 
     /* Metric card */
     .metric-card {
@@ -109,319 +169,540 @@
       border-radius: 12px;
       padding: 20px;
     }
-    .metric-label { font-size: 12px; color: var(--pk-text-secondary); margin-bottom: 8px; }
-    .metric-value { font-size: 26px; font-weight: 600; letter-spacing: -0.025em; line-height: 1; }
-    .metric-sub { font-size: 11px; color: var(--pk-text-hint); margin-top: 6px; }
+
+    .metric-label {
+      font-size: 12px;
+      color: var(--pk-text-secondary);
+      margin-bottom: 8px;
+    }
+
+    .metric-value {
+      font-size: 26px;
+      font-weight: 600;
+      letter-spacing: -0.025em;
+      line-height: 1;
+    }
+
+    .metric-sub {
+      font-size: 11px;
+      color: var(--pk-text-hint);
+      margin-top: 6px;
+    }
 
     /* Section title */
     .section-title {
-      font-size: 18px; font-weight: 600; letter-spacing: -0.02em;
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
       margin-bottom: 16px;
     }
 
     /* Form */
-    .form-row { display: flex; gap: 10px; align-items: flex-end; }
-    .form-group { display: flex; flex-direction: column; gap: 6px; flex: 1; }
-    .form-label { font-size: 12px; font-weight: 500; color: var(--pk-text); }
+    .form-row {
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      flex: 1;
+    }
+
+    .form-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--pk-text);
+    }
+
     .form-input {
-      height: 38px; padding: 0 12px;
-      border: 1px solid var(--pk-border); border-radius: 8px;
-      background: #fff; font-size: 13px; color: var(--pk-text);
+      height: 38px;
+      padding: 0 12px;
+      border: 1px solid var(--pk-border);
+      border-radius: 8px;
+      background: #fff;
+      font-size: 13px;
+      color: var(--pk-text);
       font-family: inherit;
       transition: border-color 150ms, box-shadow 150ms;
     }
+
     .form-input:focus {
       outline: none;
       border-color: var(--pk-accent);
-      box-shadow: 0 0 0 2px rgba(37,99,235,0.15);
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
     }
-    .form-input::placeholder { color: var(--pk-text-hint); }
+
+    .form-input::placeholder {
+      color: var(--pk-text-hint);
+    }
 
     /* Buttons */
     .btn {
-      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-      height: 38px; padding: 0 14px; border-radius: 8px;
-      font-weight: 500; font-size: 13px; border: 1px solid transparent;
-      cursor: pointer; transition: all 150ms; white-space: nowrap;
-      font-family: inherit; letter-spacing: -0.006em;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      height: 38px;
+      padding: 0 14px;
+      border-radius: 8px;
+      font-weight: 500;
+      font-size: 13px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 150ms;
+      white-space: nowrap;
+      font-family: inherit;
+      letter-spacing: -0.006em;
     }
-    .btn-primary { background: var(--pk-text); color: #fff; }
-    .btn-primary:hover { background: #000; }
-    .btn-secondary { background: #fff; color: var(--pk-text); border-color: var(--pk-border); }
-    .btn-secondary:hover { background: var(--pk-bg-subtle); }
-    .btn-success { background: var(--pk-success); color: #fff; }
-    .btn-success:hover { background: #15803d; }
-    .btn-danger { background: #fff; color: var(--pk-danger); border-color: var(--pk-border); }
-    .btn-danger:hover { background: var(--pk-danger-soft); border-color: var(--pk-danger); }
-    .btn-sm { height: 30px; padding: 0 10px; font-size: 12px; }
+
+    .btn-primary {
+      background: var(--pk-text);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: #000;
+    }
+
+    .btn-secondary {
+      background: #fff;
+      color: var(--pk-text);
+      border-color: var(--pk-border);
+    }
+
+    .btn-secondary:hover {
+      background: var(--pk-bg-subtle);
+    }
+
+    .btn-success {
+      background: var(--pk-success);
+      color: #fff;
+    }
+
+    .btn-success:hover {
+      background: #15803d;
+    }
+
+    .btn-danger {
+      background: #fff;
+      color: var(--pk-danger);
+      border-color: var(--pk-border);
+    }
+
+    .btn-danger:hover {
+      background: var(--pk-danger-soft);
+      border-color: var(--pk-danger);
+    }
+
+    .btn-sm {
+      height: 30px;
+      padding: 0 10px;
+      font-size: 12px;
+    }
 
     /* Table */
-    .table-wrap { overflow: hidden; border-radius: 12px; border: 1px solid var(--pk-border); }
-    table { width: 100%; border-collapse: collapse; background: #fff; }
-    thead tr { background: var(--pk-bg-subtle); }
-    th {
-      text-align: left; padding: 10px 16px;
-      font-size: 11px; font-weight: 500;
-      color: var(--pk-text-hint);
-      text-transform: uppercase; letter-spacing: 0.06em;
+    .table-wrap {
+      overflow: hidden;
+      border-radius: 12px;
+      border: 1px solid var(--pk-border);
     }
-    td { padding: 12px 16px; font-size: 13px; border-top: 1px solid var(--pk-border); }
-    tr:hover td { background: var(--pk-bg-subtle); }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+    }
+
+    thead tr {
+      background: var(--pk-bg-subtle);
+    }
+
+    th {
+      text-align: left;
+      padding: 10px 16px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--pk-text-hint);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    td {
+      padding: 12px 16px;
+      font-size: 13px;
+      border-top: 1px solid var(--pk-border);
+    }
+
+    tr:hover td {
+      background: var(--pk-bg-subtle);
+    }
 
     /* Badge */
     .badge {
-      display: inline-flex; align-items: center;
-      height: 20px; padding: 0 7px; border-radius: 4px;
-      font-size: 11px; font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      height: 20px;
+      padding: 0 7px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
     }
-    .badge-success { background: var(--pk-success-soft); color: var(--pk-success); }
-    .badge-warning { background: var(--pk-warning-soft); color: var(--pk-warning); }
-    .badge-danger { background: var(--pk-danger-soft); color: var(--pk-danger); }
-    .badge-neutral { background: #F3F4F6; color: var(--pk-text-secondary); }
+
+    .badge-success {
+      background: var(--pk-success-soft);
+      color: var(--pk-success);
+    }
+
+    .badge-warning {
+      background: var(--pk-warning-soft);
+      color: var(--pk-warning);
+    }
+
+    .badge-danger {
+      background: var(--pk-danger-soft);
+      color: var(--pk-danger);
+    }
+
+    .badge-neutral {
+      background: #F3F4F6;
+      color: var(--pk-text-secondary);
+    }
 
     /* Mono */
-    .mono { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 12px; }
+    .mono {
+      font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+      font-size: 12px;
+    }
 
     /* Toast */
     .toast-container {
-      position: fixed; bottom: 24px; right: 24px;
-      display: flex; flex-direction: column; gap: 8px;
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
       z-index: 999;
     }
+
     .toast {
-      padding: 12px 16px; border-radius: 10px;
-      font-size: 13px; font-weight: 500;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
       animation: slideIn 200ms ease;
       max-width: 320px;
     }
-    .toast-success { background: var(--pk-success); color: #fff; }
-    .toast-error { background: var(--pk-danger); color: #fff; }
-    .toast-info { background: var(--pk-text); color: #fff; }
-    @keyframes slideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    .toast-success {
+      background: var(--pk-success);
+      color: #fff;
+    }
+
+    .toast-error {
+      background: var(--pk-danger);
+      color: #fff;
+    }
+
+    .toast-info {
+      background: var(--pk-text);
+      color: #fff;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
 
     /* Empty state */
     .empty {
-      padding: 40px 24px; text-align: center;
-      color: var(--pk-text-hint); font-size: 13px;
+      padding: 40px 24px;
+      text-align: center;
+      color: var(--pk-text-hint);
+      font-size: 13px;
     }
 
     /* Divider */
-    .divider { height: 1px; background: var(--pk-border); margin: 20px 0; }
+    .divider {
+      height: 1px;
+      background: var(--pk-border);
+      margin: 20px 0;
+    }
 
     /* Amount colors */
-    .amount-positive { color: var(--pk-success); font-weight: 600; }
-    .amount-negative { color: var(--pk-danger); font-weight: 600; }
+    .amount-positive {
+      color: var(--pk-success);
+      font-weight: 600;
+    }
+
+    .amount-negative {
+      color: var(--pk-danger);
+      font-weight: 600;
+    }
 
     /* Spacing */
-    .mb-4 { margin-bottom: 4px; }
-    .mb-8 { margin-bottom: 8px; }
-    .mb-16 { margin-bottom: 16px; }
-    .mb-24 { margin-bottom: 24px; }
-    .mb-32 { margin-bottom: 32px; }
-    .mt-16 { margin-top: 16px; }
-    .gap-8 { gap: 8px; }
-    .flex { display: flex; }
-    .items-center { align-items: center; }
-    .justify-between { justify-content: space-between; }
+    .mb-4 {
+      margin-bottom: 4px;
+    }
+
+    .mb-8 {
+      margin-bottom: 8px;
+    }
+
+    .mb-16 {
+      margin-bottom: 16px;
+    }
+
+    .mb-24 {
+      margin-bottom: 24px;
+    }
+
+    .mb-32 {
+      margin-bottom: 32px;
+    }
+
+    .mt-16 {
+      margin-top: 16px;
+    }
+
+    .gap-8 {
+      gap: 8px;
+    }
+
+    .flex {
+      display: flex;
+    }
+
+    .items-center {
+      align-items: center;
+    }
+
+    .justify-between {
+      justify-content: space-between;
+    }
   </style>
 </head>
+
 <body>
 
-<!-- Header -->
-<header class="header">
-  <div class="header-logo">
-    <div class="header-logo-icon">SB</div>
-    SmartBank
-  </div>
-  <div class="header-divider"></div>
-  <span class="header-title">Mock Dashboard</span>
-  <div class="header-badge">
-    <div class="header-badge-dot"></div>
-    Running on :4001
-  </div>
-</header>
-
-<div class="container">
-
-  <!-- Metric cards -->
-  <div class="grid-3 mb-32" id="metrics">
-    <div class="metric-card">
-      <div class="metric-label">Total User</div>
-      <div class="metric-value" id="m-users">—</div>
-      <div class="metric-sub">Dengan saldo terdaftar</div>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-logo">
+      <div class="header-logo-icon">SB</div>
+      SmartBank
     </div>
-    <div class="metric-card">
-      <div class="metric-label">Total Transaksi</div>
-      <div class="metric-value" id="m-txns">—</div>
-      <div class="metric-sub">Sejak server start</div>
+    <div class="header-divider"></div>
+    <span class="header-title">Mock Dashboard</span>
+    <div class="header-badge">
+      <div class="header-badge-dot"></div>
+      Running on :4001
     </div>
-    <div class="metric-card">
-      <div class="metric-label">Total Volume</div>
-      <div class="metric-value" id="m-volume">—</div>
-      <div class="metric-sub">Semua pembayaran</div>
+  </header>
+
+  <div class="container">
+
+    <!-- Metric cards -->
+    <div class="grid-3 mb-32" id="metrics">
+      <div class="metric-card">
+        <div class="metric-label">Total User</div>
+        <div class="metric-value" id="m-users">—</div>
+        <div class="metric-sub">Dengan saldo terdaftar</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Total Transaksi</div>
+        <div class="metric-value" id="m-txns">—</div>
+        <div class="metric-sub">Sejak server start</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Total Volume</div>
+        <div class="metric-value" id="m-volume">—</div>
+        <div class="metric-sub">Semua pembayaran</div>
+      </div>
     </div>
-  </div>
 
-  <div class="grid-2 mb-32">
+    <div class="grid-2 mb-32">
 
-    <!-- Panel Saldo -->
-    <div>
-      <div class="section-title">Saldo User</div>
-      <div class="card mb-16">
-        <div class="card-header">
-          <div>
-            <div class="card-title">Set / Top Up Saldo</div>
-            <div class="card-subtitle">Atur saldo untuk testing checkout</div>
-          </div>
-        </div>
-        <div class="card-body">
-          <div class="form-row mb-16">
-            <div class="form-group">
-              <label class="form-label">User ID</label>
-              <input class="form-input" id="bal-user" placeholder="UUID atau nama user" />
-            </div>
-            <div class="form-group" style="max-width: 140px;">
-              <label class="form-label">Nominal (Rp)</label>
-              <input class="form-input" id="bal-amount" type="number" placeholder="500000" value="500000" />
+      <!-- Panel Saldo -->
+      <div>
+        <div class="section-title">Saldo User</div>
+        <div class="card mb-16">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Set / Top Up Saldo</div>
+              <div class="card-subtitle">Atur saldo untuk testing checkout</div>
             </div>
           </div>
-          <div class="form-row gap-8">
-            <button class="btn btn-primary" onclick="setBalance()">Set Saldo</button>
-            <button class="btn btn-success" onclick="topUp()">+ Top Up</button>
-            <button class="btn btn-danger" style="margin-left:auto" onclick="resetAll()">Reset Semua</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>User ID</th>
-              <th>Saldo</th>
-              <th>Aksi</th>
-            </tr>
-          </thead>
-          <tbody id="balance-table">
-            <tr><td colspan="3" class="empty">Memuat...</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Panel Cooldown -->
-    <div>
-      <div class="section-title">Status Cooldown & Limit</div>
-      <div class="card mb-16">
-        <div class="card-header">
-          <div>
-            <div class="card-title">Reset Cooldown</div>
-            <div class="card-subtitle">Hapus cooldown 10 detik per user</div>
-          </div>
-        </div>
-        <div class="card-body">
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">User ID</label>
-              <input class="form-input" id="cd-user" placeholder="UUID atau nama user" />
+          <div class="card-body">
+            <div class="form-group mb-16">
+              <label class="form-label">Pilih User</label>
+              <select class="form-input" id="user-select" onchange="onUserSelect()" style="cursor:pointer">
+                <option value="">— Pilih dari daftar —</option>
+              </select>
             </div>
-            <button class="btn btn-secondary" onclick="resetCooldown()">Reset Cooldown</button>
+            <div class="form-row mb-16">
+              <div class="form-group">
+                <label class="form-label">User ID</label>
+                <input class="form-input" id="bal-user" placeholder="UUID atau nama user" />
+              </div>
+              <div class="form-group" style="max-width: 140px;">
+                <label class="form-label">Nominal (Rp)</label>
+                <input class="form-input" id="bal-amount" type="number" placeholder="500000" value="500000" />
+              </div>
+            </div>
+            <div class="form-row gap-8">
+              <button class="btn btn-primary" onclick="setBalance()">Set Saldo</button>
+              <button class="btn btn-success" onclick="topUp()">+ Top Up</button>
+              <button class="btn btn-danger" style="margin-left:auto" onclick="resetAll()">Reset Semua</button>
+            </div>
           </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>User ID</th>
+                <th>Saldo</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="balance-table">
+              <tr>
+                <td colspan="3" class="empty">Memuat...</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>User ID</th>
-              <th>Transaksi Hari Ini</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody id="cooldown-table">
-            <tr><td colspan="3" class="empty">Memuat...</td></tr>
-          </tbody>
-        </table>
+      <!-- Panel Cooldown -->
+      <div>
+        <div class="section-title">Status Cooldown & Limit</div>
+        <div class="card mb-16">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Reset Cooldown</div>
+              <div class="card-subtitle">Hapus cooldown 10 detik per user</div>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">User ID</label>
+                <input class="form-input" id="cd-user" placeholder="UUID atau nama user" />
+              </div>
+              <button class="btn btn-secondary" onclick="resetCooldown()">Reset Cooldown</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>User ID</th>
+                <th>Transaksi Hari Ini</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="cooldown-table">
+              <tr>
+                <td colspan="3" class="empty">Memuat...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
+
+    <!-- Riwayat Transaksi -->
+    <div class="section-title">Riwayat Transaksi</div>
+    <div class="flex justify-between items-center mb-16">
+      <span style="font-size:13px; color: var(--pk-text-hint)" id="txn-count">0 transaksi</span>
+      <button class="btn btn-danger btn-sm" onclick="clearTransactions()">Hapus Semua</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Transaction ID</th>
+            <th>User</th>
+            <th>Order ID</th>
+            <th>Amount</th>
+            <th>Waktu</th>
+          </tr>
+        </thead>
+        <tbody id="txn-table">
+          <tr>
+            <td colspan="5" class="empty">Memuat...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
   </div>
 
-  <!-- Riwayat Transaksi -->
-  <div class="section-title">Riwayat Transaksi</div>
-  <div class="flex justify-between items-center mb-16">
-    <span style="font-size:13px; color: var(--pk-text-hint)" id="txn-count">0 transaksi</span>
-    <button class="btn btn-danger btn-sm" onclick="clearTransactions()">Hapus Semua</button>
-  </div>
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>Transaction ID</th>
-          <th>User</th>
-          <th>Order ID</th>
-          <th>Amount</th>
-          <th>Waktu</th>
-        </tr>
-      </thead>
-      <tbody id="txn-table">
-        <tr><td colspan="5" class="empty">Memuat...</td></tr>
-      </tbody>
-    </table>
-  </div>
+  <!-- Toast container -->
+  <div class="toast-container" id="toasts"></div>
 
-</div>
+  <script>
+    const BASE = 'http://localhost:4001/smartbank';
+    let _users = []; // cache user dari Supabase
 
-<!-- Toast container -->
-<div class="toast-container" id="toasts"></div>
+    function formatIDR(n) {
+      return 'Rp ' + Number(n).toLocaleString('id-ID');
+    }
 
-<script>
-  const BASE = 'http://localhost:4001/smartbank';
+    function formatTime(iso) {
+      if (!iso) return '—';
+      return new Date(iso).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
 
-  function formatIDR(n) {
-    return 'Rp ' + Number(n).toLocaleString('id-ID');
-  }
+    function shortId(id) {
+      if (!id) return '—';
+      if (id.length > 20) return id.slice(0, 8) + '...' + id.slice(-4);
+      return id;
+    }
 
-  function formatTime(iso) {
-    if (!iso) return '—';
-    return new Date(iso).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  }
+    function toast(msg, type = 'info') {
+      const el = document.createElement('div');
+      el.className = `toast toast-${type}`;
+      el.textContent = msg;
+      document.getElementById('toasts').appendChild(el);
+      setTimeout(() => el.remove(), 3000);
+    }
 
-  function shortId(id) {
-    if (!id) return '—';
-    if (id.length > 20) return id.slice(0, 8) + '...' + id.slice(-4);
-    return id;
-  }
+    async function loadData() {
+      try {
+        const res = await fetch(`${BASE}/debug/state`);
+        const json = await res.json();
+        const { balances, transactions, cooldowns } = json.data;
 
-  function toast(msg, type = 'info') {
-    const el = document.createElement('div');
-    el.className = `toast toast-${type}`;
-    el.textContent = msg;
-    document.getElementById('toasts').appendChild(el);
-    setTimeout(() => el.remove(), 3000);
-  }
+        // Metrics
+        const userCount = Object.keys(balances).length;
+        const txnCount = transactions.length;
+        const volume = transactions.reduce((s, t) => s + t.amount, 0);
+        document.getElementById('m-users').textContent = userCount;
+        document.getElementById('m-txns').textContent = txnCount;
+        document.getElementById('m-volume').textContent = formatIDR(volume);
 
-  async function loadData() {
-    try {
-      const res = await fetch(`${BASE}/debug/state`);
-      const json = await res.json();
-      const { balances, transactions, cooldowns } = json.data;
-
-      // Metrics
-      const userCount = Object.keys(balances).length;
-      const txnCount = transactions.length;
-      const volume = transactions.reduce((s, t) => s + t.amount, 0);
-      document.getElementById('m-users').textContent = userCount;
-      document.getElementById('m-txns').textContent = txnCount;
-      document.getElementById('m-volume').textContent = formatIDR(volume);
-
-      // Balance table
-      const balTbody = document.getElementById('balance-table');
-      if (userCount === 0) {
-        balTbody.innerHTML = '<tr><td colspan="3" class="empty">Belum ada user terdaftar</td></tr>';
-      } else {
-        balTbody.innerHTML = Object.entries(balances).map(([uid, bal]) => `
+        // Balance table
+        const balTbody = document.getElementById('balance-table');
+        if (userCount === 0) {
+          balTbody.innerHTML = '<tr><td colspan="3" class="empty">Belum ada user terdaftar</td></tr>';
+        } else {
+          balTbody.innerHTML = Object.entries(balances).map(([uid, bal]) => `
           <tr>
             <td><span class="mono">${shortId(uid)}</span></td>
             <td><strong>${formatIDR(bal)}</strong></td>
@@ -430,132 +711,154 @@
             </td>
           </tr>
         `).join('');
-      }
+        }
 
-      // Cooldown table
-      const cdTbody = document.getElementById('cooldown-table');
-      const now = Date.now();
-      if (Object.keys(cooldowns).length === 0) {
-        cdTbody.innerHTML = '<tr><td colspan="3" class="empty">Tidak ada cooldown aktif</td></tr>';
-      } else {
-        cdTbody.innerHTML = Object.entries(cooldowns).map(([uid, info]) => {
-          const remaining = Math.max(0, Math.ceil((10000 - (now - info.lastTxn)) / 1000));
-          const count = info.todayCount ?? 0;
-          const statusBadge = remaining > 0
-            ? `<span class="badge badge-warning">Cooldown ${remaining}s</span>`
-            : count >= 10
-              ? `<span class="badge badge-danger">Limit Harian</span>`
-              : `<span class="badge badge-success">OK</span>`;
-          return `
+        // Cooldown table
+        const cdTbody = document.getElementById('cooldown-table');
+        const now = Date.now();
+        if (Object.keys(cooldowns).length === 0) {
+          cdTbody.innerHTML = '<tr><td colspan="3" class="empty">Tidak ada cooldown aktif</td></tr>';
+        } else {
+          cdTbody.innerHTML = Object.entries(cooldowns).map(([uid, info]) => {
+            const remaining = Math.max(0, Math.ceil((10000 - (now - info.lastTxn)) / 1000));
+            const count = info.todayCount ?? 0;
+            const statusBadge = remaining > 0
+              ? `<span class="badge badge-warning">Cooldown ${remaining}s</span>`
+              : count >= 10
+                ? `<span class="badge badge-danger">Limit Harian</span>`
+                : `<span class="badge badge-success">OK</span>`;
+            return `
             <tr>
               <td><span class="mono">${shortId(uid)}</span></td>
               <td>${count} / 10</td>
               <td>${statusBadge}</td>
             </tr>
           `;
-        }).join('');
-      }
+          }).join('');
+        }
 
-      // Transaction table
-      const txnTbody = document.getElementById('txn-table');
-      document.getElementById('txn-count').textContent = `${txnCount} transaksi`;
-      if (txnCount === 0) {
-        txnTbody.innerHTML = '<tr><td colspan="5" class="empty">Belum ada transaksi</td></tr>';
-      } else {
-        txnTbody.innerHTML = [...transactions].reverse().map(t => `
+        // Transaction table
+        const txnTbody = document.getElementById('txn-table');
+        document.getElementById('txn-count').textContent = `${txnCount} transaksi`;
+        if (txnCount === 0) {
+          txnTbody.innerHTML = '<tr><td colspan="5" class="empty">Belum ada transaksi</td></tr>';
+        } else {
+          txnTbody.innerHTML = [...transactions].reverse().map(t => {
+            const name = _users.find(u => u.id === t.from_user)?.name;
+            const userDisplay = name ? name : shortId(t.from_user);
+            const isTopup = t.type === 'topup';
+            return `
           <tr>
             <td><span class="mono">${shortId(t.id)}</span></td>
-            <td><span class="mono">${shortId(t.from_user)}</span></td>
-            <td><span class="mono">${shortId(t.order_id) || '—'}</span></td>
-            <td class="amount-negative">−${formatIDR(t.amount)}</td>
+            <td>${userDisplay}</td>
+            <td><span class="mono">${shortId(t.order_id) || (isTopup ? '<em style="color:var(--pk-text-hint)">top up</em>' : '—')}</span></td>
+            <td class="${isTopup ? 'amount-positive' : 'amount-negative'}">${isTopup ? '+' : '−'}${formatIDR(t.amount)}</td>
             <td style="color: var(--pk-text-hint)">${formatTime(t.created_at)}</td>
           </tr>
-        `).join('');
+        `;
+          }).join('');
+        }
+
+      } catch (err) {
+        console.error(err);
       }
-
-    } catch (err) {
-      console.error(err);
     }
-  }
 
-  async function setBalance() {
-    const userId = document.getElementById('bal-user').value.trim();
-    const amount = parseInt(document.getElementById('bal-amount').value);
-    if (!userId) { toast('User ID wajib diisi', 'error'); return; }
-    if (isNaN(amount) || amount < 0) { toast('Nominal tidak valid', 'error'); return; }
+    async function setBalance() {
+      const userId = document.getElementById('bal-user').value.trim();
+      const amount = parseInt(document.getElementById('bal-amount').value);
+      if (!userId) { toast('User ID wajib diisi', 'error'); return; }
+      if (isNaN(amount) || amount < 0) { toast('Nominal tidak valid', 'error'); return; }
 
-    const res = await fetch(`${BASE}/debug/reset`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: userId, amount }),
-    });
-    const json = await res.json();
-    if (json.success) { toast(`Saldo ${shortId(userId)} → ${formatIDR(amount)}`, 'success'); loadData(); }
-    else toast(json.error?.details ?? 'Gagal', 'error');
-  }
+      const res = await fetch(`${BASE}/debug/reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, amount }),
+      });
+      const json = await res.json();
+      if (json.success) { toast(`Saldo ${shortId(userId)} → ${formatIDR(amount)}`, 'success'); loadData(); }
+      else toast(json.error?.details ?? 'Gagal', 'error');
+    }
 
-  async function topUp() {
-    const userId = document.getElementById('bal-user').value.trim();
-    const amount = parseInt(document.getElementById('bal-amount').value);
-    if (!userId) { toast('User ID wajib diisi', 'error'); return; }
-    if (isNaN(amount) || amount <= 0) { toast('Nominal tidak valid', 'error'); return; }
+    async function topUp() {
+      const userId = document.getElementById('bal-user').value.trim();
+      const amount = parseInt(document.getElementById('bal-amount').value);
+      if (!userId) { toast('User ID wajib diisi', 'error'); return; }
+      if (isNaN(amount) || amount <= 0) { toast('Nominal tidak valid', 'error'); return; }
 
-    // Ambil saldo saat ini dulu
-    const balRes = await fetch(`${BASE}/balance/${userId}`);
-    const balJson = await balRes.json();
-    const current = balJson.data?.balance ?? 0;
-    const newBalance = current + amount;
+      const res = await fetch(`${BASE}/debug/topup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, amount }),
+      });
+      const json = await res.json();
+      if (json.success) { toast(`Top up +${formatIDR(amount)} berhasil`, 'success'); loadData(); }
+      else toast(json.error?.details ?? 'Gagal', 'error');
+    }
 
-    const res = await fetch(`${BASE}/debug/reset`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: userId, amount: newBalance }),
-    });
-    const json = await res.json();
-    if (json.success) { toast(`Top up +${formatIDR(amount)} → total ${formatIDR(newBalance)}`, 'success'); loadData(); }
-    else toast(json.error?.details ?? 'Gagal', 'error');
-  }
+    async function quickReset(userId) {
+      const res = await fetch(`${BASE}/debug/reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, amount: 500000 }),
+      });
+      const json = await res.json();
+      if (json.success) { toast(`Saldo ${shortId(userId)} direset ke Rp 500.000`, 'success'); loadData(); }
+    }
 
-  async function quickReset(userId) {
-    const res = await fetch(`${BASE}/debug/reset`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: userId, amount: 500000 }),
-    });
-    const json = await res.json();
-    if (json.success) { toast(`Saldo ${shortId(userId)} direset ke Rp 500.000`, 'success'); loadData(); }
-  }
+    async function resetAll() {
+      if (!confirm('Reset semua saldo dan transaksi?')) return;
+      const res = await fetch(`${BASE}/debug/reset-all`, { method: 'POST' });
+      const json = await res.json();
+      if (json.success) { toast('Semua state direset', 'info'); loadData(); }
+    }
 
-  async function resetAll() {
-    if (!confirm('Reset semua saldo dan transaksi?')) return;
-    const res = await fetch(`${BASE}/debug/reset-all`, { method: 'POST' });
-    const json = await res.json();
-    if (json.success) { toast('Semua state direset', 'info'); loadData(); }
-  }
+    async function resetCooldown() {
+      const userId = document.getElementById('cd-user').value.trim();
+      if (!userId) { toast('User ID wajib diisi', 'error'); return; }
+      const res = await fetch(`${BASE}/debug/reset-cooldown`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId }),
+      });
+      const json = await res.json();
+      if (json.success) { toast(`Cooldown ${shortId(userId)} direset`, 'success'); loadData(); }
+      else toast(json.error?.details ?? 'Gagal', 'error');
+    }
 
-  async function resetCooldown() {
-    const userId = document.getElementById('cd-user').value.trim();
-    if (!userId) { toast('User ID wajib diisi', 'error'); return; }
-    const res = await fetch(`${BASE}/debug/reset-cooldown`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: userId }),
-    });
-    const json = await res.json();
-    if (json.success) { toast(`Cooldown ${shortId(userId)} direset`, 'success'); loadData(); }
-    else toast(json.error?.details ?? 'Gagal', 'error');
-  }
+    async function clearTransactions() {
+      if (!confirm('Hapus semua riwayat transaksi?')) return;
+      const res = await fetch(`${BASE}/debug/clear-transactions`, { method: 'POST' });
+      const json = await res.json();
+      if (json.success) { toast('Transaksi dihapus', 'info'); loadData(); }
+    }
 
-  async function clearTransactions() {
-    if (!confirm('Hapus semua riwayat transaksi?')) return;
-    const res = await fetch(`${BASE}/debug/clear-transactions`, { method: 'POST' });
-    const json = await res.json();
-    if (json.success) { toast('Transaksi dihapus', 'info'); loadData(); }
-  }
+    // Load daftar user dari Supabase via mock proxy
+    async function loadUsers() {
+      try {
+        const res = await fetch(`${BASE}/users`);
+        const json = await res.json();
+        if (!json.success) return;
+        _users = json.data ?? [];
+        const sel = document.getElementById('user-select');
+        const currentVal = sel.value;
+        sel.innerHTML = '<option value="">— Pilih dari daftar —</option>' +
+          _users.map(u => `<option value="${u.id}">${u.name} (${u.role}) — ${u.email}</option>`).join('');
+        if (currentVal) sel.value = currentVal;
+      } catch { /* backend tidak tersedia, abaikan */ }
+    }
 
-  // Auto refresh setiap 3 detik
-  loadData();
-  setInterval(loadData, 3000);
-</script>
+    function onUserSelect() {
+      const sel = document.getElementById('user-select');
+      if (sel.value) document.getElementById('bal-user').value = sel.value;
+    }
+
+    // Auto refresh setiap 3 detik
+    loadData();
+    loadUsers();
+    setInterval(loadData, 3000);
+    setInterval(loadUsers, 15000);
+  </script>
 </body>
+
 </html>

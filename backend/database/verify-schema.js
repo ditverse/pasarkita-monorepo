@@ -12,6 +12,9 @@ const checks = [
   ['order_status_history', 'id, order_id, status, source, created_at'],
   ['notifications', 'id, user_id, order_id, type, title, read_at, created_at'],
   ['seller_profiles', 'seller_id, store_name, logo_url, verification_status, processing_days'],
+  ['order_chat_messages', 'id, order_id, sender_id, content, created_at'],
+  ['product_chat_threads', 'id, product_id, buyer_id, seller_id, created_at, updated_at'],
+  ['product_chat_messages', 'id, thread_id, sender_id, content, created_at'],
 ];
 
 async function main() {

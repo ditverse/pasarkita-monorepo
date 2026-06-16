@@ -43,6 +43,24 @@ app.use('/api/seller', sellerRoutes);
 app.use('/api/complaints', complaintRoutes);
 app.use('/api/chats', chatRoutes);
 
+// Dev-only: list users untuk mock dashboard (hanya aktif di NODE_ENV=development)
+if (process.env.NODE_ENV === 'development') {
+  const supabase = require('./config/supabase');
+  app.get('/api/dev/users', async (req, res) => {
+    const secret = process.env.MOCK_DEV_SECRET || 'mock-dev-secret';
+    if ((req.headers['x-mock-secret'] || req.query.secret) !== secret) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, name, email, role, is_active')
+      .order('created_at', { ascending: false })
+      .limit(200);
+    if (error) return res.status(500).json({ success: false, message: error.message });
+    return res.json({ success: true, data: data || [] });
+  });
+}
+
 app.use((req, res, next) => {
 
   res.status(404).json({ success: false, message: 'Endpoint not found' });

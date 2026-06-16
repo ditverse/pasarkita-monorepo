@@ -1,538 +1,211 @@
-BEGIN;
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
 
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
-CREATE TABLE IF NOT EXISTS public.users (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name VARCHAR NOT NULL,
-  email VARCHAR NOT NULL UNIQUE,
-  password_hash TEXT NOT NULL,
-  role VARCHAR NOT NULL CHECK (role IN ('buyer', 'seller', 'superadmin')),
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+CREATE TABLE public.users (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name character varying NOT NULL,
+  email character varying NOT NULL UNIQUE,
+  password_hash text NOT NULL,
+  role character varying NOT NULL CHECK (role::text = ANY (ARRAY['buyer'::character varying, 'seller'::character varying, 'superadmin'::character varying]::text[])),
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  phone character varying,
+  avatar_url text,
+  CONSTRAINT users_pkey PRIMARY KEY (id)
 );
-
-CREATE TABLE IF NOT EXISTS public.products (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  seller_id UUID NOT NULL REFERENCES public.users(id) ON DELETE RESTRICT,
-  name VARCHAR NOT NULL,
-  description TEXT,
-  category VARCHAR NOT NULL,
-  price INTEGER NOT NULL CHECK (price > 0),
-  stock INTEGER NOT NULL DEFAULT 0 CHECK (stock >= 0),
-  minimum_stock INTEGER NOT NULL DEFAULT 5 CHECK (minimum_stock >= 0),
-  is_low_stock BOOLEAN GENERATED ALWAYS AS
-    (stock > 0 AND stock <= minimum_stock) STORED,
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  image_url TEXT
+CREATE TABLE public.products (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  seller_id uuid NOT NULL,
+  name character varying NOT NULL,
+  description text,
+  category character varying NOT NULL,
+  price integer NOT NULL CHECK (price > 0),
+  stock integer NOT NULL DEFAULT 0 CHECK (stock >= 0),
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  image_url text,
+  minimum_stock integer NOT NULL DEFAULT 5 CHECK (minimum_stock >= 0),
+  is_low_stock boolean DEFAULT ((stock > 0) AND (stock <= minimum_stock)),
+  CONSTRAINT products_pkey PRIMARY KEY (id),
+  CONSTRAINT products_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.users(id)
 );
-
-CREATE TABLE IF NOT EXISTS public.seller_profiles (
-  seller_id UUID PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,
-  store_name VARCHAR(120) NOT NULL,
-  logo_url TEXT,
-  description TEXT,
-  pickup_address TEXT,
-  contact_phone VARCHAR(30),
-  open_time TIME NOT NULL DEFAULT '08:00',
-  close_time TIME NOT NULL DEFAULT '17:00',
-  processing_days INTEGER NOT NULL DEFAULT 2 CHECK (processing_days BETWEEN 1 AND 30),
-  verification_status VARCHAR(30) NOT NULL DEFAULT 'unverified'
-    CHECK (verification_status IN ('unverified', 'demo_verified')),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+CREATE TABLE public.orders (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  buyer_id uuid NOT NULL,
+  status character varying NOT NULL DEFAULT 'pending'::character varying CHECK (status::text = ANY (ARRAY['pending'::character varying, 'paid'::character varying, 'processing'::character varying, 'shipped'::character varying, 'delivered'::character varying, 'payment_failed'::character varying, 'cancelled'::character varying]::text[])),
+  subtotal integer NOT NULL CHECK (subtotal > 0),
+  fee_marketplace integer NOT NULL DEFAULT 0,
+  total integer NOT NULL CHECK (total > 0),
+  shipping_address text NOT NULL,
+  transaction_id character varying,
+  tracking_id character varying,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  idempotency_key uuid,
+  stock_reserved boolean NOT NULL DEFAULT false,
+  processing_at timestamp with time zone,
+  shipped_at timestamp with time zone,
+  pickup_address_snapshot text,
+  shipping_sync_status character varying NOT NULL DEFAULT 'not_requested'::character varying CHECK (shipping_sync_status::text = ANY (ARRAY['not_requested'::character varying, 'pending'::character varying, 'synced'::character varying, 'failed'::character varying]::text[])),
+  shipping_sync_error text,
+  shipping_sync_updated_at timestamp with time zone,
+  CONSTRAINT orders_pkey PRIMARY KEY (id),
+  CONSTRAINT orders_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.users(id)
 );
-
-CREATE TABLE IF NOT EXISTS public.orders (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  buyer_id UUID NOT NULL REFERENCES public.users(id) ON DELETE RESTRICT,
-  status VARCHAR NOT NULL DEFAULT 'pending'
-    CHECK (status IN ('pending', 'paid', 'processing', 'shipped', 'delivered', 'payment_failed')),
-  subtotal INTEGER NOT NULL CHECK (subtotal > 0),
-  fee_marketplace INTEGER NOT NULL DEFAULT 0 CHECK (fee_marketplace >= 0),
-  total INTEGER NOT NULL CHECK (total > 0),
-  shipping_address TEXT NOT NULL,
-  transaction_id VARCHAR,
-  tracking_id VARCHAR,
-  processing_at TIMESTAMPTZ,
-  shipped_at TIMESTAMPTZ,
-  pickup_address_snapshot TEXT,
-  shipping_sync_status VARCHAR(20) NOT NULL DEFAULT 'not_requested'
-    CHECK (shipping_sync_status IN ('not_requested', 'pending', 'synced', 'failed')),
-  shipping_sync_error TEXT,
-  shipping_sync_updated_at TIMESTAMPTZ,
-  idempotency_key UUID,
-  stock_reserved BOOLEAN NOT NULL DEFAULT FALSE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+CREATE TABLE public.order_items (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  order_id uuid NOT NULL,
+  product_id uuid NOT NULL,
+  qty integer NOT NULL CHECK (qty > 0),
+  price_at_purchase integer NOT NULL CHECK (price_at_purchase > 0),
+  product_name_at_purchase text,
+  CONSTRAINT order_items_pkey PRIMARY KEY (id),
+  CONSTRAINT order_items_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id),
+  CONSTRAINT order_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id)
 );
-
-CREATE TABLE IF NOT EXISTS public.order_items (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
-  product_id UUID NOT NULL REFERENCES public.products(id) ON DELETE RESTRICT,
-  qty INTEGER NOT NULL CHECK (qty > 0),
-  price_at_purchase INTEGER NOT NULL CHECK (price_at_purchase > 0),
-  product_name_at_purchase TEXT NOT NULL
+CREATE TABLE public.ratings (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  order_id uuid NOT NULL,
+  product_id uuid NOT NULL,
+  buyer_id uuid NOT NULL,
+  rating integer NOT NULL CHECK (rating >= 1 AND rating <= 5),
+  comment text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT ratings_pkey PRIMARY KEY (id),
+  CONSTRAINT ratings_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id),
+  CONSTRAINT ratings_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
+  CONSTRAINT ratings_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.users(id)
 );
-
-CREATE TABLE IF NOT EXISTS public.ratings (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
-  product_id UUID NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
-  buyer_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-  rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
-  comment TEXT,
-  image_urls TEXT[] NOT NULL DEFAULT '{}',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  CONSTRAINT ratings_order_product_unique UNIQUE (order_id, product_id)
+CREATE TABLE public.admin_audit_logs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  actor_id uuid NOT NULL,
+  action text NOT NULL,
+  target_type text NOT NULL,
+  target_id uuid,
+  reason text,
+  before_data jsonb,
+  after_data jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT admin_audit_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT admin_audit_logs_actor_id_fkey FOREIGN KEY (actor_id) REFERENCES public.users(id)
 );
-
-CREATE TABLE IF NOT EXISTS public.admin_audit_logs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  actor_id UUID NOT NULL REFERENCES public.users(id) ON DELETE RESTRICT,
-  action TEXT NOT NULL,
-  target_type TEXT NOT NULL,
-  target_id UUID,
-  reason TEXT,
-  before_data JSONB,
-  after_data JSONB,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+CREATE TABLE public.integration_logs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  service text NOT NULL,
+  operation text NOT NULL,
+  success boolean NOT NULL,
+  duration_ms integer NOT NULL CHECK (duration_ms >= 0),
+  order_id uuid,
+  status_code integer,
+  error_code text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT integration_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT integration_logs_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id)
 );
-
-CREATE TABLE IF NOT EXISTS public.integration_logs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  service TEXT NOT NULL,
-  operation TEXT NOT NULL,
-  success BOOLEAN NOT NULL,
-  duration_ms INTEGER NOT NULL CHECK (duration_ms >= 0),
-  order_id UUID REFERENCES public.orders(id) ON DELETE SET NULL,
-  status_code INTEGER,
-  error_code TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+CREATE TABLE public.order_status_history (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  order_id uuid NOT NULL,
+  status character varying NOT NULL CHECK (status::text = ANY (ARRAY['pending'::character varying, 'paid'::character varying, 'processing'::character varying, 'shipped'::character varying, 'delivered'::character varying, 'payment_failed'::character varying, 'cancelled'::character varying]::text[])),
+  actor_id uuid,
+  source text NOT NULL DEFAULT 'system'::text,
+  note text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT order_status_history_pkey PRIMARY KEY (id),
+  CONSTRAINT order_status_history_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id),
+  CONSTRAINT order_status_history_actor_id_fkey FOREIGN KEY (actor_id) REFERENCES public.users(id)
 );
-
-CREATE TABLE IF NOT EXISTS public.order_status_history (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
-  status VARCHAR NOT NULL
-    CHECK (status IN ('pending', 'paid', 'processing', 'shipped', 'delivered', 'payment_failed')),
-  actor_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
-  source TEXT NOT NULL DEFAULT 'system',
-  note TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+CREATE TABLE public.notifications (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  order_id uuid,
+  type text NOT NULL CHECK (type = ANY (ARRAY['order'::text, 'payment'::text, 'shipped'::text, 'rating'::text, 'system'::text])),
+  title text NOT NULL,
+  message text NOT NULL,
+  href text,
+  read_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT notifications_pkey PRIMARY KEY (id),
+  CONSTRAINT notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT notifications_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id)
 );
-
-CREATE TABLE IF NOT EXISTS public.notifications (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-  order_id UUID REFERENCES public.orders(id) ON DELETE CASCADE,
-  type TEXT NOT NULL
-    CHECK (type IN ('order', 'payment', 'shipped', 'rating', 'system')),
-  title TEXT NOT NULL,
-  message TEXT NOT NULL,
-  href TEXT,
-  read_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+CREATE TABLE public.seller_profiles (
+  seller_id uuid NOT NULL,
+  store_name character varying NOT NULL,
+  logo_url text,
+  description text,
+  pickup_address text,
+  contact_phone character varying,
+  open_time time without time zone NOT NULL DEFAULT '08:00:00'::time without time zone,
+  close_time time without time zone NOT NULL DEFAULT '17:00:00'::time without time zone,
+  processing_days integer NOT NULL DEFAULT 2 CHECK (processing_days >= 1 AND processing_days <= 30),
+  verification_status character varying NOT NULL DEFAULT 'unverified'::character varying CHECK (verification_status::text = ANY (ARRAY['unverified'::character varying, 'demo_verified'::character varying]::text[])),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT seller_profiles_pkey PRIMARY KEY (seller_id),
+  CONSTRAINT seller_profiles_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.users(id)
 );
-
-CREATE INDEX IF NOT EXISTS idx_products_seller
-  ON public.products(seller_id);
-CREATE INDEX IF NOT EXISTS idx_products_active_category
-  ON public.products(is_active, category);
-CREATE INDEX IF NOT EXISTS idx_products_seller_stock
-  ON public.products(seller_id, is_low_stock, stock);
-CREATE INDEX IF NOT EXISTS idx_orders_buyer_created
-  ON public.orders(buyer_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_orders_seller_fulfillment
-  ON public.orders(status, processing_at, shipped_at);
-CREATE INDEX IF NOT EXISTS idx_orders_status
-  ON public.orders(status);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_buyer_idempotency
-  ON public.orders(buyer_id, idempotency_key)
-  WHERE idempotency_key IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_order_items_order
-  ON public.order_items(order_id);
-CREATE INDEX IF NOT EXISTS idx_order_items_product
-  ON public.order_items(product_id);
-CREATE INDEX IF NOT EXISTS idx_ratings_product
-  ON public.ratings(product_id);
-CREATE INDEX IF NOT EXISTS idx_ratings_buyer
-  ON public.ratings(buyer_id);
-CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_created
-  ON public.admin_audit_logs(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_target
-  ON public.admin_audit_logs(target_type, target_id);
-CREATE INDEX IF NOT EXISTS idx_integration_logs_created
-  ON public.integration_logs(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_integration_logs_service_created
-  ON public.integration_logs(service, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_integration_logs_order
-  ON public.integration_logs(order_id);
-CREATE INDEX IF NOT EXISTS idx_order_status_history_order_created
-  ON public.order_status_history(order_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_notifications_user_created
-  ON public.notifications(user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_notifications_user_unread
-  ON public.notifications(user_id, created_at DESC)
-  WHERE read_at IS NULL;
-
-CREATE OR REPLACE FUNCTION public.set_updated_at()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SET search_path = public
-AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
-$$;
-
-DROP TRIGGER IF EXISTS products_set_updated_at ON public.products;
-CREATE TRIGGER products_set_updated_at
-BEFORE UPDATE ON public.products
-FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
-
-DROP TRIGGER IF EXISTS seller_profiles_set_updated_at ON public.seller_profiles;
-CREATE TRIGGER seller_profiles_set_updated_at
-BEFORE UPDATE ON public.seller_profiles
-FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
-
-DROP TRIGGER IF EXISTS orders_set_updated_at ON public.orders;
-CREATE TRIGGER orders_set_updated_at
-BEFORE UPDATE ON public.orders
-FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
-
-CREATE OR REPLACE FUNCTION public.set_order_fulfillment_timestamps()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-AS $$
-BEGIN
-  IF NEW.status = 'processing' AND OLD.status IS DISTINCT FROM NEW.status THEN
-    NEW.processing_at = COALESCE(NEW.processing_at, NOW());
-  END IF;
-  IF NEW.status = 'shipped' AND OLD.status IS DISTINCT FROM NEW.status THEN
-    NEW.shipped_at = COALESCE(NEW.shipped_at, NOW());
-  END IF;
-  RETURN NEW;
-END;
-$$;
-
-DROP TRIGGER IF EXISTS orders_set_fulfillment_timestamps ON public.orders;
-CREATE TRIGGER orders_set_fulfillment_timestamps
-BEFORE UPDATE OF status ON public.orders
-FOR EACH ROW EXECUTE FUNCTION public.set_order_fulfillment_timestamps();
-
-CREATE OR REPLACE FUNCTION public.record_order_status_event()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  v_type TEXT;
-  v_title TEXT;
-  v_message TEXT;
-BEGIN
-  IF TG_OP = 'UPDATE' AND NEW.status IS NOT DISTINCT FROM OLD.status THEN
-    RETURN NEW;
-  END IF;
-
-  INSERT INTO public.order_status_history (order_id, status, source, note, created_at)
-  VALUES (
-    NEW.id,
-    NEW.status,
-    CASE WHEN TG_OP = 'INSERT' THEN 'checkout' ELSE 'order_update' END,
-    CASE NEW.status
-      WHEN 'pending' THEN 'Order dibuat dan menunggu hasil pembayaran.'
-      WHEN 'paid' THEN 'Pembayaran berhasil dikonfirmasi.'
-      WHEN 'processing' THEN 'Penjual mulai menyiapkan pesanan.'
-      WHEN 'payment_failed' THEN 'Pembayaran gagal dikonfirmasi.'
-      WHEN 'shipped' THEN 'Pesanan telah diserahkan untuk pengiriman.'
-      WHEN 'delivered' THEN 'Pesanan telah dikonfirmasi diterima.'
-    END,
-    CASE WHEN TG_OP = 'INSERT' THEN NEW.created_at ELSE NOW() END
-  );
-
-  IF NEW.status = 'pending' THEN RETURN NEW; END IF;
-
-  SELECT
-    CASE NEW.status WHEN 'paid' THEN 'payment' WHEN 'payment_failed' THEN 'payment'
-      WHEN 'shipped' THEN 'shipped' WHEN 'delivered' THEN 'rating' ELSE 'order' END,
-    CASE NEW.status WHEN 'paid' THEN 'Pembayaran berhasil'
-      WHEN 'processing' THEN 'Pesanan sedang disiapkan'
-      WHEN 'payment_failed' THEN 'Pembayaran gagal'
-      WHEN 'shipped' THEN 'Pesanan sedang dikirim'
-      WHEN 'delivered' THEN 'Pesanan telah selesai'
-      ELSE 'Status pesanan diperbarui' END,
-    CASE NEW.status WHEN 'paid' THEN 'Pembayaran pesanan berhasil dikonfirmasi oleh SmartBank.'
-      WHEN 'processing' THEN 'Penjual sedang menyiapkan dan mengemas pesanan Anda.'
-      WHEN 'payment_failed' THEN 'Pembayaran pesanan belum berhasil. Buka detail pesanan untuk informasi lebih lanjut.'
-      WHEN 'shipped' THEN 'Penjual telah menyerahkan pesanan Anda untuk dikirim.'
-      WHEN 'delivered' THEN 'Pesanan selesai. Anda dapat memberikan ulasan untuk produk.'
-      ELSE 'Status pesanan Anda telah diperbarui.' END
-  INTO v_type, v_title, v_message;
-
-  INSERT INTO public.notifications (user_id, order_id, type, title, message, href)
-  VALUES (NEW.buyer_id, NEW.id, v_type, v_title, v_message, '/orders/' || NEW.id::TEXT);
-  RETURN NEW;
-END;
-$$;
-
-DROP TRIGGER IF EXISTS orders_record_status_event ON public.orders;
-CREATE TRIGGER orders_record_status_event
-AFTER INSERT OR UPDATE OF status ON public.orders
-FOR EACH ROW EXECUTE FUNCTION public.record_order_status_event();
-
-CREATE OR REPLACE FUNCTION public.create_checkout_order(
-  p_buyer_id UUID,
-  p_idempotency_key UUID,
-  p_shipping_address TEXT,
-  p_items JSONB
-)
-RETURNS JSONB
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  v_existing public.orders%ROWTYPE;
-  v_order public.orders%ROWTYPE;
-  v_item JSONB;
-  v_product public.products%ROWTYPE;
-  v_product_id UUID;
-  v_qty INTEGER;
-  v_subtotal INTEGER := 0;
-  v_fee INTEGER;
-BEGIN
-  IF p_idempotency_key IS NULL THEN
-    RAISE EXCEPTION 'IDEMPOTENCY_KEY_REQUIRED';
-  END IF;
-
-  IF p_shipping_address IS NULL OR length(trim(p_shipping_address)) < 10 THEN
-    RAISE EXCEPTION 'INVALID_SHIPPING_ADDRESS';
-  END IF;
-
-  IF jsonb_typeof(p_items) <> 'array' OR jsonb_array_length(p_items) = 0 THEN
-    RAISE EXCEPTION 'ITEMS_REQUIRED';
-  END IF;
-
-  IF (
-    SELECT COUNT(*) FROM jsonb_array_elements(p_items)
-  ) <> (
-    SELECT COUNT(DISTINCT value->>'product_id')
-    FROM jsonb_array_elements(p_items)
-  ) THEN
-    RAISE EXCEPTION 'DUPLICATE_PRODUCTS';
-  END IF;
-
-  PERFORM pg_advisory_xact_lock(
-    hashtextextended(p_buyer_id::TEXT || ':' || p_idempotency_key::TEXT, 0)
-  );
-
-  SELECT *
-  INTO v_existing
-  FROM public.orders
-  WHERE buyer_id = p_buyer_id
-    AND idempotency_key = p_idempotency_key;
-
-  IF FOUND THEN
-    RETURN jsonb_build_object('created', FALSE, 'order', to_jsonb(v_existing));
-  END IF;
-
-  FOR v_item IN
-    SELECT value
-    FROM jsonb_array_elements(p_items)
-    ORDER BY value->>'product_id'
-  LOOP
-    v_product_id := (v_item->>'product_id')::UUID;
-    v_qty := (v_item->>'qty')::INTEGER;
-
-    IF v_qty < 1 OR v_qty > 100 THEN
-      RAISE EXCEPTION 'INVALID_QUANTITY:%', v_product_id;
-    END IF;
-
-    SELECT *
-    INTO v_product
-    FROM public.products
-    WHERE id = v_product_id
-    FOR UPDATE;
-
-    IF NOT FOUND OR NOT v_product.is_active THEN
-      RAISE EXCEPTION 'PRODUCT_NOT_FOUND:%', v_product_id;
-    END IF;
-
-    IF v_product.stock < v_qty THEN
-      RAISE EXCEPTION 'INSUFFICIENT_STOCK:%:%:%',
-        v_product.name, v_product.stock, v_qty;
-    END IF;
-
-    v_subtotal := v_subtotal + (v_product.price * v_qty);
-  END LOOP;
-
-  v_fee := round(v_subtotal * 0.02);
-
-  INSERT INTO public.orders (
-    buyer_id,
-    status,
-    subtotal,
-    fee_marketplace,
-    total,
-    shipping_address,
-    idempotency_key,
-    stock_reserved
-  )
-  VALUES (
-    p_buyer_id,
-    'pending',
-    v_subtotal,
-    v_fee,
-    v_subtotal + v_fee,
-    trim(p_shipping_address),
-    p_idempotency_key,
-    TRUE
-  )
-  RETURNING * INTO v_order;
-
-  FOR v_item IN
-    SELECT value
-    FROM jsonb_array_elements(p_items)
-    ORDER BY value->>'product_id'
-  LOOP
-    v_product_id := (v_item->>'product_id')::UUID;
-    v_qty := (v_item->>'qty')::INTEGER;
-
-    SELECT *
-    INTO v_product
-    FROM public.products
-    WHERE id = v_product_id;
-
-    INSERT INTO public.order_items (
-      order_id,
-      product_id,
-      qty,
-      price_at_purchase,
-      product_name_at_purchase
-    )
-    VALUES (
-      v_order.id,
-      v_product_id,
-      v_qty,
-      v_product.price,
-      v_product.name
-    );
-
-    UPDATE public.products
-    SET
-      stock = stock - v_qty,
-      is_active = CASE WHEN stock - v_qty <= 0 THEN FALSE ELSE is_active END
-    WHERE id = v_product_id;
-  END LOOP;
-
-  RETURN jsonb_build_object('created', TRUE, 'order', to_jsonb(v_order));
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION public.release_checkout_stock(p_order_id UUID)
-RETURNS BOOLEAN
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  v_order public.orders%ROWTYPE;
-  v_item RECORD;
-BEGIN
-  SELECT *
-  INTO v_order
-  FROM public.orders
-  WHERE id = p_order_id
-  FOR UPDATE;
-
-  IF NOT FOUND OR NOT v_order.stock_reserved THEN
-    RETURN FALSE;
-  END IF;
-
-  FOR v_item IN
-    SELECT product_id, qty
-    FROM public.order_items
-    WHERE order_id = p_order_id
-  LOOP
-    UPDATE public.products
-    SET stock = stock + v_item.qty, is_active = TRUE
-    WHERE id = v_item.product_id;
-  END LOOP;
-
-  UPDATE public.orders
-  SET stock_reserved = FALSE
-  WHERE id = p_order_id;
-
-  RETURN TRUE;
-END;
-$$;
-
-ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.ratings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.admin_audit_logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.integration_logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.order_status_history ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.seller_profiles ENABLE ROW LEVEL SECURITY;
-
-REVOKE ALL ON FUNCTION public.create_checkout_order(UUID, UUID, TEXT, JSONB)
-  FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION public.release_checkout_stock(UUID)
-  FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.create_checkout_order(UUID, UUID, TEXT, JSONB)
-  TO service_role;
-GRANT EXECUTE ON FUNCTION public.release_checkout_stock(UUID)
-  TO service_role;
-
-INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-VALUES (
-  'product-images',
-  'product-images',
-  TRUE,
-  5242880,
-  ARRAY['image/jpeg', 'image/png', 'image/webp']
-)
-ON CONFLICT (id) DO UPDATE
-SET
-  public = EXCLUDED.public,
-  file_size_limit = EXCLUDED.file_size_limit,
-  allowed_mime_types = EXCLUDED.allowed_mime_types;
-
-INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-VALUES (
-  'store-assets',
-  'store-assets',
-  TRUE,
-  2097152,
-  ARRAY['image/jpeg', 'image/png', 'image/webp']
-)
-ON CONFLICT (id) DO UPDATE
-SET
-  public = EXCLUDED.public,
-  file_size_limit = EXCLUDED.file_size_limit,
-  allowed_mime_types = EXCLUDED.allowed_mime_types;
-
-INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-VALUES (
-  'review-images',
-  'review-images',
-  TRUE,
-  5242880,
-  ARRAY['image/jpeg', 'image/png', 'image/webp']
-)
-ON CONFLICT (id) DO UPDATE
-SET
-  public = EXCLUDED.public,
-  file_size_limit = EXCLUDED.file_size_limit,
-  allowed_mime_types = EXCLUDED.allowed_mime_types;
-
-COMMIT;
+CREATE TABLE public.user_addresses (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  label character varying NOT NULL,
+  recipient_name character varying NOT NULL,
+  phone character varying NOT NULL,
+  full_address text NOT NULL,
+  is_primary boolean NOT NULL DEFAULT false,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT user_addresses_pkey PRIMARY KEY (id),
+  CONSTRAINT user_addresses_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.complaints (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  order_id uuid NOT NULL,
+  buyer_id uuid NOT NULL,
+  seller_id uuid NOT NULL,
+  type character varying NOT NULL CHECK (type::text = ANY (ARRAY['damaged'::character varying, 'missing_item'::character varying, 'wrong_item'::character varying, 'not_received'::character varying, 'other'::character varying]::text[])),
+  description text NOT NULL,
+  status character varying NOT NULL DEFAULT 'open'::character varying CHECK (status::text = ANY (ARRAY['open'::character varying, 'seller_replied'::character varying, 'admin_review'::character varying, 'resolved'::character varying, 'rejected'::character varying]::text[])),
+  seller_response text,
+  admin_notes text,
+  resolution text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT complaints_pkey PRIMARY KEY (id),
+  CONSTRAINT complaints_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id),
+  CONSTRAINT complaints_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.users(id),
+  CONSTRAINT complaints_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.users(id)
+);CREATE TABLE public.order_chat_messages (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  order_id uuid NOT NULL,
+  sender_id uuid NOT NULL,
+  content text NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT order_chat_messages_pkey PRIMARY KEY (id),
+  CONSTRAINT order_chat_messages_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id) ON DELETE CASCADE,
+  CONSTRAINT order_chat_messages_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES public.users(id) ON DELETE CASCADE
+);
+CREATE TABLE public.product_chat_threads (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  product_id uuid NOT NULL,
+  buyer_id uuid NOT NULL,
+  seller_id uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT product_chat_threads_pkey PRIMARY KEY (id),
+  CONSTRAINT product_chat_threads_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id) ON DELETE CASCADE,
+  CONSTRAINT product_chat_threads_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.users(id) ON DELETE CASCADE,
+  CONSTRAINT product_chat_threads_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.users(id) ON DELETE CASCADE,
+  CONSTRAINT product_chat_threads_unique UNIQUE (product_id, buyer_id, seller_id),
+  CONSTRAINT product_chat_no_self CHECK (buyer_id <> seller_id)
+);
+CREATE TABLE public.product_chat_messages (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  thread_id uuid NOT NULL,
+  sender_id uuid NOT NULL,
+  content text NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT product_chat_messages_pkey PRIMARY KEY (id),
+  CONSTRAINT product_chat_messages_thread_id_fkey FOREIGN KEY (thread_id) REFERENCES public.product_chat_threads(id) ON DELETE CASCADE,
+  CONSTRAINT product_chat_messages_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES public.users(id) ON DELETE CASCADE
+);

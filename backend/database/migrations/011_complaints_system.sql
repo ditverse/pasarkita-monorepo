@@ -17,11 +17,12 @@ CREATE TABLE IF NOT EXISTS public.complaints (
 );
 
 -- Ensure one order can only have one active complaint
-CREATE UNIQUE INDEX idx_complaints_order_id ON public.complaints(order_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_complaints_order_id ON public.complaints(order_id);
 
 -- Setup RLS
 ALTER TABLE public.complaints ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view their own complaints" ON public.complaints;
 CREATE POLICY "Users can view their own complaints"
   ON public.complaints FOR SELECT
   USING (
@@ -30,6 +31,7 @@ CREATE POLICY "Users can view their own complaints"
     EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'superadmin')
   );
 
+DROP POLICY IF EXISTS "Buyers can create complaints" ON public.complaints;
 CREATE POLICY "Buyers can create complaints"
   ON public.complaints FOR INSERT
   WITH CHECK (
@@ -37,6 +39,7 @@ CREATE POLICY "Buyers can create complaints"
     EXISTS (SELECT 1 FROM public.orders WHERE id = order_id AND buyer_id = auth.uid())
   );
 
+DROP POLICY IF EXISTS "Sellers can update their complaints" ON public.complaints;
 CREATE POLICY "Sellers can update their complaints"
   ON public.complaints FOR UPDATE
   USING (

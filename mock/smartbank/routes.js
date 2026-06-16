@@ -4,7 +4,15 @@ const fs = require('fs');
 const path = require('path');
 
 const DB_PATH = path.join(__dirname, 'db.json');
-const readDb = () => JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
+const readDb = () => {
+  try {
+    const raw = fs.readFileSync(DB_PATH, 'utf8');
+    const parsed = JSON.parse(raw);
+    if (!parsed.balances) parsed.balances = {};
+    if (!parsed.transactions) parsed.transactions = [];
+    return parsed;
+  } catch { return { balances: {}, transactions: [] }; }
+};
 const writeDb = (data) => fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
 
 const DEFAULT_BALANCE = 500_000;
@@ -16,6 +24,43 @@ const dailyCount = {};
 // ── Dashboard ────────────────────────────────────────────────
 router.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'dashboard.html'));
+});
+
+// ── List Users dari backend (untuk dropdown di dashboard) ────
+router.get('/users', async (req, res) => {
+  const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3001';
+  const DEV_SECRET  = process.env.MOCK_DEV_SECRET || 'mock-dev-secret';
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/dev/users`, {
+      headers: { 'x-mock-secret': DEV_SECRET },
+      signal: AbortSignal.timeout(4000),
+    });
+    if (!response.ok) {
+      return res.status(502).json({ success: false, error: { code: 'BACKEND_ERROR', details: `HTTP ${response.status}` } });
+    }
+    const json = await response.json();
+    return res.json({ success: true, data: json.data ?? [] });
+  } catch (err) {
+    return res.status(503).json({ success: false, error: { code: 'BACKEND_UNREACHABLE', details: err.message } });
+  }
+});
+
+// ── Debug: top up saldo (dicatat di riwayat transaksi) ───────
+router.post('/debug/topup', (req, res) => {
+  const { user_id, amount } = req.body;
+  if (!user_id) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', details: 'user_id wajib diisi' } });
+  const topUpAmount = parseInt(amount, 10);
+  if (isNaN(topUpAmount) || topUpAmount <= 0) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', details: 'amount harus angka positif' } });
+
+  const db = readDb();
+  const before = db.balances[user_id] ?? 0;
+  const after = before + topUpAmount;
+  db.balances[user_id] = after;
+  const txnId = `TOPUP-MOCK-${Date.now()}`;
+  db.transactions.push({ id: txnId, type: 'topup', from_user: user_id, amount: topUpAmount, order_id: null, created_at: new Date().toISOString() });
+  writeDb(db);
+  console.log(`[Mock SmartBank] TopUp — user=${user_id} +${topUpAmount} → ${after}`);
+  return res.json({ success: true, message: `Top up +Rp ${topUpAmount.toLocaleString('id-ID')} berhasil`, data: { transaction_id: txnId, user_id, balance_before: before, balance_after: after } });
 });
 
 // ── Payment ──────────────────────────────────────────────────

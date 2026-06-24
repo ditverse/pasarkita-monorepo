@@ -50,8 +50,11 @@ CREATE TABLE public.orders (
   shipping_sync_status character varying NOT NULL DEFAULT 'not_requested'::character varying CHECK (shipping_sync_status::text = ANY (ARRAY['not_requested'::character varying, 'pending'::character varying, 'synced'::character varying, 'failed'::character varying]::text[])),
   shipping_sync_error text,
   shipping_sync_updated_at timestamp with time zone,
+  voucher_id uuid,
+  voucher_discount integer NOT NULL DEFAULT 0 CHECK (voucher_discount >= 0),
   CONSTRAINT orders_pkey PRIMARY KEY (id),
-  CONSTRAINT orders_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.users(id)
+  CONSTRAINT orders_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.users(id),
+  CONSTRAINT orders_voucher_id_fkey FOREIGN KEY (voucher_id) REFERENCES public.vouchers(id)
 );
 CREATE TABLE public.order_items (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -72,6 +75,9 @@ CREATE TABLE public.ratings (
   rating integer NOT NULL CHECK (rating >= 1 AND rating <= 5),
   comment text,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
+  image_urls ARRAY NOT NULL DEFAULT '{}'::text[],
+  seller_reply text,
+  seller_replied_at timestamp with time zone,
   CONSTRAINT ratings_pkey PRIMARY KEY (id),
   CONSTRAINT ratings_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id),
   CONSTRAINT ratings_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
@@ -175,15 +181,16 @@ CREATE TABLE public.complaints (
   CONSTRAINT complaints_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id),
   CONSTRAINT complaints_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.users(id),
   CONSTRAINT complaints_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.users(id)
-);CREATE TABLE public.order_chat_messages (
+);
+CREATE TABLE public.order_chat_messages (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   order_id uuid NOT NULL,
   sender_id uuid NOT NULL,
   content text NOT NULL,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT order_chat_messages_pkey PRIMARY KEY (id),
-  CONSTRAINT order_chat_messages_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id) ON DELETE CASCADE,
-  CONSTRAINT order_chat_messages_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES public.users(id) ON DELETE CASCADE
+  CONSTRAINT order_chat_messages_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id),
+  CONSTRAINT order_chat_messages_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES public.users(id)
 );
 CREATE TABLE public.product_chat_threads (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -193,11 +200,9 @@ CREATE TABLE public.product_chat_threads (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT product_chat_threads_pkey PRIMARY KEY (id),
-  CONSTRAINT product_chat_threads_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id) ON DELETE CASCADE,
-  CONSTRAINT product_chat_threads_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.users(id) ON DELETE CASCADE,
-  CONSTRAINT product_chat_threads_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.users(id) ON DELETE CASCADE,
-  CONSTRAINT product_chat_threads_unique UNIQUE (product_id, buyer_id, seller_id),
-  CONSTRAINT product_chat_no_self CHECK (buyer_id <> seller_id)
+  CONSTRAINT product_chat_threads_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
+  CONSTRAINT product_chat_threads_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.users(id),
+  CONSTRAINT product_chat_threads_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.users(id)
 );
 CREATE TABLE public.product_chat_messages (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -206,6 +211,75 @@ CREATE TABLE public.product_chat_messages (
   content text NOT NULL,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT product_chat_messages_pkey PRIMARY KEY (id),
-  CONSTRAINT product_chat_messages_thread_id_fkey FOREIGN KEY (thread_id) REFERENCES public.product_chat_threads(id) ON DELETE CASCADE,
-  CONSTRAINT product_chat_messages_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES public.users(id) ON DELETE CASCADE
+  CONSTRAINT product_chat_messages_thread_id_fkey FOREIGN KEY (thread_id) REFERENCES public.product_chat_threads(id),
+  CONSTRAINT product_chat_messages_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.product_ads (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  product_id uuid NOT NULL,
+  seller_id uuid NOT NULL,
+  start_date timestamp with time zone NOT NULL,
+  end_date timestamp with time zone NOT NULL,
+  price_per_day integer NOT NULL DEFAULT 5000 CHECK (price_per_day >= 0),
+  total_price integer NOT NULL CHECK (total_price >= 0),
+  status character varying NOT NULL DEFAULT 'pending_payment'::character varying CHECK (status::text = ANY (ARRAY['pending_payment'::character varying::text, 'scheduled'::character varying::text, 'active'::character varying::text, 'paused'::character varying::text, 'completed'::character varying::text])),
+  payment_status character varying NOT NULL DEFAULT 'unpaid'::character varying CHECK (payment_status::text = ANY (ARRAY['unpaid'::character varying::text, 'paid'::character varying::text, 'refunded'::character varying::text])),
+  transaction_id character varying,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT product_ads_pkey PRIMARY KEY (id),
+  CONSTRAINT product_ads_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
+  CONSTRAINT product_ads_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.ad_analytics (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  ad_id uuid NOT NULL UNIQUE,
+  views_count integer NOT NULL DEFAULT 0 CHECK (views_count >= 0),
+  clicks_count integer NOT NULL DEFAULT 0 CHECK (clicks_count >= 0),
+  last_recorded_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT ad_analytics_pkey PRIMARY KEY (id),
+  CONSTRAINT ad_analytics_ad_id_fkey FOREIGN KEY (ad_id) REFERENCES public.product_ads(id)
+);
+CREATE TABLE public.product_discounts (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  product_id uuid NOT NULL,
+  discount_type character varying NOT NULL CHECK (discount_type::text = ANY (ARRAY['percentage'::character varying::text, 'fixed_amount'::character varying::text])),
+  discount_value integer NOT NULL CHECK (discount_value > 0),
+  start_time timestamp with time zone NOT NULL,
+  end_time timestamp with time zone NOT NULL,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT product_discounts_pkey PRIMARY KEY (id),
+  CONSTRAINT product_discounts_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id)
+);
+CREATE TABLE public.vouchers (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  seller_id uuid,
+  code character varying NOT NULL UNIQUE,
+  discount_type character varying NOT NULL CHECK (discount_type::text = ANY (ARRAY['percentage'::character varying::text, 'fixed_amount'::character varying::text])),
+  discount_value integer NOT NULL CHECK (discount_value > 0),
+  min_purchase integer NOT NULL DEFAULT 0 CHECK (min_purchase >= 0),
+  max_discount integer CHECK (max_discount > 0),
+  quota integer NOT NULL CHECK (quota > 0),
+  used_count integer NOT NULL DEFAULT 0,
+  start_time timestamp with time zone NOT NULL,
+  end_time timestamp with time zone NOT NULL,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  category character varying,
+  CONSTRAINT vouchers_pkey PRIMARY KEY (id),
+  CONSTRAINT vouchers_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.user_vouchers (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  voucher_id uuid NOT NULL,
+  order_id uuid,
+  used_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT user_vouchers_pkey PRIMARY KEY (id),
+  CONSTRAINT user_vouchers_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT user_vouchers_voucher_id_fkey FOREIGN KEY (voucher_id) REFERENCES public.vouchers(id),
+  CONSTRAINT user_vouchers_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id)
 );

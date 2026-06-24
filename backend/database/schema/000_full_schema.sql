@@ -52,6 +52,10 @@ CREATE TABLE public.orders (
   shipping_sync_updated_at timestamp with time zone,
   voucher_id uuid,
   voucher_discount integer NOT NULL DEFAULT 0 CHECK (voucher_discount >= 0),
+  fee_marketplace_base integer NOT NULL DEFAULT 0 CHECK (fee_marketplace_base >= 0),
+  fee_discount integer NOT NULL DEFAULT 0 CHECK (fee_discount >= 0),
+  voucher_discount_total integer NOT NULL DEFAULT 0 CHECK (voucher_discount_total >= 0),
+  discount_total integer NOT NULL DEFAULT 0 CHECK (discount_total >= 0),
   CONSTRAINT orders_pkey PRIMARY KEY (id),
   CONSTRAINT orders_buyer_id_fkey FOREIGN KEY (buyer_id) REFERENCES public.users(id),
   CONSTRAINT orders_voucher_id_fkey FOREIGN KEY (voucher_id) REFERENCES public.vouchers(id)
@@ -63,9 +67,13 @@ CREATE TABLE public.order_items (
   qty integer NOT NULL CHECK (qty > 0),
   price_at_purchase integer NOT NULL CHECK (price_at_purchase > 0),
   product_name_at_purchase text,
+  original_price_at_purchase integer CHECK (original_price_at_purchase > 0),
+  product_discount_per_unit integer NOT NULL DEFAULT 0 CHECK (product_discount_per_unit >= 0),
+  product_discount_id uuid,
   CONSTRAINT order_items_pkey PRIMARY KEY (id),
   CONSTRAINT order_items_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id),
-  CONSTRAINT order_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id)
+  CONSTRAINT order_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
+  CONSTRAINT order_items_product_discount_id_fkey FOREIGN KEY (product_discount_id) REFERENCES public.product_discounts(id)
 );
 CREATE TABLE public.ratings (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -250,6 +258,7 @@ CREATE TABLE public.product_discounts (
   is_active boolean NOT NULL DEFAULT true,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT product_discounts_time_check CHECK (end_time > start_time),
   CONSTRAINT product_discounts_pkey PRIMARY KEY (id),
   CONSTRAINT product_discounts_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id)
 );
@@ -257,18 +266,20 @@ CREATE TABLE public.vouchers (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   seller_id uuid,
   code character varying NOT NULL UNIQUE,
-  discount_type character varying NOT NULL CHECK (discount_type::text = ANY (ARRAY['percentage'::character varying::text, 'fixed_amount'::character varying::text])),
+  discount_type character varying NOT NULL CHECK (discount_type::text = ANY (ARRAY['percentage'::character varying::text, 'fixed_amount'::character varying::text, 'free_marketplace_fee'::character varying::text])),
   discount_value integer NOT NULL CHECK (discount_value > 0),
   min_purchase integer NOT NULL DEFAULT 0 CHECK (min_purchase >= 0),
   max_discount integer CHECK (max_discount > 0),
   quota integer NOT NULL CHECK (quota > 0),
-  used_count integer NOT NULL DEFAULT 0,
+  used_count integer NOT NULL DEFAULT 0 CHECK (used_count >= 0 AND used_count <= quota),
   start_time timestamp with time zone NOT NULL,
   end_time timestamp with time zone NOT NULL,
   is_active boolean NOT NULL DEFAULT true,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   category character varying,
+  CONSTRAINT vouchers_time_check CHECK (end_time > start_time),
+  CONSTRAINT vouchers_free_fee_marketplace_only_check CHECK (discount_type::text <> 'free_marketplace_fee'::text OR seller_id IS NULL),
   CONSTRAINT vouchers_pkey PRIMARY KEY (id),
   CONSTRAINT vouchers_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.users(id)
 );
@@ -277,9 +288,29 @@ CREATE TABLE public.user_vouchers (
   user_id uuid NOT NULL,
   voucher_id uuid NOT NULL,
   order_id uuid,
-  used_at timestamp with time zone NOT NULL DEFAULT now(),
+  used_at timestamp with time zone,
+  status character varying NOT NULL DEFAULT 'used'::character varying CHECK (status::text = ANY (ARRAY['reserved'::character varying::text, 'used'::character varying::text, 'released'::character varying::text])),
+  reserved_at timestamp with time zone,
+  released_at timestamp with time zone,
+  idempotency_key uuid,
   CONSTRAINT user_vouchers_pkey PRIMARY KEY (id),
   CONSTRAINT user_vouchers_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
   CONSTRAINT user_vouchers_voucher_id_fkey FOREIGN KEY (voucher_id) REFERENCES public.vouchers(id),
   CONSTRAINT user_vouchers_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id)
+);
+CREATE TABLE public.order_vouchers (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  order_id uuid NOT NULL,
+  voucher_id uuid NOT NULL,
+  voucher_code character varying NOT NULL,
+  scope character varying NOT NULL CHECK (scope::text = ANY (ARRAY['marketplace'::character varying::text, 'seller'::character varying::text])),
+  seller_id uuid,
+  discount_type character varying NOT NULL CHECK (discount_type::text = ANY (ARRAY['percentage'::character varying::text, 'fixed_amount'::character varying::text, 'free_marketplace_fee'::character varying::text])),
+  discount_amount integer NOT NULL DEFAULT 0 CHECK (discount_amount >= 0),
+  eligible_subtotal integer NOT NULL DEFAULT 0 CHECK (eligible_subtotal >= 0),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT order_vouchers_pkey PRIMARY KEY (id),
+  CONSTRAINT order_vouchers_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id) ON DELETE CASCADE,
+  CONSTRAINT order_vouchers_voucher_id_fkey FOREIGN KEY (voucher_id) REFERENCES public.vouchers(id),
+  CONSTRAINT order_vouchers_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.users(id)
 );

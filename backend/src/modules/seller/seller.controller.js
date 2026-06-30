@@ -1,5 +1,6 @@
 const sellerService = require('./seller.service');
 const ratingService = require('../ratings/rating.service');
+const promotionService = require('../promotions/promotion.service');
 const { successResponse } = require('../../utils/response');
 
 const getAnalytics = async (req, res, next) => {
@@ -62,4 +63,61 @@ const getReviews = async (req, res, next) => {
   }
 };
 
-module.exports = { getAnalytics, getProfile, updateProfile, uploadLogo, setVacation, getReviews };
+const getPromotions = async (req, res, next) => {
+  try {
+    const data = await promotionService.listSellerPromotions(req.user.id);
+    return successResponse(res, 200, 'Promosi seller', data);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const createDiscount = async (req, res, next) => {
+  try {
+    const data = await promotionService.createSellerDiscount(req.user.id, req.body);
+    return successResponse(res, 201, 'Diskon produk berhasil dibuat', data);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const updateDiscount = async (req, res, next) => {
+  try {
+    const data = await promotionService.updateSellerDiscount(req.user.id, req.params.id, req.body);
+    return successResponse(res, 200, 'Diskon produk berhasil diperbarui', data);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const createVoucher = async (req, res, next) => {
+  try {
+    const data = await promotionService.createSellerVoucher(req.user.id, req.body);
+    return successResponse(res, 201, 'Voucher toko berhasil dibuat', data);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const updateVoucher = async (req, res, next) => {
+  try {
+    const data = await promotionService.updateSellerVoucher(req.user.id, req.params.id, req.body);
+    return successResponse(res, 200, 'Voucher toko berhasil diperbarui', data);
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = {
+  getAnalytics,
+  getProfile,
+  updateProfile,
+  uploadLogo,
+  setVacation,
+  getReviews,
+  getPromotions,
+  createDiscount,
+  updateDiscount,
+  createVoucher,
+  updateVoucher,
+};

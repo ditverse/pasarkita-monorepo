@@ -253,7 +253,14 @@ function BrowseProductsContent() {
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--pk-text-hint)', marginBottom: 10 }}>{product.seller?.name || 'Toko Anonim'}</div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--pk-text)' }}>{formatIDR(product.price)}</div>
+                      <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--pk-text)' }}>
+                        {formatIDR(product.effective_price ?? product.price)}
+                        {(product.effective_price ?? product.price) < (product.original_price ?? product.price) && (
+                          <span style={{ display: 'block', fontSize: 11, color: 'var(--pk-text-hint)', textDecoration: 'line-through', fontWeight: 500 }}>
+                            {formatIDR(product.original_price ?? product.price)}
+                          </span>
+                        )}
+                      </div>
                       {product.stock <= 5 && <span className="pk-badge pk-badge-neutral" style={{ fontSize: 11 }}>Sisa {product.stock}</span>}
                     </div>
                     {(sort === 'rating_desc' || sort === 'sold_desc') && (

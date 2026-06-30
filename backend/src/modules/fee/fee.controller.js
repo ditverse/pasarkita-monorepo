@@ -1,5 +1,4 @@
-const supabase = require('../../config/supabase');
-const { calculateFee } = require('../../utils/fee');
+const { quotePromotions } = require('../promotions/promotion.service');
 const { successResponse } = require('../../utils/response');
 
 /**
@@ -18,35 +17,20 @@ const calculateFeeHandler = async (req, res, next) => {
       });
     }
 
-    // Ambil harga produk dari DB
-    const productIds = items.map((i) => i.product_id);
-    const { data: products, error } = await supabase
-      .from('products')
-      .select('id, price, stock, is_active')
-      .in('id', productIds);
-
-    if (error) {
-      throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
-    }
-
-    // Validasi semua produk ditemukan
-    for (const item of items) {
-      const product = products.find((p) => p.id === item.product_id);
-      if (!product || !product.is_active) {
-        return res.status(404).json({
-          success: false,
-          message: `Produk tidak ditemukan: ${item.product_id}`,
-          error: { code: 'NOT_FOUND' },
-        });
-      }
-    }
-
-    const subtotal = items.reduce((sum, item) => {
-      const product = products.find((p) => p.id === item.product_id);
-      return sum + product.price * item.qty;
-    }, 0);
-
-    const result = calculateFee(subtotal);
+    const quote = await quotePromotions({ items });
+    const result = {
+      subtotal: quote.subtotal_after_product_discount,
+      fee_marketplace: quote.fee_marketplace,
+      fee_percentage: 2,
+      total: quote.total,
+      subtotal_original: quote.subtotal_original,
+      product_discount_total: quote.product_discount_total,
+      fee_marketplace_base: quote.fee_marketplace_base,
+      fee_discount: quote.fee_discount,
+      voucher_discount_total: quote.voucher_discount_total,
+      discount_total: quote.discount_total,
+      items: quote.items,
+    };
 
     return successResponse(res, 200, 'Kalkulasi fee berhasil', result);
   } catch (err) {

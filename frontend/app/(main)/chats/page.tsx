@@ -60,7 +60,7 @@ export default function BuyerChatsPage() {
           </div>
           <div style={{ fontWeight: 700, marginBottom: 6 }}>Belum ada obrolan</div>
           <div style={{ fontSize: 13, color: 'var(--pk-text-secondary)' }}>
-            Anda dapat memulai percakapan baru dengan menekan tombol "Chat Penjual" di halaman detail produk.
+            Anda dapat memulai percakapan baru dengan menekan tombol &quot;Chat Penjual&quot; di halaman detail produk.
           </div>
           <Link href="/" className="pk-btn pk-btn-secondary" style={{ marginTop: 24, textDecoration: 'none' }}>
             Mulai Belanja

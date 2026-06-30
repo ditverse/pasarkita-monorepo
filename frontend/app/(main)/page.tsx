@@ -12,7 +12,9 @@ import { useDebounce } from '@/lib/hooks/useDebounce';
 import { queryKeys } from '@/lib/query-keys';
 import { buildProductRecommendations } from '@/lib/product-recommendations';
 import { useBuyerPreferencesStore } from '@/store/buyer-preferences';
-import { Product } from '@/types/api';
+import { Product, HomeAdItem } from '@/types/api';
+import { adsApi } from '@/lib/api/ads';
+import { useEffect, useRef } from 'react';
 
 const CATEGORIES = ['Fashion', 'Makanan', 'Kerajinan', 'Elektronik', 'Kecantikan', 'Rumah', 'Buku', 'Olahraga'];
 const POPULAR_TAGS = ['Fashion Pria', 'Snack', 'Handphone', 'Sepatu'];
@@ -22,6 +24,33 @@ export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('Semua');
   const recentlyViewed = useBuyerPreferencesStore((state) => state.recentlyViewed);
+
+  const [currentSlide, setCurrentSlide] = useState(0);
+
+  const { data: ads = [] } = useQuery({
+    queryKey: ['ads', 'home-carousel'],
+    queryFn: async (): Promise<HomeAdItem[]> => {
+      const res = await adsApi.getHomeCarousel();
+      return res.data.data ?? [];
+    },
+    staleTime: 60 * 1000,
+  });
+
+  const viewedAds = useRef(new Set<string>());
+  useEffect(() => {
+    if (ads.length > 0 && ads[currentSlide]) {
+      const ad = ads[currentSlide];
+      const viewKey = `${ad.id}-${currentSlide}`;
+      if (!viewedAds.current.has(viewKey)) {
+        viewedAds.current.add(viewKey);
+        adsApi.recordView(ad.id).catch(() => {});
+      }
+    }
+  }, [currentSlide, ads]);
+
+  const handleAdClick = (ad: HomeAdItem) => {
+    adsApi.recordClick(ad.id).catch(() => {});
+  };
 
   const debouncedSearch = useDebounce(searchQuery, 400);
 
@@ -211,6 +240,205 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Carousel Iklan */}
+      {ads.length > 0 && (
+        <section style={{ padding: '0 80px 40px' }}>
+          <div
+            style={{
+              position: 'relative',
+              height: 280,
+              background: 'linear-gradient(135deg, var(--pk-text) 0%, #333 100%)',
+              borderRadius: 16,
+              overflow: 'hidden',
+              boxShadow: 'var(--pk-shadow-md)',
+              display: 'flex',
+              alignItems: 'center',
+            }}
+          >
+            {ads.map((ad, index) => {
+              const isVisible = index === currentSlide;
+              return (
+                <div
+                  key={ad.id}
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    opacity: isVisible ? 1 : 0,
+                    pointerEvents: isVisible ? 'auto' : 'none',
+                    transition: 'opacity 500ms ease-in-out',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0 80px',
+                    color: '#fff',
+                  }}
+                >
+                  <div style={{ maxWidth: '50%', zIndex: 2 }}>
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        padding: '4px 8px',
+                        background: 'rgba(255,255,255,0.15)',
+                        borderRadius: 4,
+                        fontSize: 10,
+                        fontWeight: 600,
+                        letterSpacing: '0.05em',
+                        textTransform: 'uppercase',
+                        marginBottom: 16,
+                      }}
+                    >
+                      {ad.kind === 'banner' ? 'Promo' : 'Sponsor'}
+                    </span>
+                    <h2 style={{ fontSize: 32, fontWeight: 700, margin: 0, lineHeight: 1.2 }}>
+                      {ad.title}
+                    </h2>
+                    <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.8)', marginTop: 8, marginBottom: 24 }}>
+                      {ad.kind === 'banner' ? ad.subtitle : ad.caption}
+                    </p>
+                    <Link
+                      href={ad.target_url}
+                      onClick={() => handleAdClick(ad)}
+                      className="pk-btn"
+                      style={{
+                        background: '#fff',
+                        color: 'var(--pk-text)',
+                        borderRadius: 8,
+                        fontWeight: 600,
+                        textDecoration: 'none',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                      }}
+                    >
+                      {ad.kind === 'banner' ? 'Lihat Promo' : 'Beli Sekarang'}
+                      <Icon name="arrowRight" size={16} />
+                    </Link>
+                  </div>
+
+                  {/* Image/Visual side */}
+                  <div
+                    style={{
+                      width: '40%',
+                      height: '80%',
+                      position: 'relative',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      zIndex: 2,
+                    }}
+                  >
+                    <ProductImage
+                      src={ad.image_url}
+                      alt={ad.title}
+                      height={220}
+                      style={{
+                        maxHeight: '100%',
+                        maxWidth: '100%',
+                        objectFit: 'contain',
+                        borderRadius: 12,
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+                      }}
+                    />
+                  </div>
+
+                  {/* Dark overlay for readability */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      background: 'rgba(0,0,0,0.2)',
+                      zIndex: 1,
+                    }}
+                  />
+                </div>
+              );
+            })}
+
+            {/* Navigation Buttons */}
+            {ads.length > 1 && (
+              <>
+                <button
+                  onClick={() => setCurrentSlide((prev) => (prev === 0 ? ads.length - 1 : prev - 1))}
+                  style={{
+                    position: 'absolute',
+                    left: 20,
+                    zIndex: 3,
+                    background: 'rgba(255,255,255,0.2)',
+                    border: 'none',
+                    color: '#fff',
+                    width: 40,
+                    height: 40,
+                    borderRadius: '50%',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'background 200ms',
+                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.3)'; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.2)'; }}
+                >
+                  <Icon name="chevronLeft" size={24} />
+                </button>
+                <button
+                  onClick={() => setCurrentSlide((prev) => (prev === ads.length - 1 ? 0 : prev + 1))}
+                  style={{
+                    position: 'absolute',
+                    right: 20,
+                    zIndex: 3,
+                    background: 'rgba(255,255,255,0.2)',
+                    border: 'none',
+                    color: '#fff',
+                    width: 40,
+                    height: 40,
+                    borderRadius: '50%',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'background 200ms',
+                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.3)'; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.2)'; }}
+                >
+                  <Icon name="chevronRight" size={24} />
+                </button>
+
+                {/* Indicators */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    bottom: 16,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    display: 'flex',
+                    gap: 8,
+                    zIndex: 3,
+                  }}
+                >
+                  {ads.map((_, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setCurrentSlide(idx)}
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        border: 'none',
+                        background: idx === currentSlide ? '#fff' : 'rgba(255,255,255,0.4)',
+                        cursor: 'pointer',
+                        padding: 0,
+                        transition: 'background 200ms',
+                      }}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </section>
+      )}
+
       {/* Categories */}
       <section style={{ padding: '0 80px 40px' }}>
         <div
@@ -294,7 +522,12 @@ export default function HomePage() {
                       {product.seller?.name || 'Toko Anonim'}
                     </div>
                     <div style={{ color: 'var(--pk-text)', fontSize: 15, fontWeight: 700, marginTop: 9 }}>
-                      {formatIDR(product.price)}
+                      {formatIDR(product.effective_price ?? product.price)}
+                      {(product.effective_price ?? product.price) < (product.original_price ?? product.price) && (
+                        <span style={{ display: 'block', fontSize: 11, color: 'var(--pk-text-hint)', textDecoration: 'line-through', fontWeight: 500 }}>
+                          {formatIDR(product.original_price ?? product.price)}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </Link>
@@ -398,7 +631,12 @@ export default function HomePage() {
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--pk-text)' }}>
-                        {formatIDR(p.price)}
+                        {formatIDR(p.effective_price ?? p.price)}
+                        {(p.effective_price ?? p.price) < (p.original_price ?? p.price) && (
+                          <span style={{ display: 'block', fontSize: 11, color: 'var(--pk-text-hint)', textDecoration: 'line-through', fontWeight: 500 }}>
+                            {formatIDR(p.original_price ?? p.price)}
+                          </span>
+                        )}
                       </div>
                       {p.stock <= 5 && (
                         <span className="pk-badge pk-badge-neutral" style={{ fontSize: 11 }}>

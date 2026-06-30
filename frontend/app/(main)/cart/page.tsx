@@ -57,7 +57,9 @@ export default function CartPage() {
           {items.map((item, index) => {
             const currentProduct = productQueries[index]?.data;
             const unavailable = productQueries[index]?.isError;
-            const priceChanged = Boolean(currentProduct && currentProduct.price !== item.price);
+            const latestPrice = currentProduct ? (currentProduct.effective_price ?? currentProduct.price) : item.price;
+            const latestOriginalPrice = currentProduct ? (currentProduct.original_price ?? currentProduct.price) : item.price;
+            const priceChanged = Boolean(currentProduct && latestPrice !== item.price);
             const stockChanged = Boolean(currentProduct && currentProduct.stock !== item.stock);
             const needsSync = priceChanged || stockChanged;
             const checkoutDisabled = unavailable || needsSync || !currentProduct || currentProduct.stock < 1;
@@ -74,9 +76,14 @@ export default function CartPage() {
                   {priceChanged && currentProduct ? (
                     <>
                       <span style={{ color: 'var(--pk-text-hint)', textDecoration: 'line-through', marginRight: 8 }}>{formatIDR(item.price)}</span>
-                      <span>{formatIDR(currentProduct.price)}</span>
+                      <span>{formatIDR(latestPrice)}</span>
                     </>
                   ) : formatIDR(item.price)}
+                  {currentProduct && latestPrice < latestOriginalPrice && (
+                    <span style={{ display: 'block', fontSize: 11, color: 'var(--pk-text-hint)', textDecoration: 'line-through', fontWeight: 500 }}>
+                      {formatIDR(latestOriginalPrice)}
+                    </span>
+                  )}
                 </div>
                 {unavailable && (
                   <div className="pk-badge pk-badge-danger" style={{ marginTop: 8 }}>Produk tidak tersedia</div>
@@ -116,7 +123,7 @@ export default function CartPage() {
                     className="pk-btn pk-btn-secondary pk-btn-sm"
                     onClick={() => syncItem(item.productId, {
                       name: currentProduct.name,
-                      price: currentProduct.price,
+                      price: latestPrice,
                       stock: currentProduct.stock,
                       sellerName: currentProduct.seller?.name || item.sellerName,
                       imageUrl: currentProduct.image_url,

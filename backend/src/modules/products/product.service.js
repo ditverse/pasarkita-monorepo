@@ -1,6 +1,7 @@
 const supabase = require('../../config/supabase');
 const { randomUUID } = require('crypto');
 const { kmpFilterProducts } = require('../../utils/kmp-search');
+const { enrichProductsWithPromotions } = require('../promotions/promotion.service');
 
 const PRODUCT_IMAGE_BUCKET = 'product-images';
 const IMAGE_EXTENSIONS = {
@@ -202,8 +203,9 @@ const getProducts = async (query) => {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
 
+    const pageData = rankedProducts.slice(offset, offset + limit);
     return {
-      data: rankedProducts.slice(offset, offset + limit),
+      data: await enrichProductsWithPromotions(pageData),
       pagination: {
         page,
         limit,
@@ -234,8 +236,9 @@ const getProducts = async (query) => {
     ? kmpFilterProducts(rawData || [], query.search, 'name')
     : (rawData || []);
 
+  const pageData = filtered.slice(offset, offset + limit);
   return {
-    data: filtered.slice(offset, offset + limit),
+    data: await enrichProductsWithPromotions(pageData),
     pagination: {
       page,
       limit,
@@ -256,7 +259,7 @@ const getProductById = async (id) => {
   if (error || !data) {
     throw { status: 404, code: 'NOT_FOUND', message: 'Produk tidak ditemukan' };
   }
-  return data;
+  return enrichProductsWithPromotions(data);
 };
 
 const getPublicStore = async (sellerId) => {
@@ -400,7 +403,7 @@ const getProductsBySeller = async (sellerId, query) => {
     : (rawData || []);
 
   return {
-    data: filtered.slice(offset, offset + limit),
+    data: await enrichProductsWithPromotions(filtered.slice(offset, offset + limit)),
     pagination: {
       page,
       limit,
@@ -421,7 +424,7 @@ const getProductBySeller = async (sellerId, productId) => {
   if (error || !data) {
     throw { status: 404, code: 'NOT_FOUND', message: 'Produk seller tidak ditemukan' };
   }
-  return data;
+  return enrichProductsWithPromotions(data);
 };
 
 const createProduct = async (sellerId, payload) => {
@@ -436,7 +439,7 @@ const createProduct = async (sellerId, payload) => {
     .single();
 
   if (error) throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
-  return data;
+  return enrichProductsWithPromotions(data);
 };
 
 const updateProduct = async (user, productId, payload) => {
@@ -487,7 +490,7 @@ const updateProduct = async (user, productId, payload) => {
     .single();
 
   if (error) throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
-  return data;
+  return enrichProductsWithPromotions(data);
 };
 
 const deleteProduct = async (user, productId) => {
@@ -581,4 +584,3 @@ module.exports = {
   deleteProduct,
   exportProductsBySeller,
 };
-

@@ -18,6 +18,7 @@ const ORDER_SORTS = {
   action_deadline: ['created_at', true],
 };
 let snapshotsAvailable;
+let promotionSnapshotsAvailable;
 
 const hasOrderItemSnapshots = async () => {
   if (snapshotsAvailable !== undefined) return snapshotsAvailable;
@@ -27,6 +28,16 @@ const hasOrderItemSnapshots = async () => {
     .limit(1);
   snapshotsAvailable = !error;
   return snapshotsAvailable;
+};
+
+const hasOrderPromotionSnapshots = async () => {
+  if (promotionSnapshotsAvailable !== undefined) return promotionSnapshotsAvailable;
+  const { error } = await supabase
+    .from('order_items')
+    .select('original_price_at_purchase, product_discount_per_unit, product_discount_id')
+    .limit(1);
+  promotionSnapshotsAvailable = !error;
+  return promotionSnapshotsAvailable;
 };
 
 const parsePositiveInt = (value, fallback, max = 100) => {
@@ -175,9 +186,11 @@ const getOrders = async (user, query) => {
   const offset = (page - 1) * limit;
   const [sortColumn, sortAscending] = ORDER_SORTS[query.sort] || ORDER_SORTS.created_desc;
 
-  const itemSelect = await hasOrderItemSnapshots()
-    ? 'product_id, qty, price_at_purchase, product_name_at_purchase, product:products(id, name, seller_id, seller:users!seller_id(id, name))'
-    : 'product_id, qty, price_at_purchase, product:products(id, name, seller_id, seller:users!seller_id(id, name))';
+  const itemSelect = await hasOrderPromotionSnapshots()
+    ? 'product_id, qty, price_at_purchase, product_name_at_purchase, original_price_at_purchase, product_discount_per_unit, product_discount_id, product:products(id, name, seller_id, seller:users!seller_id(id, name))'
+    : await hasOrderItemSnapshots()
+      ? 'product_id, qty, price_at_purchase, product_name_at_purchase, product:products(id, name, seller_id, seller:users!seller_id(id, name))'
+      : 'product_id, qty, price_at_purchase, product:products(id, name, seller_id, seller:users!seller_id(id, name))';
 
   let supaQuery = supabase
     .from('orders')
@@ -244,6 +257,9 @@ const getOrders = async (user, query) => {
         seller: item.product?.seller ?? null,
         qty: item.qty,
         price_at_purchase: item.price_at_purchase,
+        original_price_at_purchase: item.original_price_at_purchase ?? item.price_at_purchase,
+        product_discount_per_unit: item.product_discount_per_unit ?? 0,
+        product_discount_id: item.product_discount_id ?? null,
       })),
     };
   });
@@ -255,9 +271,11 @@ const getOrders = async (user, query) => {
 };
 
 const getOrderById = async (user, orderId) => {
-  const itemSelect = await hasOrderItemSnapshots()
-    ? 'product_id, qty, price_at_purchase, product_name_at_purchase, product:products(id, name, category, seller_id, seller:users!seller_id(id, name, email))'
-    : 'product_id, qty, price_at_purchase, product:products(id, name, category, seller_id, seller:users!seller_id(id, name, email))';
+  const itemSelect = await hasOrderPromotionSnapshots()
+    ? 'product_id, qty, price_at_purchase, product_name_at_purchase, original_price_at_purchase, product_discount_per_unit, product_discount_id, product:products(id, name, category, seller_id, seller:users!seller_id(id, name, email))'
+    : await hasOrderItemSnapshots()
+      ? 'product_id, qty, price_at_purchase, product_name_at_purchase, product:products(id, name, category, seller_id, seller:users!seller_id(id, name, email))'
+      : 'product_id, qty, price_at_purchase, product:products(id, name, category, seller_id, seller:users!seller_id(id, name, email))';
   const { data, error } = await supabase
     .from('orders')
     .select(`*, items:order_items(${itemSelect}), buyer:users!buyer_id(id, name, email)`)
@@ -288,6 +306,9 @@ const getOrderById = async (user, orderId) => {
     seller: item.product?.seller ?? null,
     qty: item.qty,
     price_at_purchase: item.price_at_purchase,
+    original_price_at_purchase: item.original_price_at_purchase ?? item.price_at_purchase,
+    product_discount_per_unit: item.product_discount_per_unit ?? 0,
+    product_discount_id: item.product_discount_id ?? null,
   }));
 
   const { data: statusHistory, error: historyError } = await supabase
@@ -298,6 +319,25 @@ const getOrderById = async (user, orderId) => {
 
   if (historyError) {
     throw { status: 500, code: 'INTERNAL_ERROR', message: historyError.message };
+  }
+
+  let vouchers = [];
+  const voucherResult = await supabase
+    .from('order_vouchers')
+    .select('id, voucher_id, voucher_code, scope, seller_id, discount_type, discount_amount, eligible_subtotal, created_at')
+    .eq('order_id', orderId)
+    .order('created_at', { ascending: true });
+  if (!voucherResult.error) {
+    vouchers = (voucherResult.data || []).map((voucher) => ({
+      id: voucher.voucher_id,
+      code: voucher.voucher_code,
+      scope: voucher.scope,
+      seller_id: voucher.seller_id,
+      discount_type: voucher.discount_type,
+      discount_amount: voucher.discount_amount,
+      eligible_subtotal: voucher.eligible_subtotal,
+      created_at: voucher.created_at,
+    }));
   }
 
   let auditHistory = { available: true, data: [] };
@@ -329,6 +369,7 @@ const getOrderById = async (user, orderId) => {
   return {
     ...visibleOrder,
     items: reshapedItems,
+    vouchers,
     status_history: statusHistory || [],
     audit_history: auditHistory,
     integration_timeline: integrationTimeline,

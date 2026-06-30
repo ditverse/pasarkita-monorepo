@@ -7,7 +7,7 @@ const getIntegrationTarget = (service, path) => {
     ? env.SMARTBANK_URL
     : env.LOGISTIKITA_URL;
 
-  if (isDevelopment && directBaseUrl) {
+  if (directBaseUrl && (isDevelopment || directBaseUrl.includes('localhost'))) {
     return {
       url: `${directBaseUrl}${path}`,
       logService: service,

@@ -17,6 +17,8 @@ import { BuyerNotification } from '@/types/api';
 const items = [
   { id: 'dashboard', href: '/seller', label: 'Dashboard', icon: 'barChart' as const, exact: true },
   { id: 'products', href: '/seller/products', label: 'Produk', icon: 'box' as const },
+  { id: 'promotions', href: '/seller/promotions', label: 'Promosi', icon: 'sparkle' as const },
+  { id: 'ads', href: '/seller/ads', label: 'Iklan', icon: 'trending' as const },
   { id: 'orders', href: '/seller/orders', label: 'Order Masuk', icon: 'bag' as const },
   { id: 'chats', href: '/seller/chats', label: 'Chat Produk', icon: 'message' as const },
   { id: 'complaints', href: '/seller/complaints', label: 'Komplain', icon: 'clipboard' as const },

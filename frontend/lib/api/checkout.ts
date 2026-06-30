@@ -2,7 +2,13 @@ import { api } from '../api';
 import { ApiResponse, CheckoutResponse } from '@/types/api';
 
 export const checkoutApi = {
-  checkout: (body: { idempotency_key: string; items: { product_id: string; qty: number }[]; shipping_address: string }) =>
+  checkout: (body: {
+    idempotency_key: string;
+    items: { product_id: string; qty: number }[];
+    shipping_address: string;
+    marketplace_voucher_code?: string | null;
+    seller_voucher_codes?: string[];
+  }) =>
     api.post<ApiResponse<CheckoutResponse>>('/checkout', body),
 
   calculateFee: (body: { items: { product_id: string; qty: number }[] }) =>

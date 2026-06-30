@@ -1,6 +1,7 @@
 {
   "balances": {
-    "ce1305cc-23aa-4d92-860a-33c1f2221781": 1600000
+    "ce1305cc-23aa-4d92-860a-33c1f2221781": 1600000,
+    "218ef70d-ef6c-41e7-93da-776874d8f575": 475000
   },
   "transactions": [
     {
@@ -18,6 +19,20 @@
       "amount": 1000000,
       "order_id": null,
       "created_at": "2026-06-16T17:17:02.512Z"
+    },
+    {
+      "id": "TXN-MOCK-1782644174338",
+      "from_user": "218ef70d-ef6c-41e7-93da-776874d8f575",
+      "amount": 10000,
+      "order_id": "9da7a9e9-dc20-400f-b364-d5fd10f0e530",
+      "created_at": "2026-06-28T10:56:14.338Z"
+    },
+    {
+      "id": "TXN-MOCK-1782646704266",
+      "from_user": "218ef70d-ef6c-41e7-93da-776874d8f575",
+      "amount": 15000,
+      "order_id": "7bdbae01-08be-472e-89fd-fa69d7d3be47",
+      "created_at": "2026-06-28T11:38:24.266Z"
     }
   ]
 }

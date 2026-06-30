@@ -87,14 +87,16 @@ export default function ProductDetailPage() {
   }
 
   const p = product;
-  const subtotal = p.price * qty;
+  const effectivePrice = p.effective_price ?? p.price;
+  const originalPrice = p.original_price ?? p.price;
+  const subtotal = effectivePrice * qty;
   const fee = Math.round(subtotal * 0.02);
 
   const handleAddToCart = () => {
     addItem({
       productId: p.id,
       name: p.name,
-      price: p.price,
+      price: effectivePrice,
       qty,
       sellerName: p.seller?.name || 'Toko Anonim',
       stock: p.stock,
@@ -192,7 +194,12 @@ export default function ProductDetailPage() {
               marginBottom: 24,
             }}
           >
-            {formatIDR(p.price)}
+            {formatIDR(effectivePrice)}
+            {effectivePrice < originalPrice && (
+              <span style={{ display: 'block', fontSize: 15, marginTop: 6, color: 'var(--pk-text-hint)', textDecoration: 'line-through' }}>
+                {formatIDR(originalPrice)}
+              </span>
+            )}
           </div>
 
           <div
@@ -319,6 +326,9 @@ export default function ProductDetailPage() {
             }}
           >
             <Row label="Subtotal" value={formatIDR(subtotal)} />
+            {effectivePrice < originalPrice && (
+              <Row label="Diskon produk" value={`- ${formatIDR((originalPrice - effectivePrice) * qty)}`} muted />
+            )}
             <Row label="Fee marketplace (2%)" value={formatIDR(fee)} muted />
             <div style={{ height: 1, background: 'var(--pk-border)', margin: '4px 0' }} />
             <Row label="Total" value={formatIDR(subtotal + fee)} bold />

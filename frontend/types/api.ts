@@ -36,10 +36,22 @@ export type Product = {
   rating_average?: number | null;
   rating_count?: number;
   sold_units?: number;
+  original_price?: number;
+  effective_price?: number;
+  active_discount?: ActiveDiscount | null;
   seller: {
     id: string;
     name: string;
   };
+};
+
+export type ActiveDiscount = {
+  id: string;
+  discount_type: 'percentage' | 'fixed_amount';
+  discount_value: number;
+  discount_per_unit: number;
+  start_time: string;
+  end_time: string;
 };
 
 export type PublicStore = {
@@ -94,6 +106,92 @@ export type OrderItem = {
   } | null;
   qty: number;
   price_at_purchase: number;
+  original_price_at_purchase?: number;
+  product_discount_per_unit?: number;
+  product_discount_id?: string | null;
+};
+
+export type AppliedVoucher = {
+  id: string;
+  code: string;
+  scope: 'marketplace' | 'seller';
+  seller_id: string | null;
+  discount_type: 'percentage' | 'fixed_amount' | 'free_marketplace_fee';
+  discount_amount: number;
+  eligible_subtotal: number;
+};
+
+export type RejectedVoucher = {
+  code: string;
+  reason: string;
+};
+
+export type PromotionQuoteItem = {
+  product_id: string;
+  product_name: string;
+  seller_id: string;
+  seller?: { id: string; name: string } | null;
+  category: string;
+  qty: number;
+  original_price: number;
+  effective_price: number;
+  original_subtotal: number;
+  product_discount_per_unit: number;
+  product_discount_total: number;
+  subtotal_after_product_discount: number;
+  active_discount: ActiveDiscount | null;
+};
+
+export type PromotionQuote = {
+  subtotal_original: number;
+  product_discount_total: number;
+  subtotal_after_product_discount: number;
+  fee_marketplace_base: number;
+  fee_discount: number;
+  fee_marketplace: number;
+  voucher_discount_total: number;
+  discount_total: number;
+  total: number;
+  items: PromotionQuoteItem[];
+  applied_vouchers: AppliedVoucher[];
+  rejected_vouchers: RejectedVoucher[];
+};
+
+export type Voucher = {
+  id: string;
+  seller_id: string | null;
+  code: string;
+  discount_type: 'percentage' | 'fixed_amount' | 'free_marketplace_fee';
+  discount_value: number;
+  min_purchase: number;
+  max_discount: number | null;
+  quota: number;
+  used_count: number;
+  start_time: string;
+  end_time: string;
+  is_active: boolean;
+  category: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type ProductDiscount = {
+  id: string;
+  product_id: string;
+  discount_type: 'percentage' | 'fixed_amount';
+  discount_value: number;
+  start_time: string;
+  end_time: string;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+  product?: Pick<Product, 'id' | 'name' | 'price' | 'category'>;
+};
+
+export type SellerPromotions = {
+  products: Product[];
+  discounts: ProductDiscount[];
+  vouchers: Voucher[];
 };
 
 export type Order = {
@@ -101,6 +199,11 @@ export type Order = {
   status: 'pending' | 'paid' | 'processing' | 'shipped' | 'delivered' | 'payment_failed' | 'cancelled';
   subtotal: number;
   fee_marketplace: number;
+  fee_marketplace_base?: number;
+  fee_discount?: number;
+  voucher_discount?: number;
+  voucher_discount_total?: number;
+  discount_total?: number;
   total: number;
   shipping_address: string;
   transaction_id: string | null;
@@ -122,6 +225,7 @@ export type Order = {
     email: string;
   };
   items: OrderItem[];
+  vouchers?: AppliedVoucher[];
   seller_item_scope?: boolean;
   seller_can_process?: boolean;
   seller_can_ship?: boolean;
@@ -377,6 +481,10 @@ export type CheckoutResponse = {
   status: string;
   subtotal: number;
   fee_marketplace: number;
+  fee_marketplace_base?: number;
+  fee_discount?: number;
+  voucher_discount_total?: number;
+  discount_total?: number;
   total: number;
   transaction_id: string;
   shipping: {
@@ -612,3 +720,59 @@ export type AdminAuditLog = {
     email: string;
   };
 };
+
+export interface HomeAdItem {
+  kind: 'banner' | 'product_ad';
+  id: string;
+  title: string;
+  subtitle?: string;
+  caption?: string;
+  image_url: string;
+  target_url: string;
+  product?: {
+    id: string;
+    name: string;
+    price: number;
+    shop_name: string;
+  };
+}
+
+export interface ProductAd {
+  id: string;
+  product_id: string;
+  seller_id: string;
+  start_date: string;
+  end_date: string;
+  price_per_day: number;
+  total_price: number;
+  status: 'pending_payment' | 'scheduled' | 'active' | 'paused' | 'completed' | 'rejected';
+  payment_status: 'unpaid' | 'paid' | 'refunded';
+  transaction_id?: string;
+  placement: string;
+  title?: string;
+  caption?: string;
+  target_url?: string;
+  rejection_reason?: string;
+  paused_reason?: string;
+  created_at: string;
+  product_name?: string;
+  views_count?: number;
+  clicks_count?: number;
+  seller_name?: string;
+  seller_email?: string;
+}
+
+export interface MarketplaceBanner {
+  id: string;
+  title: string;
+  subtitle?: string;
+  image_url: string;
+  target_url?: string;
+  placement: string;
+  start_time: string;
+  end_time: string;
+  sort_order: number;
+  is_active: boolean;
+  views_count?: number;
+  clicks_count?: number;
+}

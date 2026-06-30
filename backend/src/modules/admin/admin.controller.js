@@ -1,4 +1,5 @@
 const adminService = require('./admin.service');
+const promotionService = require('../promotions/promotion.service');
 const { successResponse } = require('../../utils/response');
 
 const getUsers = async (req, res, next) => {
@@ -111,6 +112,33 @@ const simulateFeeImpact = async (req, res, next) => {
   }
 };
 
+const getMarketplaceVouchers = async (req, res, next) => {
+  try {
+    const data = await promotionService.listMarketplaceVouchers();
+    return successResponse(res, 200, 'Voucher marketplace', data);
+  } catch (err) {
+    next(err);
+  }
+};
+
+const createMarketplaceVoucher = async (req, res, next) => {
+  try {
+    const data = await promotionService.createMarketplaceVoucher(req.body);
+    return successResponse(res, 201, 'Voucher marketplace berhasil dibuat', data);
+  } catch (err) {
+    next(err);
+  }
+};
+
+const updateMarketplaceVoucher = async (req, res, next) => {
+  try {
+    const data = await promotionService.updateMarketplaceVoucher(req.params.id, req.body);
+    return successResponse(res, 200, 'Voucher marketplace berhasil diperbarui', data);
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getUsers,
   getUserById,
@@ -124,4 +152,7 @@ module.exports = {
   previewReport,
   exportReport,
   simulateFeeImpact,
+  getMarketplaceVouchers,
+  createMarketplaceVoucher,
+  updateMarketplaceVoucher,
 };

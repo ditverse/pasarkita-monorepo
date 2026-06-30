@@ -8,6 +8,7 @@ import ProductImage from '@/components/pk/product-image';
 import { formatIDR } from '@/lib/format';
 import { api } from '@/lib/api';
 import { checkoutApi } from '@/lib/api/checkout';
+import { promotionsApi } from '@/lib/api/promotions';
 import { productsApi } from '@/lib/api/products';
 import { ordersApi } from '@/lib/api/orders';
 import { calculateWeeklySpending, getWeeklyBudget } from '@/lib/buyer-budget';
@@ -141,6 +142,8 @@ function CheckoutContent() {
 
   const [loading, setLoading] = useState(false);
   const [address, setAddress] = useState('');
+  const [marketplaceVoucherCode, setMarketplaceVoucherCode] = useState('');
+  const [sellerVoucherCodesText, setSellerVoucherCodesText] = useState('');
   const idempotencyKeyRef = useRef<string | null>(null);
   const weeklyBudget = user ? getWeeklyBudget(user.id) : null;
 
@@ -180,6 +183,22 @@ function CheckoutContent() {
     enabled: Boolean(user && weeklyBudget),
   });
 
+  const quoteQuery = useQuery({
+    queryKey: ['promotions', 'quote', productId, qtyUrl, marketplaceVoucherCode, sellerVoucherCodesText],
+    queryFn: async () => {
+      const response = await promotionsApi.quote({
+        items: [{ product_id: productId as string, qty: qtyUrl }],
+        marketplace_voucher_code: marketplaceVoucherCode.trim() || undefined,
+        seller_voucher_codes: sellerVoucherCodesText
+          .split(',')
+          .map((code) => code.trim())
+          .filter(Boolean),
+      });
+      return response.data.data;
+    },
+    enabled: Boolean(productId && productQuery.data),
+  });
+
   if (productQuery.isLoading) {
     return (
       <div style={{ padding: 100, textAlign: 'center' }}>
@@ -202,9 +221,17 @@ function CheckoutContent() {
     );
   }
 
-  const subtotal = product.price * qtyUrl;
-  const feeMarketplace = Math.round(subtotal * 0.02);
-  const total = subtotal + feeMarketplace;
+  const quote = quoteQuery.data;
+  const unitPrice = product.effective_price ?? product.price;
+  const originalUnitPrice = product.original_price ?? product.price;
+  const subtotal = quote?.subtotal_after_product_discount ?? unitPrice * qtyUrl;
+  const subtotalOriginal = quote?.subtotal_original ?? originalUnitPrice * qtyUrl;
+  const productDiscountTotal = quote?.product_discount_total ?? Math.max(0, (originalUnitPrice - unitPrice) * qtyUrl);
+  const feeMarketplace = quote?.fee_marketplace ?? Math.round(subtotal * 0.02);
+  const feeMarketplaceBase = quote?.fee_marketplace_base ?? feeMarketplace;
+  const feeDiscount = quote?.fee_discount ?? 0;
+  const voucherDiscountTotal = quote?.voucher_discount_total ?? 0;
+  const total = quote?.total ?? subtotal + feeMarketplace;
   const weeklySpending = calculateWeeklySpending(weeklyOrdersQuery.data ?? []);
   const projectedSpending = weeklySpending + total;
   const projectedRemaining = weeklyBudget == null ? null : weeklyBudget - projectedSpending;
@@ -219,6 +246,10 @@ function CheckoutContent() {
       toast.error('Alamat pengiriman terlalu pendek');
       return;
     }
+    if (quoteQuery.isFetching) {
+      toast.error('Tunggu kalkulasi promo selesai');
+      return;
+    }
     if (!window.confirm(`Bayar ${formatIDR(total)} untuk ${qtyUrl} barang melalui SmartBank?`)) {
       return;
     }
@@ -231,6 +262,11 @@ function CheckoutContent() {
         idempotency_key: idempotencyKeyRef.current,
         items: [{ product_id: product.id, qty: qtyUrl }],
         shipping_address: address.trim(),
+        marketplace_voucher_code: marketplaceVoucherCode.trim() || undefined,
+        seller_voucher_codes: sellerVoucherCodesText
+          .split(',')
+          .map((code) => code.trim())
+          .filter(Boolean),
       });
       const orderId = res.data.data?.order_id;
       if (res.data.data?.idempotent_replay && res.data.data.status === 'pending') {
@@ -283,7 +319,12 @@ function CheckoutContent() {
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 14, fontWeight: 500 }}>{product.name}</div>
                 <div style={{ fontSize: 12, color: 'var(--pk-text-hint)', marginTop: 2 }}>
-                  Qty {qtyUrl} × {formatIDR(product.price)}
+                  Qty {qtyUrl} × {formatIDR(unitPrice)}
+                  {unitPrice < originalUnitPrice && (
+                    <span style={{ marginLeft: 6, color: 'var(--pk-text-hint)', textDecoration: 'line-through' }}>
+                      {formatIDR(originalUnitPrice)}
+                    </span>
+                  )}
                 </div>
               </div>
               <div style={{ fontSize: 14, fontWeight: 500 }}>{formatIDR(subtotal)}</div>
@@ -292,10 +333,23 @@ function CheckoutContent() {
             <div style={{ height: 1, background: 'var(--pk-border)', margin: '20px 0' }} />
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <Row label="Fee Marketplace (2%)" value={formatIDR(feeMarketplace)} muted />
+              <Row label="Subtotal awal" value={formatIDR(subtotalOriginal)} muted />
+              {productDiscountTotal > 0 && <Row label="Diskon produk" value={`- ${formatIDR(productDiscountTotal)}`} muted />}
+              {voucherDiscountTotal > 0 && <Row label="Diskon voucher" value={`- ${formatIDR(voucherDiscountTotal)}`} muted />}
+              <Row label="Fee Marketplace (2%)" value={formatIDR(feeMarketplaceBase)} muted />
+              {feeDiscount > 0 && <Row label="Diskon fee" value={`- ${formatIDR(feeDiscount)}`} muted />}
               <div style={{ height: 1, background: 'var(--pk-border)', margin: '4px 0' }} />
               <Row label="Total" value={formatIDR(total)} bold />
             </div>
+            {quote?.applied_vouchers?.length ? (
+              <div style={{ marginTop: 16, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {quote.applied_vouchers.map((voucher) => (
+                  <span key={`${voucher.scope}-${voucher.code}`} className="pk-badge pk-badge-active">
+                    {voucher.code} - {formatIDR(voucher.discount_amount)}
+                  </span>
+                ))}
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -306,6 +360,37 @@ function CheckoutContent() {
               Alamat Pengiriman
             </div>
             <AddressSelector address={address} onChange={setAddress} />
+          </div>
+
+          <div className="pk-card" style={{ padding: 24 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--pk-text-hint)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 16 }}>
+              Voucher
+            </div>
+            <label className="pk-label">Voucher Marketplace</label>
+            <input
+              className="pk-input"
+              value={marketplaceVoucherCode}
+              onChange={(event) => setMarketplaceVoucherCode(event.target.value.toUpperCase())}
+              placeholder="Contoh: PASARKITAHEMAT"
+              style={{ marginBottom: 12 }}
+            />
+            <label className="pk-label">Voucher Seller</label>
+            <input
+              className="pk-input"
+              value={sellerVoucherCodesText}
+              onChange={(event) => setSellerVoucherCodesText(event.target.value.toUpperCase())}
+              placeholder="Pisahkan beberapa kode dengan koma"
+            />
+            {quoteQuery.isFetching && <div style={{ fontSize: 12, color: 'var(--pk-text-hint)', marginTop: 10 }}>Menghitung promo...</div>}
+            {quote?.rejected_vouchers?.length ? (
+              <div style={{ marginTop: 12, display: 'grid', gap: 6 }}>
+                {quote.rejected_vouchers.map((voucher) => (
+                  <div key={voucher.code} style={{ fontSize: 12, color: 'var(--pk-danger)' }}>
+                    {voucher.code}: {voucher.reason}
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </div>
 
           <div className="pk-card" style={{ padding: 24 }}>

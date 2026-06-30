@@ -17,6 +17,8 @@ const sellerRoutes = require('./modules/seller/seller.routes');
 const profileRoutes = require('./modules/profile/profile.routes');
 const complaintRoutes = require('./modules/complaints/complaint.routes');
 const chatRoutes = require('./modules/chats/chat.routes');
+const promotionRoutes = require('./modules/promotions/promotion.routes');
+const adsRoutes = require('./modules/ads/ads.routes');
 
 const app = express();
 
@@ -42,6 +44,8 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/seller', sellerRoutes);
 app.use('/api/complaints', complaintRoutes);
 app.use('/api/chats', chatRoutes);
+app.use('/api/promotions', promotionRoutes);
+app.use('/api/ads', adsRoutes);
 
 // Dev-only: list users untuk mock dashboard (hanya aktif di NODE_ENV=development)
 if (process.env.NODE_ENV === 'development') {

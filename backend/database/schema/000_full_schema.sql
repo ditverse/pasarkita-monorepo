@@ -230,14 +230,23 @@ CREATE TABLE public.product_ads (
   end_date timestamp with time zone NOT NULL,
   price_per_day integer NOT NULL DEFAULT 5000 CHECK (price_per_day >= 0),
   total_price integer NOT NULL CHECK (total_price >= 0),
-  status character varying NOT NULL DEFAULT 'pending_payment'::character varying CHECK (status::text = ANY (ARRAY['pending_payment'::character varying::text, 'scheduled'::character varying::text, 'active'::character varying::text, 'paused'::character varying::text, 'completed'::character varying::text])),
+  status character varying NOT NULL DEFAULT 'pending_payment'::character varying CHECK (status::text = ANY (ARRAY['pending_payment'::character varying::text, 'scheduled'::character varying::text, 'active'::character varying::text, 'paused'::character varying::text, 'completed'::character varying::text, 'rejected'::character varying::text])),
   payment_status character varying NOT NULL DEFAULT 'unpaid'::character varying CHECK (payment_status::text = ANY (ARRAY['unpaid'::character varying::text, 'paid'::character varying::text, 'refunded'::character varying::text])),
   transaction_id character varying,
+  placement character varying NOT NULL DEFAULT 'home_carousel'::character varying,
+  title character varying,
+  caption character varying,
+  target_url character varying,
+  rejection_reason text,
+  paused_reason text,
+  reviewed_by uuid,
+  reviewed_at timestamp with time zone,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT product_ads_pkey PRIMARY KEY (id),
   CONSTRAINT product_ads_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
-  CONSTRAINT product_ads_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.users(id)
+  CONSTRAINT product_ads_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.users(id),
+  CONSTRAINT product_ads_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES public.users(id)
 );
 CREATE TABLE public.ad_analytics (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -251,14 +260,13 @@ CREATE TABLE public.ad_analytics (
 CREATE TABLE public.product_discounts (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   product_id uuid NOT NULL,
-  discount_type character varying NOT NULL CHECK (discount_type::text = ANY (ARRAY['percentage'::character varying::text, 'fixed_amount'::character varying::text])),
+  discount_type character varying NOT NULL CHECK (discount_type::text = ANY (ARRAY['percentage'::character varying, 'fixed_amount'::character varying]::text[])),
   discount_value integer NOT NULL CHECK (discount_value > 0),
   start_time timestamp with time zone NOT NULL,
   end_time timestamp with time zone NOT NULL,
   is_active boolean NOT NULL DEFAULT true,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT product_discounts_time_check CHECK (end_time > start_time),
   CONSTRAINT product_discounts_pkey PRIMARY KEY (id),
   CONSTRAINT product_discounts_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id)
 );
@@ -266,20 +274,18 @@ CREATE TABLE public.vouchers (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   seller_id uuid,
   code character varying NOT NULL UNIQUE,
-  discount_type character varying NOT NULL CHECK (discount_type::text = ANY (ARRAY['percentage'::character varying::text, 'fixed_amount'::character varying::text, 'free_marketplace_fee'::character varying::text])),
+  discount_type character varying NOT NULL CHECK (discount_type::text = ANY (ARRAY['percentage'::character varying, 'fixed_amount'::character varying, 'free_marketplace_fee'::character varying]::text[])),
   discount_value integer NOT NULL CHECK (discount_value > 0),
   min_purchase integer NOT NULL DEFAULT 0 CHECK (min_purchase >= 0),
   max_discount integer CHECK (max_discount > 0),
   quota integer NOT NULL CHECK (quota > 0),
-  used_count integer NOT NULL DEFAULT 0 CHECK (used_count >= 0 AND used_count <= quota),
+  used_count integer NOT NULL DEFAULT 0,
   start_time timestamp with time zone NOT NULL,
   end_time timestamp with time zone NOT NULL,
   is_active boolean NOT NULL DEFAULT true,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   category character varying,
-  CONSTRAINT vouchers_time_check CHECK (end_time > start_time),
-  CONSTRAINT vouchers_free_fee_marketplace_only_check CHECK (discount_type::text <> 'free_marketplace_fee'::text OR seller_id IS NULL),
   CONSTRAINT vouchers_pkey PRIMARY KEY (id),
   CONSTRAINT vouchers_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.users(id)
 );
@@ -288,8 +294,8 @@ CREATE TABLE public.user_vouchers (
   user_id uuid NOT NULL,
   voucher_id uuid NOT NULL,
   order_id uuid,
-  used_at timestamp with time zone,
-  status character varying NOT NULL DEFAULT 'used'::character varying CHECK (status::text = ANY (ARRAY['reserved'::character varying::text, 'used'::character varying::text, 'released'::character varying::text])),
+  used_at timestamp with time zone NOT NULL DEFAULT now(),
+  status character varying NOT NULL DEFAULT 'used'::character varying CHECK (status::text = ANY (ARRAY['reserved'::character varying, 'used'::character varying, 'released'::character varying]::text[])),
   reserved_at timestamp with time zone,
   released_at timestamp with time zone,
   idempotency_key uuid,
@@ -303,14 +309,42 @@ CREATE TABLE public.order_vouchers (
   order_id uuid NOT NULL,
   voucher_id uuid NOT NULL,
   voucher_code character varying NOT NULL,
-  scope character varying NOT NULL CHECK (scope::text = ANY (ARRAY['marketplace'::character varying::text, 'seller'::character varying::text])),
+  scope character varying NOT NULL CHECK (scope::text = ANY (ARRAY['marketplace'::character varying, 'seller'::character varying]::text[])),
   seller_id uuid,
-  discount_type character varying NOT NULL CHECK (discount_type::text = ANY (ARRAY['percentage'::character varying::text, 'fixed_amount'::character varying::text, 'free_marketplace_fee'::character varying::text])),
+  discount_type character varying NOT NULL CHECK (discount_type::text = ANY (ARRAY['percentage'::character varying, 'fixed_amount'::character varying, 'free_marketplace_fee'::character varying]::text[])),
   discount_amount integer NOT NULL DEFAULT 0 CHECK (discount_amount >= 0),
   eligible_subtotal integer NOT NULL DEFAULT 0 CHECK (eligible_subtotal >= 0),
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT order_vouchers_pkey PRIMARY KEY (id),
-  CONSTRAINT order_vouchers_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id) ON DELETE CASCADE,
+  CONSTRAINT order_vouchers_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id),
   CONSTRAINT order_vouchers_voucher_id_fkey FOREIGN KEY (voucher_id) REFERENCES public.vouchers(id),
   CONSTRAINT order_vouchers_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.users(id)
+);
+
+CREATE TABLE public.marketplace_banners (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  title character varying NOT NULL,
+  subtitle character varying,
+  image_url text NOT NULL,
+  target_url text,
+  placement character varying NOT NULL DEFAULT 'home_carousel'::character varying,
+  start_time timestamp with time zone NOT NULL,
+  end_time timestamp with time zone NOT NULL,
+  sort_order integer NOT NULL DEFAULT 0,
+  is_active boolean NOT NULL DEFAULT true,
+  created_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT marketplace_banners_pkey PRIMARY KEY (id),
+  CONSTRAINT marketplace_banners_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+);
+
+CREATE TABLE public.banner_analytics (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  banner_id uuid NOT NULL UNIQUE,
+  views_count integer NOT NULL DEFAULT 0 CHECK (views_count >= 0),
+  clicks_count integer NOT NULL DEFAULT 0 CHECK (clicks_count >= 0),
+  last_recorded_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT banner_analytics_pkey PRIMARY KEY (id),
+  CONSTRAINT banner_analytics_banner_id_fkey FOREIGN KEY (banner_id) REFERENCES public.marketplace_banners(id) ON DELETE CASCADE
 );

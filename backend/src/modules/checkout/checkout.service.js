@@ -3,6 +3,7 @@ const { calculateFee } = require('../../utils/fee');
 const { sendPaymentRequest } = require('../../integrations/smartbank');
 const { triggerShipping } = require('../../integrations/logistikita');
 const { notifySellerNewOrder, notifySellerLowStock } = require('../notifications/notification.service');
+const { quotePromotions } = require('../promotions/promotion.service');
 
 /**
  * Proses checkout multi-item.
@@ -231,6 +232,15 @@ const isHardeningUnavailable = (error) =>
   error?.code === '42883' ||
   error?.message?.includes('create_checkout_order');
 
+const isPromotionRpcUnavailable = (error) =>
+  error?.code === 'PGRST202' ||
+  error?.code === '42883' ||
+  error?.message?.includes('create_checkout_order_v2');
+
+const hasVoucherInput = (payload) =>
+  Boolean(payload.marketplace_voucher_code?.trim()) ||
+  (Array.isArray(payload.seller_voucher_codes) && payload.seller_voucher_codes.some((code) => code?.trim()));
+
 const mapAtomicCheckoutError = (error) => {
   const message = error?.message || '';
   if (message.includes('INSUFFICIENT_STOCK')) {
@@ -247,10 +257,186 @@ const mapAtomicCheckoutError = (error) => {
   if (message.includes('PRODUCT_NOT_FOUND')) {
     return { status: 404, code: 'NOT_FOUND', message: 'Produk tidak ditemukan atau tidak aktif' };
   }
-  if (message.includes('INVALID_QUANTITY') || message.includes('ITEMS_REQUIRED')) {
+  if (message.includes('INVALID_QUANTITY') || message.includes('ITEMS_REQUIRED') || message.includes('DUPLICATE_PRODUCTS')) {
     return { status: 400, code: 'VALIDATION_ERROR', message: 'Item checkout tidak valid' };
   }
+  if (message.includes('INVALID_TOTAL')) {
+    return { status: 400, code: 'VALIDATION_ERROR', message: 'Total checkout tidak valid setelah promo' };
+  }
   return { status: 500, code: 'INTERNAL_ERROR', message: 'Gagal membuat checkout atomik' };
+};
+
+const releaseCheckoutResources = async (orderId) => {
+  const promoRelease = await supabase.rpc('release_checkout_promotions', { p_order_id: orderId });
+  if (!promoRelease.error) return;
+  if (!isPromotionRpcUnavailable(promoRelease.error)) {
+    console.error('[Checkout] Gagal melepas reservasi promo:', promoRelease.error);
+  }
+
+  const stockRelease = await supabase.rpc('release_checkout_stock', { p_order_id: orderId });
+  if (stockRelease.error) {
+    console.error('[Checkout] Gagal melepas reservasi stok:', stockRelease.error);
+  }
+};
+
+const markVoucherReservationsUsed = async (orderId) => {
+  const { error } = await supabase
+    .from('user_vouchers')
+    .update({ status: 'used', used_at: new Date().toISOString() })
+    .eq('order_id', orderId)
+    .eq('status', 'reserved');
+  if (error && !['42P01', '42703', 'PGRST204'].includes(error.code)) {
+    console.error('[Checkout] Gagal menandai voucher sebagai used:', error);
+  }
+};
+
+const hasActiveProductPromo = async (payload) => {
+  try {
+    const quote = await quotePromotions({
+      items: payload.items,
+      marketplace_voucher_code: null,
+      seller_voucher_codes: [],
+    });
+    return quote.product_discount_total > 0;
+  } catch (error) {
+    if (error?.status) throw error;
+    return false;
+  }
+};
+
+const processPromotionalCheckout = async (buyerId, payload) => {
+  const { data: checkoutResult, error } = await supabase.rpc('create_checkout_order_v2', {
+    p_buyer_id: buyerId,
+    p_idempotency_key: payload.idempotency_key,
+    p_shipping_address: payload.shipping_address.trim(),
+    p_items: payload.items,
+    p_marketplace_voucher_code: payload.marketplace_voucher_code || null,
+    p_seller_voucher_codes: payload.seller_voucher_codes || [],
+  });
+
+  if (error) {
+    if (isPromotionRpcUnavailable(error)) throw error;
+    throw mapAtomicCheckoutError(error);
+  }
+
+  const order = checkoutResult?.order;
+  if (!order) {
+    throw { status: 500, code: 'INTERNAL_ERROR', message: 'Checkout promo tidak mengembalikan order' };
+  }
+
+  if (!checkoutResult.created) {
+    return {
+      order_id: order.id,
+      status: order.status,
+      subtotal: order.subtotal,
+      fee_marketplace: order.fee_marketplace,
+      fee_marketplace_base: order.fee_marketplace_base ?? order.fee_marketplace,
+      fee_discount: order.fee_discount ?? 0,
+      voucher_discount_total: order.voucher_discount_total ?? order.voucher_discount ?? 0,
+      discount_total: order.discount_total ?? order.voucher_discount ?? 0,
+      total: order.total,
+      transaction_id: order.transaction_id,
+      shipping: {
+        tracking_id: order.tracking_id,
+        status: order.tracking_id ? 'created' : 'pending',
+      },
+      hardening_active: true,
+      promo_active: true,
+      idempotent_replay: true,
+    };
+  }
+
+  let transactionId = null;
+  let trackingId = null;
+  let trackingStatus = 'pending';
+
+  try {
+    const paymentResult = await sendPaymentRequest({
+      orderId: order.id,
+      fromUser: buyerId,
+      amount: order.total,
+      feeMarketplace: order.fee_marketplace,
+      items: payload.items,
+    });
+    transactionId = paymentResult.data?.transaction_id ?? null;
+  } catch (paymentError) {
+    await supabase.from('orders').update({ status: 'payment_failed' }).eq('id', order.id);
+    await releaseCheckoutResources(order.id);
+    throw {
+      status: paymentError.status ?? 402,
+      code: paymentError.code ?? 'PAYMENT_FAILED',
+      message: paymentError.message ?? 'Pembayaran gagal',
+      details: paymentError.details,
+      retry_after: paymentError.retry_after,
+    };
+  }
+
+  const { error: paidError } = await supabase
+    .from('orders')
+    .update({ status: 'paid', transaction_id: transactionId, stock_reserved: false })
+    .eq('id', order.id);
+
+  if (paidError) {
+    console.error('[Checkout] Payment sukses tetapi order gagal diperbarui:', paidError);
+    throw {
+      status: 500,
+      code: 'PAYMENT_RECONCILIATION_REQUIRED',
+      message: 'Pembayaran diterima, tetapi status order perlu direkonsiliasi oleh admin',
+      details: `Order ID: ${order.id}`,
+    };
+  }
+
+  await markVoucherReservationsUsed(order.id);
+  void notifySellerNewOrder(order.id, payload.items);
+
+  try {
+    const shippingResult = await triggerShipping({
+      orderId: order.id,
+      fromAddress: 'Gudang PasarKita',
+      toAddress: payload.shipping_address.trim(),
+      itemsCount: payload.items.reduce((sum, item) => sum + item.qty, 0),
+    });
+    trackingId = shippingResult.data?.tracking_id ?? null;
+    trackingStatus = shippingResult.data?.status ?? 'created';
+    if (trackingId) {
+      await supabase
+        .from('orders')
+        .update({
+          tracking_id: trackingId,
+          shipping_sync_status: 'synced',
+          shipping_sync_error: null,
+          shipping_sync_updated_at: new Date().toISOString(),
+        })
+        .eq('id', order.id);
+    }
+  } catch (logisticsError) {
+    console.error('[Checkout] LogistiKita gagal (order tetap paid):', logisticsError.message);
+    await supabase
+      .from('orders')
+      .update({
+        shipping_sync_status: 'failed',
+        shipping_sync_error: logisticsError.message || 'LogistiKita tidak merespons',
+        shipping_sync_updated_at: new Date().toISOString(),
+      })
+      .eq('id', order.id);
+  }
+
+  return {
+    order_id: order.id,
+    status: 'paid',
+    subtotal: order.subtotal,
+    fee_marketplace: order.fee_marketplace,
+    fee_marketplace_base: order.fee_marketplace_base ?? order.fee_marketplace,
+    fee_discount: order.fee_discount ?? 0,
+    voucher_discount_total: order.voucher_discount_total ?? order.voucher_discount ?? 0,
+    discount_total: order.discount_total ?? order.voucher_discount ?? 0,
+    total: order.total,
+    transaction_id: transactionId,
+    shipping: { tracking_id: trackingId, status: trackingStatus },
+    hardening_active: true,
+    promo_active: true,
+    idempotent_replay: false,
+  };
 };
 
 const processAtomicCheckout = async (buyerId, payload) => {
@@ -382,11 +568,23 @@ const processAtomicCheckout = async (buyerId, payload) => {
 
 const processCheckout = async (buyerId, payload) => {
   try {
-    return await processAtomicCheckout(buyerId, payload);
+    return await processPromotionalCheckout(buyerId, payload);
   } catch (error) {
-    if (!isHardeningUnavailable(error)) throw error;
-    console.warn('[Checkout] migration 003_checkout_hardening.sql belum aktif; memakai checkout legacy.');
-    return processLegacyCheckout(buyerId, payload);
+    if (!isPromotionRpcUnavailable(error)) throw error;
+    if (hasVoucherInput(payload) || await hasActiveProductPromo(payload)) {
+      throw {
+        status: 503,
+        code: 'PROMOTION_SCHEMA_NOT_READY',
+        message: 'Schema promo checkout belum aktif. Jalankan migration 016_promotions_discounts.sql.',
+      };
+    }
+    try {
+      return await processAtomicCheckout(buyerId, payload);
+    } catch (atomicError) {
+      if (!isHardeningUnavailable(atomicError)) throw atomicError;
+      console.warn('[Checkout] migration 003_checkout_hardening.sql belum aktif; memakai checkout legacy.');
+      return processLegacyCheckout(buyerId, payload);
+    }
   }
 };
 

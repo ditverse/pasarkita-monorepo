@@ -1,15 +1,6 @@
-const { createClient } = require('@supabase/supabase-js');
 const bcrypt = require('bcrypt');
-require('dotenv').config();
+const pool = require('./src/config/mysql');
 
-const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = process.env;
-
-if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-  console.error('SUPABASE_URL dan SUPABASE_SERVICE_ROLE_KEY wajib tersedia.');
-  process.exit(1);
-}
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 const DEMO_PASSWORD = 'password123';
 
 const sellers = [
@@ -69,28 +60,15 @@ const products = [
 ];
 
 async function ensureDemoUser(user, role, passwordHash) {
-  const { data: existing, error: findError } = await supabase
-    .from('users')
-    .select('id, name, email')
-    .eq('email', user.email)
-    .maybeSingle();
+  const [existing] = await pool.query('SELECT id, name, email FROM users WHERE email = ?', [user.email]);
+  if (existing.length > 0) return existing[0];
 
-  if (findError) throw new Error(`Gagal mencari ${role} ${user.email}: ${findError.message}`);
-  if (existing) return existing;
-
-  const { data, error } = await supabase
-    .from('users')
-    .insert([{
-      ...user,
-      role,
-      is_active: true,
-      password_hash: passwordHash,
-    }])
-    .select('id, name, email')
-    .single();
-
-  if (error) throw new Error(`Gagal membuat ${role} ${user.email}: ${error.message}`);
-  return data;
+  await pool.query(
+    'INSERT INTO users (id, name, email, role, is_active, password_hash) VALUES (UUID(), ?, ?, ?, 1, ?)',
+    [user.name, user.email, role, passwordHash]
+  );
+  const [rows] = await pool.query('SELECT id, name, email FROM users WHERE email = ?', [user.email]);
+  return rows[0];
 }
 
 async function seedDemoCatalog() {
@@ -100,37 +78,46 @@ async function seedDemoCatalog() {
   const buyerRows = [];
 
   for (const seller of sellers) {
-    sellerRows.push(await ensureDemoUser(seller, 'seller', passwordHash));
+    const row = await ensureDemoUser(seller, 'seller', passwordHash);
+    sellerRows.push(row);
+    // Upsert seller_profile for each demo seller
+    const [existingProfile] = await pool.query('SELECT seller_id FROM seller_profiles WHERE seller_id = ?', [row.id]);
+    if (existingProfile.length === 0) {
+      await pool.query(
+        'INSERT INTO seller_profiles (seller_id, store_name, verification_status) VALUES (?, ?, ?)',
+        [row.id, seller.name, 'demo_verified']
+      );
+    }
   }
   for (const buyer of buyers) {
     buyerRows.push(await ensureDemoUser(buyer, 'buyer', passwordHash));
   }
 
-  const sellerByName = new Map(sellerRows.map((seller) => [seller.name, seller.id]));
-  const productNames = products.map((product) => product[1]);
-  const { data: existingProducts, error: existingError } = await supabase
-    .from('products')
-    .select('name')
-    .in('name', productNames);
-
-  if (existingError) throw new Error(`Gagal membaca produk: ${existingError.message}`);
-  const existingNames = new Set((existingProducts || []).map((product) => product.name));
+  const sellerByName = new Map(sellerRows.map((s) => [s.name, s.id]));
+  const productNames = products.map((p) => p[1]);
+  const [existingProducts] = await pool.query(
+    `SELECT name FROM products WHERE name IN (${productNames.map(() => '?').join(',')})`,
+    productNames
+  );
+  const existingNames = new Set(existingProducts.map((p) => p.name));
 
   const newProducts = products
-    .filter((product) => !existingNames.has(product[1]))
-    .map(([sellerName, name, category, description, price, stock]) => ({
-      seller_id: sellerByName.get(sellerName),
+    .filter((p) => !existingNames.has(p[1]))
+    .map(([sellerName, name, category, description, price, stock]) => [
+      sellerByName.get(sellerName),
       name,
       category,
       description,
       price,
       stock,
-      is_active: stock > 0,
-    }));
+      stock > 0 ? 1 : 0,
+    ]);
 
-  if (newProducts.length > 0) {
-    const { error } = await supabase.from('products').insert(newProducts);
-    if (error) throw new Error(`Gagal menambah produk: ${error.message}`);
+  for (const p of newProducts) {
+    await pool.query(
+      'INSERT INTO products (id, seller_id, name, category, description, price, stock, is_active) VALUES (UUID(), ?, ?, ?, ?, ?, ?, ?)',
+      p
+    );
   }
 
   console.log(`Seller demo tersedia: ${sellerRows.length}`);
@@ -140,7 +127,9 @@ async function seedDemoCatalog() {
   console.log(`Login akun demo menggunakan password: ${DEMO_PASSWORD}`);
 }
 
-seedDemoCatalog().catch((error) => {
-  console.error('Seed demo gagal:', error.message);
-  process.exitCode = 1;
-});
+seedDemoCatalog()
+  .then(() => pool.end())
+  .catch((error) => {
+    console.error('Seed demo gagal:', error.message);
+    process.exitCode = 1;
+  });

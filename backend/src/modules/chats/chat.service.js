@@ -1,23 +1,23 @@
-const supabase = require('../../config/supabase');
+const pool = require('../../config/mysql');
 
 const getOrderChatAccess = async (user, orderId) => {
-  const { data: order, error } = await supabase
-    .from('orders')
-    .select('id, buyer_id, items:order_items(product:products(seller_id))')
-    .eq('id', orderId)
-    .single();
-
-  if (error || !order) throw { status: 404, code: 'NOT_FOUND', message: 'Pesanan tidak ditemukan' };
-
-  const sellerIds = new Set(
-    (order.items || [])
-      .map((item) => item.product?.seller_id)
-      .filter(Boolean)
+  const [rows] = await pool.query(
+    `SELECT o.id, o.buyer_id,
+            oi.product_id, p.seller_id
+     FROM orders o
+     INNER JOIN order_items oi ON oi.order_id = o.id
+     INNER JOIN products p ON p.id = oi.product_id
+     WHERE o.id = ?`,
+    [orderId]
   );
+  if (!rows[0]) throw { status: 404, code: 'NOT_FOUND', message: 'Pesanan tidak ditemukan' };
 
-  if (user.role === 'superadmin') return { order, role: 'admin' };
-  if (order.buyer_id === user.id) return { order, role: 'buyer' };
-  if (sellerIds.has(user.id)) return { order, role: 'seller' };
+  const order = rows[0];
+  const sellerIds = new Set(rows.map(r => r.seller_id).filter(Boolean));
+
+  if (user.role === 'superadmin') return { order: { id: order.id, buyer_id: order.buyer_id }, role: 'admin' };
+  if (order.buyer_id === user.id) return { order: { id: order.id, buyer_id: order.buyer_id }, role: 'buyer' };
+  if (sellerIds.has(user.id)) return { order: { id: order.id, buyer_id: order.buyer_id }, role: 'seller' };
 
   throw { status: 403, code: 'FORBIDDEN', message: 'Tidak diizinkan mengakses chat pesanan ini' };
 };
@@ -25,32 +25,29 @@ const getOrderChatAccess = async (user, orderId) => {
 const getMessagesByOrder = async (user, orderId, limit = 50) => {
   await getOrderChatAccess(user, orderId);
 
-  const { data, error } = await supabase
-    .from('order_chat_messages')
-    .select('id, order_id, sender_id, content, created_at')
-    .eq('order_id', orderId)
-    .order('created_at', { ascending: true })
-    .limit(limit);
-
-  if (error) throw { status: 500, message: error.message };
-  return data;
+  const [rows] = await pool.query(
+    `SELECT id, order_id, sender_id, content, created_at
+     FROM order_chat_messages WHERE order_id = ?
+     ORDER BY created_at ASC LIMIT ?`,
+    [orderId, limit]
+  );
+  return rows;
 };
 
 const postMessage = async (user, orderId, content) => {
   const access = await getOrderChatAccess(user, orderId);
-
   if (access.role === 'admin') {
     throw { status: 403, code: 'FORBIDDEN', message: 'Admin hanya dapat memantau chat pesanan' };
   }
 
-  const { data: created, error: createErr } = await supabase
-    .from('order_chat_messages')
-    .insert([{ order_id: orderId, sender_id: user.id, content }])
-    .select()
-    .single();
+  const msgId = require('crypto').randomUUID();
+  await pool.query(
+    'INSERT INTO order_chat_messages (id, order_id, sender_id, content) VALUES (?, ?, ?, ?)',
+    [msgId, orderId, user.id, content]
+  );
 
-  if (createErr) throw { status: 500, message: createErr.message };
-  return created;
+  const [rows] = await pool.query('SELECT * FROM order_chat_messages WHERE id = ?', [msgId]);
+  return rows[0];
 };
 
 const mapProductThread = (thread) => ({
@@ -60,91 +57,70 @@ const mapProductThread = (thread) => ({
   seller_id: thread.seller_id,
   created_at: thread.created_at,
   updated_at: thread.updated_at,
-  product: thread.product
-    ? {
-        id: thread.product.id,
-        name: thread.product.name,
-        image_url: thread.product.image_url,
-        price: thread.product.price,
-      }
-    : null,
-  buyer: thread.buyer
-    ? {
-        id: thread.buyer.id,
-        name: thread.buyer.name,
-        email: thread.buyer.email,
-      }
-    : null,
-  seller: thread.seller
-    ? {
-        id: thread.seller.id,
-        name: thread.seller.name,
-        email: thread.seller.email,
-      }
-    : null,
-  last_message: thread.last_message ?? null,
+  product: thread.product_name ? {
+    id: thread.product_id,
+    name: thread.product_name,
+    image_url: thread.product_image_url,
+    price: thread.product_price,
+  } : null,
+  buyer: thread.buyer_name ? {
+    id: thread.buyer_id,
+    name: thread.buyer_name,
+    email: thread.buyer_email,
+  } : null,
+  seller: thread.seller_name ? {
+    id: thread.seller_id,
+    name: thread.seller_name,
+    email: thread.seller_email,
+  } : null,
+  last_message: thread.last_message_content ? {
+    id: thread.last_message_id,
+    sender_id: thread.last_message_sender_id,
+    content: thread.last_message_content,
+    created_at: thread.last_message_created_at,
+  } : null,
 });
 
 const getProductThreadAccess = async (user, threadId) => {
-  const { data: thread, error } = await supabase
-    .from('product_chat_threads')
-    .select('id, product_id, buyer_id, seller_id')
-    .eq('id', threadId)
-    .single();
-
-  if (error || !thread) throw { status: 404, code: 'NOT_FOUND', message: 'Thread chat tidak ditemukan' };
+  const [rows] = await pool.query(
+    'SELECT id, product_id, buyer_id, seller_id FROM product_chat_threads WHERE id = ?',
+    [threadId]
+  );
+  const thread = rows[0];
+  if (!thread) throw { status: 404, code: 'NOT_FOUND', message: 'Thread chat tidak ditemukan' };
   if (user.role === 'superadmin') return { thread, role: 'admin' };
   if (thread.buyer_id === user.id) return { thread, role: 'buyer' };
   if (thread.seller_id === user.id) return { thread, role: 'seller' };
-
   throw { status: 403, code: 'FORBIDDEN', message: 'Tidak diizinkan mengakses thread chat ini' };
 };
 
 const listProductThreads = async (user) => {
-  let query = supabase
-    .from('product_chat_threads')
-    .select(`
-      id, product_id, buyer_id, seller_id, created_at, updated_at,
-      product:products(id, name, image_url, price),
-      buyer:users!buyer_id(id, name, email),
-      seller:users!seller_id(id, name, email)
-    `)
-    .order('updated_at', { ascending: false });
+  let sql = `SELECT t.id, t.product_id, t.buyer_id, t.seller_id, t.created_at, t.updated_at,
+    p.name AS product_name, p.image_url AS product_image_url, p.price AS product_price,
+    b.name AS buyer_name, b.email AS buyer_email,
+    s.name AS seller_name, s.email AS seller_email,
+    lm.id AS last_message_id, lm.sender_id AS last_message_sender_id,
+    lm.content AS last_message_content, lm.created_at AS last_message_created_at
+  FROM product_chat_threads t
+  INNER JOIN products p ON p.id = t.product_id
+  INNER JOIN users b ON b.id = t.buyer_id
+  INNER JOIN users s ON s.id = t.seller_id
+  LEFT JOIN product_chat_messages lm ON lm.thread_id = t.id AND lm.created_at = (
+    SELECT MAX(created_at) FROM product_chat_messages WHERE thread_id = t.id
+  )`;
+  const params = [];
 
   if (user.role === 'buyer') {
-    query = query.eq('buyer_id', user.id);
+    sql += ' WHERE t.buyer_id = ?';
+    params.push(user.id);
   } else if (user.role === 'seller') {
-    query = query.eq('seller_id', user.id);
-  } else if (user.role !== 'superadmin') {
-    throw { status: 403, code: 'FORBIDDEN', message: 'Role tidak diizinkan mengakses chat produk' };
+    sql += ' WHERE t.seller_id = ?';
+    params.push(user.id);
   }
 
-  const { data, error } = await query;
-  if (error) throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
-
-  const threads = data || [];
-  const threadIds = threads.map((thread) => thread.id);
-  if (threadIds.length === 0) return [];
-
-  const { data: messages, error: messagesError } = await supabase
-    .from('product_chat_messages')
-    .select('id, thread_id, sender_id, content, created_at')
-    .in('thread_id', threadIds)
-    .order('created_at', { ascending: false });
-
-  if (messagesError) throw { status: 500, code: 'INTERNAL_ERROR', message: messagesError.message };
-
-  const lastMessageByThread = new Map();
-  for (const message of messages || []) {
-    if (!lastMessageByThread.has(message.thread_id)) {
-      lastMessageByThread.set(message.thread_id, message);
-    }
-  }
-
-  return threads.map((thread) => mapProductThread({
-    ...thread,
-    last_message: lastMessageByThread.get(thread.id) ?? null,
-  }));
+  sql += ' ORDER BY t.updated_at DESC';
+  const [rows] = await pool.query(sql, params);
+  return rows.map(mapProductThread);
 };
 
 const startProductThread = async (user, productId, initialContent = '') => {
@@ -152,33 +128,35 @@ const startProductThread = async (user, productId, initialContent = '') => {
     throw { status: 403, code: 'FORBIDDEN', message: 'Hanya buyer yang dapat memulai chat produk' };
   }
 
-  const { data: product, error: productError } = await supabase
-    .from('products')
-    .select('id, name, seller_id, is_active')
-    .eq('id', productId)
-    .single();
-
-  if (productError || !product || !product.is_active) {
+  const [prodRows] = await pool.query(
+    'SELECT id, name, seller_id, is_active FROM products WHERE id = ?', [productId]
+  );
+  const product = prodRows[0];
+  if (!product || !product.is_active) {
     throw { status: 404, code: 'NOT_FOUND', message: 'Produk tidak ditemukan' };
   }
   if (product.seller_id === user.id) {
     throw { status: 403, code: 'FORBIDDEN', message: 'Tidak dapat chat toko sendiri' };
   }
 
-  const { data: thread, error: upsertError } = await supabase
-    .from('product_chat_threads')
-    .upsert(
-      {
-        product_id: product.id,
-        buyer_id: user.id,
-        seller_id: product.seller_id,
-      },
-      { onConflict: 'product_id,buyer_id,seller_id' }
-    )
-    .select('id, product_id, buyer_id, seller_id, created_at, updated_at')
-    .single();
+  // Upsert thread
+  const [existing] = await pool.query(
+    'SELECT id, product_id, buyer_id, seller_id, created_at, updated_at FROM product_chat_threads WHERE product_id = ? AND buyer_id = ? AND seller_id = ?',
+    [productId, user.id, product.seller_id]
+  );
 
-  if (upsertError) throw { status: 500, code: 'INTERNAL_ERROR', message: upsertError.message };
+  let thread;
+  if (existing[0]) {
+    thread = existing[0];
+  } else {
+    const threadId = require('crypto').randomUUID();
+    await pool.query(
+      'INSERT INTO product_chat_threads (id, product_id, buyer_id, seller_id) VALUES (?, ?, ?, ?)',
+      [threadId, productId, user.id, product.seller_id]
+    );
+    const [rows] = await pool.query('SELECT * FROM product_chat_threads WHERE id = ?', [threadId]);
+    thread = rows[0];
+  }
 
   const trimmedContent = initialContent.trim();
   if (trimmedContent) {
@@ -190,16 +168,13 @@ const startProductThread = async (user, productId, initialContent = '') => {
 
 const getProductMessages = async (user, threadId, limit = 50) => {
   await getProductThreadAccess(user, threadId);
-
-  const { data, error } = await supabase
-    .from('product_chat_messages')
-    .select('id, thread_id, sender_id, content, created_at')
-    .eq('thread_id', threadId)
-    .order('created_at', { ascending: true })
-    .limit(limit);
-
-  if (error) throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
-  return data || [];
+  const [rows] = await pool.query(
+    `SELECT id, thread_id, sender_id, content, created_at
+     FROM product_chat_messages WHERE thread_id = ?
+     ORDER BY created_at ASC LIMIT ?`,
+    [threadId, limit]
+  );
+  return rows || [];
 };
 
 const sendProductThreadMessage = async (user, threadId, content) => {
@@ -208,14 +183,14 @@ const sendProductThreadMessage = async (user, threadId, content) => {
     throw { status: 403, code: 'FORBIDDEN', message: 'Admin hanya dapat memantau chat produk' };
   }
 
-  const { data, error } = await supabase
-    .from('product_chat_messages')
-    .insert([{ thread_id: threadId, sender_id: user.id, content }])
-    .select('id, thread_id, sender_id, content, created_at')
-    .single();
+  const msgId = require('crypto').randomUUID();
+  await pool.query(
+    'INSERT INTO product_chat_messages (id, thread_id, sender_id, content) VALUES (?, ?, ?, ?)',
+    [msgId, threadId, user.id, content]
+  );
 
-  if (error) throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
-  return data;
+  const [rows] = await pool.query('SELECT * FROM product_chat_messages WHERE id = ?', [msgId]);
+  return rows[0];
 };
 
 module.exports = {
@@ -226,4 +201,3 @@ module.exports = {
   getProductMessages,
   sendProductThreadMessage,
 };
-

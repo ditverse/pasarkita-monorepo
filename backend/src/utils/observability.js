@@ -1,4 +1,4 @@
-const supabase = require('../config/supabase');
+const pool = require('../config/mysql');
 
 const warnOnce = new Set();
 
@@ -18,17 +18,17 @@ const writeAuditLog = async ({
   before = null,
   after = null,
 }) => {
-  const { error } = await supabase.from('admin_audit_logs').insert([{
-    actor_id: actorId,
-    action,
-    target_type: targetType,
-    target_id: targetId,
-    reason,
-    before_data: before,
-    after_data: after,
-  }]);
-
-  if (error) logUnavailableOnce('admin_audit_logs', error);
+  try {
+    await pool.query(
+      `INSERT INTO admin_audit_logs (id, actor_id, action, target_type, target_id, reason, before_data, after_data)
+       VALUES (UUID(), ?, ?, ?, ?, ?, ?, ?)`,
+      [actorId, action, targetType, targetId, reason,
+       before ? JSON.stringify(before) : null,
+       after ? JSON.stringify(after) : null]
+    );
+  } catch (error) {
+    logUnavailableOnce('admin_audit_logs', error);
+  }
 };
 
 const writeIntegrationLog = async ({
@@ -40,17 +40,15 @@ const writeIntegrationLog = async ({
   statusCode = null,
   errorCode = null,
 }) => {
-  const { error } = await supabase.from('integration_logs').insert([{
-    service,
-    operation,
-    success,
-    duration_ms: durationMs,
-    order_id: orderId,
-    status_code: statusCode,
-    error_code: errorCode,
-  }]);
-
-  if (error) logUnavailableOnce('integration_logs', error);
+  try {
+    await pool.query(
+      `INSERT INTO integration_logs (id, service, operation, success, duration_ms, order_id, status_code, error_code)
+       VALUES (UUID(), ?, ?, ?, ?, ?, ?, ?)`,
+      [service, operation, success, durationMs, orderId, statusCode, errorCode]
+    );
+  } catch (error) {
+    logUnavailableOnce('integration_logs', error);
+  }
 };
 
 module.exports = { writeAuditLog, writeIntegrationLog };

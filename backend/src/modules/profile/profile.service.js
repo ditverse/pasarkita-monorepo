@@ -1,133 +1,108 @@
-const supabase = require('../../config/supabase');
+const pool = require('../../config/mysql');
 
 const getProfile = async (userId) => {
-  const { data, error } = await supabase
-    .from('users')
-    .select('id, name, email, phone, avatar_url, role, created_at')
-    .eq('id', userId)
-    .single();
-
-  if (error) throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
-  return data;
+  const [rows] = await pool.query(
+    'SELECT id, name, email, phone, avatar_url, role, created_at FROM users WHERE id = ?',
+    [userId]
+  );
+  if (!rows[0]) throw { status: 500, code: 'INTERNAL_ERROR', message: 'Gagal mengambil profil' };
+  return rows[0];
 };
 
 const updateProfile = async (userId, payload) => {
-  const { data, error } = await supabase
-    .from('users')
-    .update(payload)
-    .eq('id', userId)
-    .select('id, name, email, phone, avatar_url, role')
-    .single();
+  const fields = [];
+  const values = [];
+  for (const [key, value] of Object.entries(payload)) {
+    if (['name', 'phone', 'avatar_url', 'email'].includes(key)) {
+      fields.push(`${key} = ?`);
+      values.push(value);
+    }
+  }
+  if (fields.length === 0) throw { status: 400, code: 'VALIDATION_ERROR', message: 'Tidak ada field yang diperbarui' };
+  values.push(userId);
+  await pool.query(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`, values);
 
-  if (error) throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
-  return data;
+  const [rows] = await pool.query(
+    'SELECT id, name, email, phone, avatar_url, role FROM users WHERE id = ?', [userId]
+  );
+  return rows[0];
 };
 
 const getAddresses = async (userId) => {
-  const { data, error } = await supabase
-    .from('user_addresses')
-    .select('*')
-    .eq('user_id', userId)
-    .order('is_primary', { ascending: false })
-    .order('created_at', { ascending: false });
-
-  if (error) throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
-  return data || [];
+  const [rows] = await pool.query(
+    'SELECT * FROM user_addresses WHERE user_id = ? ORDER BY is_primary DESC, created_at DESC',
+    [userId]
+  );
+  return rows;
 };
 
 const addAddress = async (userId, payload) => {
-  // If this is the first address or marked as primary, we need to handle primary logic
   if (payload.is_primary) {
-    await supabase.from('user_addresses').update({ is_primary: false }).eq('user_id', userId);
+    await pool.query('UPDATE user_addresses SET is_primary = 0 WHERE user_id = ?', [userId]);
   } else {
-    // Check if user has any addresses, if not, force this to be primary
-    const { count } = await supabase
-      .from('user_addresses')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId);
-    
-    if (count === 0) {
-      payload.is_primary = true;
-    }
+    const [countResult] = await pool.query(
+      'SELECT COUNT(*) AS cnt FROM user_addresses WHERE user_id = ?', [userId]
+    );
+    if (countResult[0].cnt === 0) payload.is_primary = true;
   }
 
-  const { data, error } = await supabase
-    .from('user_addresses')
-    .insert([{ ...payload, user_id: userId }])
-    .select()
-    .single();
-
-  if (error) throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
-  return data;
+  const addrId = require('crypto').randomUUID();
+  await pool.query(
+    `INSERT INTO user_addresses (id, user_id, label, recipient_name, phone, full_address, is_primary)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [addrId, userId, payload.label, payload.recipient_name, payload.phone, payload.full_address, payload.is_primary ? 1 : 0]
+  );
+  const [rows] = await pool.query('SELECT * FROM user_addresses WHERE id = ?', [addrId]);
+  return rows[0];
 };
 
 const updateAddress = async (userId, addressId, payload) => {
   if (payload.is_primary) {
-    await supabase.from('user_addresses').update({ is_primary: false }).eq('user_id', userId);
+    await pool.query('UPDATE user_addresses SET is_primary = 0 WHERE user_id = ?', [userId]);
   }
 
-  const { data, error } = await supabase
-    .from('user_addresses')
-    .update(payload)
-    .eq('id', addressId)
-    .eq('user_id', userId)
-    .select()
-    .single();
+  const fields = [];
+  const values = [];
+  for (const [key, value] of Object.entries(payload)) {
+    if (['label', 'recipient_name', 'phone', 'full_address', 'is_primary'].includes(key)) {
+      fields.push(`${key} = ?`);
+      values.push(key === 'is_primary' ? (value ? 1 : 0) : value);
+    }
+  }
+  if (fields.length === 0) throw { status: 400, code: 'VALIDATION_ERROR', message: 'Tidak ada field yang diperbarui' };
+  values.push(addressId, userId);
+  await pool.query(`UPDATE user_addresses SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`, values);
 
-  if (error) throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
-  return data;
+  const [rows] = await pool.query('SELECT * FROM user_addresses WHERE id = ?', [addressId]);
+  return rows[0];
 };
 
 const deleteAddress = async (userId, addressId) => {
-  const { data: address } = await supabase
-    .from('user_addresses')
-    .select('is_primary')
-    .eq('id', addressId)
-    .eq('user_id', userId)
-    .single();
+  const [addrRows] = await pool.query(
+    'SELECT is_primary FROM user_addresses WHERE id = ? AND user_id = ?', [addressId, userId]
+  );
+  const address = addrRows[0];
 
-  const { error } = await supabase
-    .from('user_addresses')
-    .delete()
-    .eq('id', addressId)
-    .eq('user_id', userId);
+  await pool.query('DELETE FROM user_addresses WHERE id = ? AND user_id = ?', [addressId, userId]);
 
-  if (error) throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
-
-  // If deleted address was primary, make the most recently created address primary
   if (address?.is_primary) {
-    const { data: latest } = await supabase
-      .from('user_addresses')
-      .select('id')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (latest) {
-      await supabase
-        .from('user_addresses')
-        .update({ is_primary: true })
-        .eq('id', latest.id);
+    const [latest] = await pool.query(
+      'SELECT id FROM user_addresses WHERE user_id = ? ORDER BY created_at DESC LIMIT 1', [userId]
+    );
+    if (latest[0]) {
+      await pool.query('UPDATE user_addresses SET is_primary = 1 WHERE id = ?', [latest[0].id]);
     }
   }
-
   return true;
 };
 
 const setPrimaryAddress = async (userId, addressId) => {
-  await supabase.from('user_addresses').update({ is_primary: false }).eq('user_id', userId);
-  
-  const { data, error } = await supabase
-    .from('user_addresses')
-    .update({ is_primary: true })
-    .eq('id', addressId)
-    .eq('user_id', userId)
-    .select()
-    .single();
-
-  if (error) throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
-  return data;
+  await pool.query('UPDATE user_addresses SET is_primary = 0 WHERE user_id = ?', [userId]);
+  await pool.query(
+    'UPDATE user_addresses SET is_primary = 1 WHERE id = ? AND user_id = ?', [addressId, userId]
+  );
+  const [rows] = await pool.query('SELECT * FROM user_addresses WHERE id = ?', [addressId]);
+  return rows[0];
 };
 
 module.exports = {

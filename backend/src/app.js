@@ -23,8 +23,13 @@ const adsRoutes = require('./modules/ads/ads.routes');
 const app = express();
 
 
+const path = require('path');
+
 app.use(cors());
 app.use(express.json());
+
+// Static file serving for uploaded images
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Healthcheck
 app.get('/api/health', (req, res) => {
@@ -49,19 +54,18 @@ app.use('/api/ads', adsRoutes);
 
 // Dev-only: list users untuk mock dashboard (hanya aktif di NODE_ENV=development)
 if (process.env.NODE_ENV === 'development') {
-  const supabase = require('./config/supabase');
+  const pool = require('./config/mysql');
   app.get('/api/dev/users', async (req, res) => {
     const secret = process.env.MOCK_DEV_SECRET || 'mock-dev-secret';
     if ((req.headers['x-mock-secret'] || req.query.secret) !== secret) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
-    const { data, error } = await supabase
-      .from('users')
-      .select('id, name, email, role, is_active')
-      .order('created_at', { ascending: false })
-      .limit(200);
-    if (error) return res.status(500).json({ success: false, message: error.message });
-    return res.json({ success: true, data: data || [] });
+    try {
+      const [data] = await pool.query('SELECT id, name, email, role, is_active FROM users ORDER BY created_at DESC LIMIT 200');
+      return res.json({ success: true, data: data || [] });
+    } catch (error) {
+      return res.status(500).json({ success: false, message: error.message });
+    }
   });
 }
 

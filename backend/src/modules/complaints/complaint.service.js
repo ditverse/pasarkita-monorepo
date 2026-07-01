@@ -1,113 +1,93 @@
-const supabase = require('../../config/supabase');
-const { 
-  notifyComplaintCreated, 
-  notifyComplaintReplied, 
-  notifyComplaintResolved 
+const pool = require('../../config/mysql');
+const {
+  notifyComplaintCreated,
+  notifyComplaintReplied,
+  notifyComplaintResolved
 } = require('../notifications/notification.service');
 
 const createComplaint = async (buyerId, orderId, payload) => {
-  // 1. Cek order milik buyer
-  const { data: order, error: orderErr } = await supabase
-    .from('orders')
-    .select('id, status, buyer_id, order_items(product_id, products(seller_id))')
-    .eq('id', orderId)
-    .single();
+  const [orderRows] = await pool.query(
+    `SELECT o.id, o.status, o.buyer_id,
+            oi.product_id, p.seller_id
+     FROM orders o
+     INNER JOIN order_items oi ON oi.order_id = o.id
+     INNER JOIN products p ON p.id = oi.product_id
+     WHERE o.id = ? LIMIT 1`,
+    [orderId]
+  );
+  const order = orderRows[0];
 
-  if (orderErr || !order) {
-    throw { status: 404, message: 'Pesanan tidak ditemukan' };
-  }
-  if (order.buyer_id !== buyerId) {
-    throw { status: 403, message: 'Tidak diizinkan mengakses pesanan ini' };
-  }
-  
-  // Hanya bisa komplain jika shipped atau delivered
+  if (!order) throw { status: 404, message: 'Pesanan tidak ditemukan' };
+  if (order.buyer_id !== buyerId) throw { status: 403, message: 'Tidak diizinkan mengakses pesanan ini' };
   if (!['shipped', 'delivered'].includes(order.status)) {
     throw { status: 400, message: 'Komplain hanya dapat diajukan untuk pesanan yang sudah dikirim atau diterima' };
   }
 
-  // Cek apakah sudah ada komplain
-  const { data: existing } = await supabase
-    .from('complaints')
-    .select('id')
-    .eq('order_id', orderId)
-    .single();
-  
-  if (existing) {
+  const [existing] = await pool.query('SELECT id FROM complaints WHERE order_id = ?', [orderId]);
+  if (existing.length > 0) {
     throw { status: 400, message: 'Komplain untuk pesanan ini sudah diajukan sebelumnya' };
   }
 
-  // Dapatkan seller_id (karena 1 order = 1 checkout product di MVP)
-  const sellerId = order.order_items[0]?.products?.seller_id;
-  if (!sellerId) {
-    throw { status: 500, message: 'Gagal mendeteksi penjual' };
-  }
+  const sellerId = order.seller_id;
+  if (!sellerId) throw { status: 500, message: 'Gagal mendeteksi penjual' };
 
-  // Insert komplain
-  const { data: complaint, error: compErr } = await supabase
-    .from('complaints')
-    .insert([{
-      order_id: orderId,
-      buyer_id: buyerId,
-      seller_id: sellerId,
-      type: payload.type,
-      description: payload.description,
-      status: 'open'
-    }])
-    .select()
-    .single();
-
-  if (compErr) {
-    throw { status: 500, message: compErr.message };
-  }
+  const complaintId = require('crypto').randomUUID();
+  await pool.query(
+    `INSERT INTO complaints (id, order_id, buyer_id, seller_id, type, description, status)
+     VALUES (?, ?, ?, ?, ?, ?, 'open')`,
+    [complaintId, orderId, buyerId, sellerId, payload.type, payload.description]
+  );
 
   void notifyComplaintCreated(sellerId, orderId);
 
-  return complaint;
+  const [rows] = await pool.query('SELECT * FROM complaints WHERE id = ?', [complaintId]);
+  return rows[0];
 };
 
 const getComplaints = async (userId, role, filters = {}) => {
-  let query = supabase.from('complaints').select(`
-    *,
-    orders(status, total, created_at, tracking_id),
-    buyer:buyer_id(name, email),
-    seller:seller_id(name, email)
-  `);
+  let sql = `SELECT c.*,
+    o.status AS order_status, o.total AS order_total, o.created_at AS order_created_at, o.tracking_id,
+    b.name AS buyer_name, b.email AS buyer_email,
+    s.name AS seller_name, s.email AS seller_email
+  FROM complaints c
+  INNER JOIN orders o ON o.id = c.order_id
+  INNER JOIN users b ON b.id = c.buyer_id
+  INNER JOIN users s ON s.id = c.seller_id`;
+  const params = [];
 
   if (role === 'buyer') {
-    query = query.eq('buyer_id', userId);
+    sql += ' WHERE c.buyer_id = ?';
+    params.push(userId);
   } else if (role === 'seller') {
-    query = query.eq('seller_id', userId);
-  } else if (role === 'superadmin') {
-    // Admin bisa melihat semua, bisa filter status
-    if (filters.status) {
-      query = query.eq('status', filters.status);
-    }
+    sql += ' WHERE c.seller_id = ?';
+    params.push(userId);
+  } else if (role === 'superadmin' && filters.status) {
+    sql += ' WHERE c.status = ?';
+    params.push(filters.status);
   }
 
-  query = query.order('created_at', { ascending: false });
-
-  const { data, error } = await query;
-  if (error) throw { status: 500, message: error.message };
-  return data;
+  sql += ' ORDER BY c.created_at DESC';
+  const [rows] = await pool.query(sql, params);
+  return rows;
 };
 
 const getComplaintById = async (complaintId, userId, role) => {
-  const { data, error } = await supabase
-    .from('complaints')
-    .select(`
-      *,
-      orders(status, total, created_at, tracking_id),
-      buyer:buyer_id(name, email),
-      seller:seller_id(name, email)
-    `)
-    .eq('id', complaintId)
-    .single();
-
-  if (error || !data) throw { status: 404, message: 'Komplain tidak ditemukan' };
-
+  const [rows] = await pool.query(
+    `SELECT c.*,
+      o.status AS order_status, o.total AS order_total, o.created_at AS order_created_at, o.tracking_id,
+      b.name AS buyer_name, b.email AS buyer_email,
+      s.name AS seller_name, s.email AS seller_email
+    FROM complaints c
+    INNER JOIN orders o ON o.id = c.order_id
+    INNER JOIN users b ON b.id = c.buyer_id
+    INNER JOIN users s ON s.id = c.seller_id
+    WHERE c.id = ?`,
+    [complaintId]
+  );
+  const data = rows[0];
+  if (!data) throw { status: 404, message: 'Komplain tidak ditemukan' };
   if (role === 'buyer' && data.buyer_id !== userId) throw { status: 403, message: 'Akses ditolak' };
   if (role === 'seller' && data.seller_id !== userId) throw { status: 403, message: 'Akses ditolak' };
-
   return data;
 };
 
@@ -117,21 +97,15 @@ const replyComplaint = async (sellerId, complaintId, replyText) => {
     throw { status: 400, message: 'Hanya bisa merespons komplain yang berstatus open' };
   }
 
-  const { data, error } = await supabase
-    .from('complaints')
-    .update({ 
-      seller_response: replyText,
-      status: 'seller_replied'
-    })
-    .eq('id', complaintId)
-    .select()
-    .single();
-  
-  if (error) throw { status: 500, message: error.message };
+  await pool.query(
+    'UPDATE complaints SET seller_response = ?, status = ? WHERE id = ?',
+    [replyText, 'seller_replied', complaintId]
+  );
 
   void notifyComplaintReplied(comp.buyer_id, comp.order_id);
 
-  return data;
+  const [rows] = await pool.query('SELECT * FROM complaints WHERE id = ?', [complaintId]);
+  return rows[0];
 };
 
 const resolveComplaint = async (buyerId, complaintId, accepted) => {
@@ -141,21 +115,14 @@ const resolveComplaint = async (buyerId, complaintId, accepted) => {
   }
 
   const newStatus = accepted ? 'resolved' : 'admin_review';
-
-  const { data, error } = await supabase
-    .from('complaints')
-    .update({ status: newStatus })
-    .eq('id', complaintId)
-    .select()
-    .single();
-
-  if (error) throw { status: 500, message: error.message };
+  await pool.query('UPDATE complaints SET status = ? WHERE id = ?', [newStatus, complaintId]);
 
   if (accepted) {
     void notifyComplaintResolved(comp.seller_id, comp.order_id, true);
   }
 
-  return data;
+  const [rows] = await pool.query('SELECT * FROM complaints WHERE id = ?', [complaintId]);
+  return rows[0];
 };
 
 const adminResolveComplaint = async (adminId, complaintId, payload) => {
@@ -164,31 +131,22 @@ const adminResolveComplaint = async (adminId, complaintId, payload) => {
     throw { status: 400, message: 'Hanya komplain dengan status admin_review yang bisa diputuskan admin' };
   }
 
-  const { data, error } = await supabase
-    .from('complaints')
-    .update({ 
-      status: payload.action, // 'resolved' atau 'rejected'
-      admin_notes: payload.notes
-    })
-    .eq('id', complaintId)
-    .select()
-    .single();
+  await pool.query(
+    'UPDATE complaints SET status = ?, admin_notes = ? WHERE id = ?',
+    [payload.action, payload.notes, complaintId]
+  );
 
-  if (error) throw { status: 500, message: error.message };
-  
-  // Catat audit log
-  await supabase.from('admin_audit_logs').insert([{
-    actor_id: adminId,
-    action: `resolve_complaint_${payload.action}`,
-    target_type: 'complaint',
-    target_id: complaintId,
-    reason: payload.notes
-  }]);
+  await pool.query(
+    `INSERT INTO admin_audit_logs (id, actor_id, action, target_type, target_id, reason)
+     VALUES (UUID(), ?, ?, 'complaint', ?, ?)`,
+    [adminId, `resolve_complaint_${payload.action}`, complaintId, payload.notes]
+  );
 
   void notifyComplaintResolved(comp.buyer_id, comp.order_id, false);
   void notifyComplaintResolved(comp.seller_id, comp.order_id, true);
 
-  return data;
+  const [rows] = await pool.query('SELECT * FROM complaints WHERE id = ?', [complaintId]);
+  return rows[0];
 };
 
 module.exports = {

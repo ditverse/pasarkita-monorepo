@@ -74,7 +74,7 @@ export default function AdminAuditLogsPage() {
         <div className="pk-card" role="alert" style={{ padding: 24 }}>
           <div style={{ fontWeight: 600, marginBottom: 6 }}>Audit log belum dapat dimuat</div>
           <p style={{ color: 'var(--pk-text-secondary)' }}>
-            Jalankan <code>backend/database/migrations/002_observability.sql</code> di Supabase, lalu coba lagi.
+            Pastikan migration sudah dijalankan di MySQL, lalu coba lagi.
           </p>
           <button className="pk-btn pk-btn-secondary pk-btn-sm" onClick={() => logsQuery.refetch()}>Coba Lagi</button>
         </div>

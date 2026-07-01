@@ -18,6 +18,9 @@ pnpm-debug.log*
 /build/
 /.vercel/
 
+# uploaded files
+/uploads/
+
 # test and coverage outputs
 /coverage/
 

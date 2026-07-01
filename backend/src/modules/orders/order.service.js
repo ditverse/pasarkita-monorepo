@@ -1,43 +1,18 @@
-const supabase = require('../../config/supabase');
+const pool = require('../../config/mysql');
 const { triggerShipping } = require('../../integrations/logistikita');
 const axios = require('axios');
 const env = require('../../config/env');
 const { writeAuditLog, writeIntegrationLog } = require('../../utils/observability');
 const { getIntegrationTarget } = require('../../integrations/target');
+const { kmpSearch } = require('../../utils/kmp-search');
 
 const ORDER_STATUSES = new Set(['pending', 'paid', 'processing', 'shipped', 'delivered', 'payment_failed']);
 const ORDER_SORTS = {
-  created_desc: ['created_at', false],
-  created_asc: ['created_at', true],
-  total_desc: ['total', false],
-  total_asc: ['total', true],
-  status_asc: ['status', true],
-  status_desc: ['status', false],
-  updated_desc: ['updated_at', false],
-  updated_asc: ['updated_at', true],
-  action_deadline: ['created_at', true],
-};
-let snapshotsAvailable;
-let promotionSnapshotsAvailable;
-
-const hasOrderItemSnapshots = async () => {
-  if (snapshotsAvailable !== undefined) return snapshotsAvailable;
-  const { error } = await supabase
-    .from('order_items')
-    .select('product_name_at_purchase')
-    .limit(1);
-  snapshotsAvailable = !error;
-  return snapshotsAvailable;
-};
-
-const hasOrderPromotionSnapshots = async () => {
-  if (promotionSnapshotsAvailable !== undefined) return promotionSnapshotsAvailable;
-  const { error } = await supabase
-    .from('order_items')
-    .select('original_price_at_purchase, product_discount_per_unit, product_discount_id')
-    .limit(1);
-  promotionSnapshotsAvailable = !error;
-  return promotionSnapshotsAvailable;
+  created_desc: 'o.created_at DESC', created_asc: 'o.created_at ASC',
+  total_desc: 'o.total DESC', total_asc: 'o.total ASC',
+  status_asc: 'o.status ASC', status_desc: 'o.status DESC',
+  updated_desc: 'o.updated_at DESC', updated_asc: 'o.updated_at ASC',
+  action_deadline: 'o.created_at ASC',
 };
 
 const parsePositiveInt = (value, fallback, max = 100) => {
@@ -46,264 +21,137 @@ const parsePositiveInt = (value, fallback, max = 100) => {
   return Math.min(parsed, max);
 };
 
-const { kmpSearch } = require('../../utils/kmp-search');
-
-const findAdminOrderIds = async (search) => {
-  const term = search.trim();
-  if (!term) return null;
-  const safeTerm = term.replace(/[%_,]/g, '');
-
-  // 1. Ambil semua pembeli (ini bisa jadi lambat kalau datanya banyak, idealnya batch atau pre-filter huruf pertama)
-  // Karena kita dipaksa membersihkan semua ILIKE, kita ambil semua lalu filter memory dengan KMP.
-  const [ordersResult, buyersResult] = await Promise.all([
-    supabase.from('orders').select('id, transaction_id, tracking_id'),
-    safeTerm
-      ? supabase.from('users').select('id, name, email').eq('role', 'buyer')
-      : Promise.resolve({ data: [], error: null }),
-  ]);
-
-  if (ordersResult.error) {
-    throw { status: 500, code: 'INTERNAL_ERROR', message: ordersResult.error.message };
-  }
-  if (buyersResult.error) {
-    throw { status: 500, code: 'INTERNAL_ERROR', message: buyersResult.error.message };
-  }
-
-  // KMP MATCHING
-  const buyerIds = new Set(
-    (buyersResult.data || [])
-      .filter((b) => kmpSearch(b.name || '', safeTerm) || kmpSearch(b.email || '', safeTerm))
-      .map((buyer) => buyer.id)
-  );
-
-  const matchingOrderIds = (ordersResult.data || [])
-    .filter((order) =>
-      order.id.toLowerCase().startsWith(safeTerm.toLowerCase()) || // ID exact prefix match
-      kmpSearch(order.transaction_id || '', safeTerm) ||
-      kmpSearch(order.tracking_id || '', safeTerm)
-    )
-    .map((order) => order.id);
-
-  if (buyerIds.size > 0) {
-    const buyerOrders = await supabase
-      .from('orders')
-      .select('id')
-      .in('buyer_id', [...buyerIds]);
-    if (buyerOrders.error) {
-      throw { status: 500, code: 'INTERNAL_ERROR', message: buyerOrders.error.message };
-    }
-    matchingOrderIds.push(...(buyerOrders.data || []).map((order) => order.id));
-  }
-
-  return [...new Set(matchingOrderIds)];
-};
-
-const getSellerOrderScope = async (sellerId, search = '') => {
-  const { data, error } = await supabase
-    .from('order_items')
-    .select('order_id, product_name_at_purchase, product:products!inner(id, name, seller_id)')
-    .eq('product.seller_id', sellerId);
-
-  if (error) throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
-
-  const scopedItems = data || [];
-  const allOrderIds = [...new Set(scopedItems.map((item) => item.order_id))];
-  const term = search.trim().toLowerCase();
-  if (!term || allOrderIds.length === 0) return allOrderIds;
-
-  const { data: scopedOrders, error: ordersError } = await supabase
-    .from('orders')
-    .select('id, transaction_id, tracking_id')
-    .in('id', allOrderIds);
-
-  if (ordersError) {
-    throw { status: 500, code: 'INTERNAL_ERROR', message: ordersError.message };
-  }
-
-  const matchingIds = new Set(
-    scopedItems
-      .filter((item) =>
-        kmpSearch(item.product_name_at_purchase || '', search) ||
-        kmpSearch(item.product?.name || '', search)
-      )
-      .map((item) => item.order_id)
-  );
-
-  for (const order of scopedOrders || []) {
-    if (
-      order.id.toLowerCase().startsWith(term) || // ID tetap exact prefix
-      kmpSearch(order.transaction_id || '', search) ||
-      kmpSearch(order.tracking_id || '', search)
-    ) {
-      matchingIds.add(order.id);
-    }
-  }
-
-  return [...matchingIds];
-};
-
-const getSellerActionReason = (status, containsOtherSellerItems) => {
-  if (containsOtherSellerItems) {
-    return 'Order multi-toko belum dapat dikirim sekaligus sampai fulfillment per seller tersedia.';
-  }
-  if (status === 'pending') return 'Menunggu pembayaran dikonfirmasi.';
-  if (status === 'payment_failed') return 'Pembayaran gagal, pesanan tidak perlu dikirim.';
-  if (status === 'paid') return null;
-  if (status === 'processing') return null;
-  if (status === 'shipped') return 'Pesanan sudah ditandai sedang dikirim.';
-  if (status === 'delivered') return 'Pesanan sudah diterima pembeli.';
-  return null;
-};
-
-const projectOrderForSeller = (order, sellerId) => {
-  const sellerItems = (order.items || []).filter((item) => item.product?.seller_id === sellerId);
-  const sellerSubtotal = sellerItems.reduce(
-    (sum, item) => sum + item.price_at_purchase * item.qty,
-    0
-  );
-  const sellerFee = order.subtotal > 0
-    ? Math.round(order.fee_marketplace * (sellerSubtotal / order.subtotal))
-    : 0;
-  const containsOtherSellerItems = sellerItems.length !== (order.items || []).length;
-
-  return {
-    ...order,
-    subtotal: sellerSubtotal,
-    fee_marketplace: sellerFee,
-    total: sellerSubtotal + sellerFee,
-    buyer: order.buyer ? { id: order.buyer.id, name: order.buyer.name } : null,
-    items: sellerItems,
-    seller_item_scope: true,
-    seller_can_process: order.status === 'paid' && !containsOtherSellerItems,
-    seller_can_ship: order.status === 'processing' && !containsOtherSellerItems,
-    seller_action_reason: getSellerActionReason(order.status, containsOtherSellerItems),
-  };
-};
-
 const getOrders = async (user, query) => {
   const page = parsePositiveInt(query.page, 1, 100000);
   const limit = parsePositiveInt(query.limit, 20, 100);
   const offset = (page - 1) * limit;
-  const [sortColumn, sortAscending] = ORDER_SORTS[query.sort] || ORDER_SORTS.created_desc;
+  const orderBy = ORDER_SORTS[query.sort] || ORDER_SORTS.created_desc;
 
-  const itemSelect = await hasOrderPromotionSnapshots()
-    ? 'product_id, qty, price_at_purchase, product_name_at_purchase, original_price_at_purchase, product_discount_per_unit, product_discount_id, product:products(id, name, seller_id, seller:users!seller_id(id, name))'
-    : await hasOrderItemSnapshots()
-      ? 'product_id, qty, price_at_purchase, product_name_at_purchase, product:products(id, name, seller_id, seller:users!seller_id(id, name))'
-      : 'product_id, qty, price_at_purchase, product:products(id, name, seller_id, seller:users!seller_id(id, name))';
+  let where = [];
+  let params = [];
 
-  let supaQuery = supabase
-    .from('orders')
-    .select(
-      `*, buyer:users!buyer_id(id, name, email), items:order_items(${itemSelect})`,
-      { count: 'exact' }
-    )
-    .order(sortColumn, { ascending: sortAscending })
-    .range(offset, offset + limit - 1);
+  if (user.role === 'buyer') { where.push('o.buyer_id = ?'); params.push(user.id); }
 
-  if (user.role === 'buyer') {
-    supaQuery = supaQuery.eq('buyer_id', user.id);
-  }
   if (user.role === 'seller') {
-    const sellerOrderIds = await getSellerOrderScope(user.id, query.search);
+    const [sellerItems] = await pool.query(
+      `SELECT DISTINCT oi.order_id FROM order_items oi
+       INNER JOIN products p ON p.id = oi.product_id WHERE p.seller_id = ?`, [user.id]
+    );
+    const sellerOrderIds = sellerItems.map(i => i.order_id);
     if (sellerOrderIds.length === 0) {
       return { data: [], pagination: { page, limit, total: 0, total_pages: 0 } };
     }
-    supaQuery = supaQuery.in('id', sellerOrderIds);
+    where.push(`o.id IN (${sellerOrderIds.map(() => '?').join(',')})`);
+    params.push(...sellerOrderIds);
   }
 
-  if (query.status && ORDER_STATUSES.has(query.status)) {
-    supaQuery = supaQuery.eq('status', query.status);
-  }
+  if (query.status && ORDER_STATUSES.has(query.status)) { where.push('o.status = ?'); params.push(query.status); }
+  if (query.created_from) { where.push('o.created_at >= ?'); params.push(new Date(`${query.created_from}T00:00:00+07:00`).toISOString()); }
+  if (query.created_to) { where.push('o.created_at <= ?'); params.push(new Date(`${query.created_to}T23:59:59.999+07:00`).toISOString()); }
+
+  // Admin search
   if (user.role === 'superadmin' && query.search?.trim()) {
-    const matchingIds = await findAdminOrderIds(query.search);
-    if (matchingIds.length === 0) {
-      return { data: [], pagination: { page, limit, total: 0, total_pages: 0 } };
+    const term = query.search.trim().replace(/[%_,]/g, '');
+    const [buyerUsers] = await pool.query(
+      `SELECT id FROM users WHERE role = 'buyer' AND (name LIKE ? OR email LIKE ?)`,
+      [`%${term}%`, `%${term}%`]
+    );
+    const buyerIds = buyerUsers.map(b => b.id);
+    const conditions = [`(o.id LIKE ? OR o.transaction_id LIKE ? OR o.tracking_id LIKE ?`];
+    params.push(`${term}%`, `%${term}%`, `%${term}%`);
+    if (buyerIds.length > 0) {
+      conditions[0] += ` OR o.buyer_id IN (${buyerIds.map(() => '?').join(',')})`;
+      params.push(...buyerIds);
     }
-    supaQuery = supaQuery.in('id', matchingIds);
-  }
-  if ((user.role === 'superadmin' || user.role === 'seller') && query.created_from) {
-    const createdFrom = new Date(`${query.created_from}T00:00:00+07:00`);
-    if (Number.isNaN(createdFrom.getTime())) {
-      throw { status: 400, code: 'VALIDATION_ERROR', message: 'Tanggal awal tidak valid' };
-    }
-    supaQuery = supaQuery.gte('created_at', createdFrom.toISOString());
-  }
-  if ((user.role === 'superadmin' || user.role === 'seller') && query.created_to) {
-    const createdTo = new Date(`${query.created_to}T23:59:59.999+07:00`);
-    if (Number.isNaN(createdTo.getTime())) {
-      throw { status: 400, code: 'VALIDATION_ERROR', message: 'Tanggal akhir tidak valid' };
-    }
-    supaQuery = supaQuery.lte('created_at', createdTo.toISOString());
+    conditions[0] += ')';
+    where.push(conditions[0]);
   }
 
-  const { data, error, count } = await supaQuery;
+  const whereClause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
 
-  if (error) {
-    throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
-  }
+  // Count
+  const [[countRow]] = await pool.query(
+    `SELECT COUNT(*) AS cnt FROM orders o ${whereClause}`, params
+  );
+  const total = countRow.cnt;
 
-  const totalPages = Math.ceil((count || 0) / limit);
-  const orders = (data || []).map((rawOrder) => {
-    const order = user.role === 'seller'
-      ? projectOrderForSeller(rawOrder, user.id)
-      : rawOrder;
+  // Data with joins
+  const [orders] = await pool.query(
+    `SELECT o.*,
+      b.name AS buyer_name, b.email AS buyer_email
+     FROM orders o
+     LEFT JOIN users b ON b.id = o.buyer_id
+     ${whereClause}
+     ORDER BY ${orderBy}
+     LIMIT ? OFFSET ?`,
+    [...params, limit, offset]
+  );
 
-    return {
-      ...order,
-      items: (order.items || []).map((item) => ({
+  // Fetch order items for each order
+  const orderIds = orders.map(o => o.id);
+  if (orderIds.length > 0) {
+    const ph = orderIds.map(() => '?').join(',');
+    const [items] = await pool.query(
+      `SELECT oi.*, p.name AS product_name, p.seller_id AS product_seller_id,
+              s.name AS seller_name
+       FROM order_items oi
+       LEFT JOIN products p ON p.id = oi.product_id
+       LEFT JOIN users s ON s.id = p.seller_id
+       WHERE oi.order_id IN (${ph})`,
+      orderIds
+    );
+
+    const itemsByOrder = new Map();
+    items.forEach(item => {
+      if (!itemsByOrder.has(item.order_id)) itemsByOrder.set(item.order_id, []);
+      itemsByOrder.get(item.order_id).push({
         product_id: item.product_id,
-        product_name: item.product_name_at_purchase ?? item.product?.name ?? 'Produk dihapus',
-        seller: item.product?.seller ?? null,
+        product_name: item.product_name_at_purchase ?? item.product_name ?? 'Produk dihapus',
+        seller: item.product_seller_id ? { id: item.product_seller_id, name: item.seller_name } : null,
         qty: item.qty,
         price_at_purchase: item.price_at_purchase,
         original_price_at_purchase: item.original_price_at_purchase ?? item.price_at_purchase,
         product_discount_per_unit: item.product_discount_per_unit ?? 0,
         product_discount_id: item.product_discount_id ?? null,
-      })),
-    };
-  });
+      });
+    });
+
+    orders.forEach(order => {
+      order.buyer = order.buyer_name ? { id: order.buyer_id, name: order.buyer_name, email: order.buyer_email } : null;
+      order.items = itemsByOrder.get(order.id) || [];
+    });
+  }
 
   return {
     data: orders,
-    pagination: { page, limit, total: count || 0, total_pages: totalPages },
+    pagination: { page, limit, total, total_pages: Math.ceil(total / limit) },
   };
 };
 
 const getOrderById = async (user, orderId) => {
-  const itemSelect = await hasOrderPromotionSnapshots()
-    ? 'product_id, qty, price_at_purchase, product_name_at_purchase, original_price_at_purchase, product_discount_per_unit, product_discount_id, product:products(id, name, category, seller_id, seller:users!seller_id(id, name, email))'
-    : await hasOrderItemSnapshots()
-      ? 'product_id, qty, price_at_purchase, product_name_at_purchase, product:products(id, name, category, seller_id, seller:users!seller_id(id, name, email))'
-      : 'product_id, qty, price_at_purchase, product:products(id, name, category, seller_id, seller:users!seller_id(id, name, email))';
-  const { data, error } = await supabase
-    .from('orders')
-    .select(`*, items:order_items(${itemSelect}), buyer:users!buyer_id(id, name, email)`)
-    .eq('id', orderId)
-    .single();
+  const [orderRows] = await pool.query(
+    `SELECT o.*, b.name AS buyer_name, b.email AS buyer_email
+     FROM orders o LEFT JOIN users b ON b.id = o.buyer_id WHERE o.id = ?`, [orderId]
+  );
+  const order = orderRows[0];
+  if (!order) throw { status: 404, code: 'NOT_FOUND', message: 'Order tidak ditemukan' };
 
-  if (error || !data) {
-    throw { status: 404, code: 'NOT_FOUND', message: 'Order tidak ditemukan' };
-  }
+  order.buyer = order.buyer_name ? { id: order.buyer_id, name: order.buyer_name, email: order.buyer_email } : null;
 
-  // Seller hanya bisa lihat order yang mengandung produknya
-  if (user.role === 'seller') {
-    const hasSellersProduct = data.items?.some((item) => item.product?.seller_id === user.id);
-    if (!hasSellersProduct) {
-      throw { status: 403, code: 'FORBIDDEN', message: 'Akses ditolak' };
-    }
-  } else if (user.role !== 'superadmin' && data.buyer_id !== user.id) {
-    throw { status: 403, code: 'FORBIDDEN', message: 'Akses ditolak' };
-  }
+  const [items] = await pool.query(
+    `SELECT oi.*, p.name AS product_name, p.category AS product_category, p.seller_id AS product_seller_id,
+            s.name AS seller_name, s.email AS seller_email
+     FROM order_items oi
+     LEFT JOIN products p ON p.id = oi.product_id
+     LEFT JOIN users s ON s.id = p.seller_id
+     WHERE oi.order_id = ?`, [orderId]
+  );
 
-  const visibleOrder = user.role === 'seller'
-    ? projectOrderForSeller(data, user.id)
-    : data;
-  const reshapedItems = (visibleOrder.items || []).map((item) => ({
+  order.items = items.map(item => ({
     product_id: item.product_id,
-    product_name: item.product_name_at_purchase ?? item.product?.name ?? 'Produk dihapus',
-    category: item.product?.category ?? null,
-    seller: item.product?.seller ?? null,
+    product_name: item.product_name_at_purchase ?? item.product_name ?? 'Produk dihapus',
+    category: item.product_category ?? null,
+    seller: item.product_seller_id ? { id: item.product_seller_id, name: item.seller_name, email: item.seller_email } : null,
     qty: item.qty,
     price_at_purchase: item.price_at_purchase,
     original_price_at_purchase: item.original_price_at_purchase ?? item.price_at_purchase,
@@ -311,168 +159,110 @@ const getOrderById = async (user, orderId) => {
     product_discount_id: item.product_discount_id ?? null,
   }));
 
-  const { data: statusHistory, error: historyError } = await supabase
-    .from('order_status_history')
-    .select('id, status, source, note, created_at')
-    .eq('order_id', orderId)
-    .order('created_at', { ascending: true });
-
-  if (historyError) {
-    throw { status: 500, code: 'INTERNAL_ERROR', message: historyError.message };
+  // Access checks
+  if (user.role === 'seller') {
+    if (!order.items.some(i => i.seller?.id === user.id)) {
+      throw { status: 403, code: 'FORBIDDEN', message: 'Akses ditolak' };
+    }
+  } else if (user.role !== 'superadmin' && order.buyer_id !== user.id) {
+    throw { status: 403, code: 'FORBIDDEN', message: 'Akses ditolak' };
   }
 
-  let vouchers = [];
-  const voucherResult = await supabase
-    .from('order_vouchers')
-    .select('id, voucher_id, voucher_code, scope, seller_id, discount_type, discount_amount, eligible_subtotal, created_at')
-    .eq('order_id', orderId)
-    .order('created_at', { ascending: true });
-  if (!voucherResult.error) {
-    vouchers = (voucherResult.data || []).map((voucher) => ({
-      id: voucher.voucher_id,
-      code: voucher.voucher_code,
-      scope: voucher.scope,
-      seller_id: voucher.seller_id,
-      discount_type: voucher.discount_type,
-      discount_amount: voucher.discount_amount,
-      eligible_subtotal: voucher.eligible_subtotal,
-      created_at: voucher.created_at,
-    }));
-  }
+  // Status history
+  const [statusHistory] = await pool.query(
+    'SELECT id, status, source, note, created_at FROM order_status_history WHERE order_id = ? ORDER BY created_at ASC',
+    [orderId]
+  );
+  order.status_history = statusHistory;
 
-  let auditHistory = { available: true, data: [] };
-  let integrationTimeline = { available: true, data: [] };
+  // Vouchers
+  const [vouchers] = await pool.query(
+    'SELECT id, voucher_id, voucher_code, scope, seller_id, discount_type, discount_amount, eligible_subtotal, created_at FROM order_vouchers WHERE order_id = ? ORDER BY created_at ASC',
+    [orderId]
+  );
+  order.vouchers = vouchers.map(v => ({ id: v.voucher_id, code: v.voucher_code, scope: v.scope, seller_id: v.seller_id, discount_type: v.discount_type, discount_amount: v.discount_amount, eligible_subtotal: v.eligible_subtotal, created_at: v.created_at }));
+
+  // Admin audit & integration logs
   if (user.role === 'superadmin') {
-    const [auditResult, integrationResult] = await Promise.all([
-      supabase
-        .from('admin_audit_logs')
-        .select('id, action, reason, before_data, after_data, created_at, actor:users!actor_id(id, name, email)')
-        .eq('target_type', 'order')
-        .eq('target_id', orderId)
-        .order('created_at', { ascending: false })
-        .limit(20),
-      supabase
-        .from('integration_logs')
-        .select('id, service, operation, success, duration_ms, status_code, error_code, created_at')
-        .eq('order_id', orderId)
-        .order('created_at', { ascending: true }),
-    ]);
+    const [auditLogs] = await pool.query(
+      `SELECT aal.*, au.name AS actor_name, au.email AS actor_email
+       FROM admin_audit_logs aal LEFT JOIN users au ON au.id = aal.actor_id
+       WHERE aal.target_type = 'order' AND aal.target_id = ?
+       ORDER BY aal.created_at DESC LIMIT 20`, [orderId]
+    );
+    order.audit_history = { available: true, data: auditLogs.map(l => ({ ...l, actor: l.actor_name ? { id: l.actor_id, name: l.actor_name, email: l.actor_email } : null })) };
 
-    auditHistory = auditResult.error
-      ? { available: false, message: 'Audit log belum aktif.', data: [] }
-      : { available: true, data: auditResult.data || [] };
-    integrationTimeline = integrationResult.error
-      ? { available: false, message: 'Integration log belum aktif.', data: [] }
-      : { available: true, data: integrationResult.data || [] };
+    const [intLogs] = await pool.query(
+      'SELECT id, service, operation, success, duration_ms, status_code, error_code, created_at FROM integration_logs WHERE order_id = ? ORDER BY created_at ASC',
+      [orderId]
+    );
+    order.integration_timeline = { available: true, data: intLogs };
   }
 
-  return {
-    ...visibleOrder,
-    items: reshapedItems,
-    vouchers,
-    status_history: statusHistory || [],
-    audit_history: auditHistory,
-    integration_timeline: integrationTimeline,
-  };
+  return order;
 };
 
 const updateOrderStatus = async (user, orderId, status, reason = null) => {
-  // Validasi status yang diizinkan per role
-  const sellerAllowed = [];
-  const buyerAllowed = ['delivered'];
   const adminAllowed = ['pending', 'paid', 'processing', 'shipped', 'delivered', 'payment_failed'];
+  const buyerAllowed = ['delivered'];
 
   let allowed;
   if (user.role === 'superadmin') allowed = adminAllowed;
-  else if (user.role === 'seller') allowed = sellerAllowed;
   else if (user.role === 'buyer') allowed = buyerAllowed;
   else allowed = [];
 
   if (!allowed.includes(status)) {
-    throw {
-      status: 403,
-      code: 'FORBIDDEN',
-      message: user.role === 'seller'
-        ? 'Gunakan workflow proses dan kirim untuk mengubah status pesanan seller'
-        : user.role === 'buyer'
-          ? 'Buyer hanya bisa mengkonfirmasi pesanan diterima'
-          : `Status tidak valid. Pilihan: ${adminAllowed.join(', ')}`,
-    };
+    throw { status: 403, code: 'FORBIDDEN', message: `Status tidak valid. Pilihan: ${allowed.join(', ')}` };
   }
   if (user.role === 'superadmin' && (!reason || reason.trim().length < 3)) {
-    throw {
-      status: 400,
-      code: 'VALIDATION_ERROR',
-      message: 'Alasan perubahan status wajib diisi oleh admin',
-    };
+    throw { status: 400, code: 'VALIDATION_ERROR', message: 'Alasan perubahan status wajib diisi oleh admin' };
   }
 
-  // Ambil order untuk validasi kepemilikan
-  const { data: order, error: findErr } = await supabase
-    .from('orders')
-    .select('*, items:order_items(product_id, product:products(seller_id))')
-    .eq('id', orderId)
-    .single();
+  const [orderRows] = await pool.query('SELECT * FROM orders WHERE id = ?', [orderId]);
+  const order = orderRows[0];
+  if (!order) throw { status: 404, code: 'NOT_FOUND', message: 'Order tidak ditemukan' };
 
-  if (findErr || !order) {
-    throw { status: 404, code: 'NOT_FOUND', message: 'Order tidak ditemukan' };
-  }
+  await pool.query('UPDATE orders SET status = ? WHERE id = ?', [status, orderId]);
 
-  const { data, error } = await supabase
-    .from('orders')
-    .update({ status })
-    .eq('id', orderId)
-    .select()
-    .single();
-
-  if (error) {
-    throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
-  }
   if (user.role === 'superadmin') {
     await writeAuditLog({
-      actorId: user.id,
-      action: 'order.status_changed',
-      targetType: 'order',
-      targetId: orderId,
-      reason,
-      before: { status: order.status },
-      after: { status },
+      actorId: user.id, action: 'order.status_changed', targetType: 'order', targetId: orderId, reason,
+      before: { status: order.status }, after: { status },
     });
   }
-  return data;
+
+  const [rows] = await pool.query('SELECT * FROM orders WHERE id = ?', [orderId]);
+  return rows[0];
 };
 
-const getSellerFulfillmentOrder = async (sellerId, orderId, options = {}) => {
-  const { data, error } = await supabase
-    .from('orders')
-    .select('*, buyer:users!buyer_id(id, name), items:order_items(product_id, qty, price_at_purchase, product_name_at_purchase, product:products(id, name, seller_id))')
-    .eq('id', orderId)
-    .single();
-  if (error || !data) {
-    throw { status: 404, code: 'NOT_FOUND', message: 'Order tidak ditemukan' };
-  }
-  const sellerIds = new Set((data.items || []).map((item) => item.product?.seller_id).filter(Boolean));
-  if (!sellerIds.has(sellerId)) {
-    throw { status: 403, code: 'FORBIDDEN', message: 'Akses ditolak' };
-  }
-  if (sellerIds.size > 1 && !options.allowMultiSeller) {
-    throw {
-      status: 409,
-      code: 'MULTI_SELLER_FULFILLMENT_REQUIRED',
-      message: 'Order multi-toko memerlukan fulfillment per seller dan belum dapat diproses.',
-    };
-  }
-  return data;
+const startProcessing = async (user, orderId, pickupAddress) => {
+  const [orderRows] = await pool.query('SELECT * FROM orders WHERE id = ?', [orderId]);
+  const order = orderRows[0];
+  if (!order) throw { status: 404, code: 'NOT_FOUND', message: 'Order tidak ditemukan' };
+
+  // Verify seller owns items
+  const [sellerItems] = await pool.query(
+    `SELECT 1 FROM order_items oi INNER JOIN products p ON p.id = oi.product_id
+     WHERE oi.order_id = ? AND p.seller_id = ? LIMIT 1`, [orderId, user.id]
+  );
+  if (sellerItems.length === 0) throw { status: 403, code: 'FORBIDDEN', message: 'Akses ditolak' };
+
+  if (order.status !== 'paid') throw { status: 400, code: 'INVALID_STATUS', message: 'Hanya pesanan berstatus paid yang dapat mulai diproses' };
+
+  await pool.query(
+    'UPDATE orders SET status = ?, pickup_address_snapshot = ? WHERE id = ? AND status = ?',
+    ['processing', pickupAddress.trim(), orderId, 'paid']
+  );
+  const [rows] = await pool.query('SELECT * FROM orders WHERE id = ?', [orderId]);
+  return rows[0];
 };
 
 const saveShippingSync = async (orderId, status, errorMessage = null, trackingId = undefined) => {
-  const changes = {
-    shipping_sync_status: status,
-    shipping_sync_error: errorMessage,
-    shipping_sync_updated_at: new Date().toISOString(),
-  };
-  if (trackingId !== undefined) changes.tracking_id = trackingId;
-  await supabase.from('orders').update(changes).eq('id', orderId);
+  const fields = ['shipping_sync_status = ?', 'shipping_sync_error = ?', 'shipping_sync_updated_at = NOW()'];
+  const params = [status, errorMessage];
+  if (trackingId !== undefined) { fields.push('tracking_id = ?'); params.push(trackingId); }
+  params.push(orderId);
+  await pool.query(`UPDATE orders SET ${fields.join(', ')} WHERE id = ?`, params);
 };
 
 const syncShipping = async (order) => {
@@ -487,9 +277,7 @@ const syncShipping = async (order) => {
         itemsCount: (order.items || []).reduce((sum, item) => sum + item.qty, 0),
       });
       trackingId = result.data?.tracking_id ?? null;
-      if (!trackingId) {
-        throw { status: 502, code: 'TRACKING_ID_MISSING', message: 'LogistiKita tidak mengembalikan tracking ID' };
-      }
+      if (!trackingId) throw { status: 502, code: 'TRACKING_ID_MISSING', message: 'LogistiKita tidak mengembalikan tracking ID' };
     } else {
       const target = getIntegrationTarget('logistikita', `/shipping/${trackingId}`);
       const startedAt = Date.now();
@@ -498,24 +286,9 @@ const syncShipping = async (order) => {
           headers: { Authorization: `Bearer ${env.GATEWAY_API_KEY || 'mock-key'}` },
           timeout: 5000,
         });
-        await writeIntegrationLog({
-          service: target.logService,
-          operation: 'shipping.update',
-          success: true,
-          durationMs: Date.now() - startedAt,
-          orderId: order.id,
-          statusCode: response.status,
-        });
+        await writeIntegrationLog({ service: target.logService, operation: 'shipping.update', success: true, durationMs: Date.now() - startedAt, orderId: order.id, statusCode: response.status });
       } catch (error) {
-        await writeIntegrationLog({
-          service: target.logService,
-          operation: 'shipping.update',
-          success: false,
-          durationMs: Date.now() - startedAt,
-          orderId: order.id,
-          statusCode: error.response?.status ?? null,
-          errorCode: error.response?.data?.error?.code ?? 'GATEWAY_ERROR',
-        });
+        await writeIntegrationLog({ service: target.logService, operation: 'shipping.update', success: false, durationMs: Date.now() - startedAt, orderId: order.id, statusCode: error.response?.status ?? null, errorCode: error.response?.data?.error?.code ?? 'GATEWAY_ERROR' });
         throw error;
       }
     }
@@ -524,216 +297,123 @@ const syncShipping = async (order) => {
   } catch (error) {
     const message = error.message || 'Sinkronisasi LogistiKita gagal';
     await saveShippingSync(order.id, 'failed', message);
-    throw {
-      status: error.status || error.response?.status || 502,
-      code: error.code || error.response?.data?.error?.code || 'LOGISTICS_SYNC_FAILED',
-      message,
-    };
+    throw { status: error.status || 502, code: 'LOGISTICS_SYNC_FAILED', message };
   }
 };
 
-const startProcessing = async (user, orderId, pickupAddress) => {
-  const order = await getSellerFulfillmentOrder(user.id, orderId);
-  if (order.status !== 'paid') {
-    throw { status: 400, code: 'INVALID_STATUS', message: 'Hanya pesanan berstatus paid yang dapat mulai diproses' };
-  }
-  const { data, error } = await supabase
-    .from('orders')
-    .update({
-      status: 'processing',
-      pickup_address_snapshot: pickupAddress.trim(),
-    })
-    .eq('id', orderId)
-    .eq('status', 'paid')
-    .select()
-    .single();
-  if (error) throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
-  return data;
+const shipOrder = async (user, orderId) => {
+  const [orderRows] = await pool.query('SELECT * FROM orders WHERE id = ?', [orderId]);
+  const order = orderRows[0];
+  if (!order) throw { status: 404, code: 'NOT_FOUND', message: 'Order tidak ditemukan' };
+
+  const [sellerItems] = await pool.query(
+    'SELECT 1 FROM order_items oi INNER JOIN products p ON p.id = oi.product_id WHERE oi.order_id = ? AND p.seller_id = ? LIMIT 1',
+    [orderId, user.id]
+  );
+  if (sellerItems.length === 0) throw { status: 403, code: 'FORBIDDEN', message: 'Akses ditolak' };
+  if (order.status !== 'processing') throw { status: 400, code: 'INVALID_STATUS', message: 'Pesanan harus berstatus processing sebelum dikirim' };
+
+  await syncShipping(order);
+  await pool.query('UPDATE orders SET status = ? WHERE id = ? AND status = ?', ['shipped', orderId, 'processing']);
+  const [rows] = await pool.query('SELECT * FROM orders WHERE id = ?', [orderId]);
+  return rows[0];
 };
 
 const retryShipping = async (user, orderId) => {
-  const order = await getSellerFulfillmentOrder(user.id, orderId);
-  if (order.status !== 'processing') {
-    throw { status: 400, code: 'INVALID_STATUS', message: 'Sinkronisasi hanya dapat dilakukan saat pesanan diproses' };
-  }
-  if (!order.pickup_address_snapshot) {
-    throw { status: 400, code: 'PICKUP_REQUIRED', message: 'Alamat pickup belum dikonfirmasi' };
-  }
+  const [orderRows] = await pool.query('SELECT * FROM orders WHERE id = ?', [orderId]);
+  const order = orderRows[0];
+  if (!order) throw { status: 404, code: 'NOT_FOUND', message: 'Order tidak ditemukan' };
+  if (order.status !== 'processing') throw { status: 400, code: 'INVALID_STATUS', message: 'Sinkronisasi hanya dapat dilakukan saat pesanan diproses' };
+  if (!order.pickup_address_snapshot) throw { status: 400, code: 'PICKUP_REQUIRED', message: 'Alamat pickup belum dikonfirmasi' };
+
   const trackingId = await syncShipping(order);
   return { tracking_id: trackingId, shipping_sync_status: 'synced' };
 };
 
-const shipOrder = async (user, orderId) => {
-  const order = await getSellerFulfillmentOrder(user.id, orderId);
-  if (order.status !== 'processing') {
-    throw { status: 400, code: 'INVALID_STATUS', message: 'Pesanan harus berstatus processing sebelum dikirim' };
-  }
-  await syncShipping(order);
-  const { data, error } = await supabase
-    .from('orders')
-    .update({ status: 'shipped' })
-    .eq('id', orderId)
-    .eq('status', 'processing')
-    .select()
-    .single();
-  if (error) throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
-  return data;
-};
-
 const getPackingList = async (user, orderId) => {
-  const order = await getSellerFulfillmentOrder(user.id, orderId, { allowMultiSeller: true });
-  const { data: profile } = await supabase
-    .from('seller_profiles')
-    .select('store_name, contact_phone, pickup_address')
-    .eq('seller_id', user.id)
-    .maybeSingle();
+  const [orderRows] = await pool.query(
+    `SELECT o.*, b.name AS buyer_name FROM orders o LEFT JOIN users b ON b.id = o.buyer_id WHERE o.id = ?`, [orderId]
+  );
+  const order = orderRows[0];
+  if (!order) throw { status: 404, code: 'NOT_FOUND', message: 'Order tidak ditemukan' };
+
+  const [items] = await pool.query(
+    `SELECT oi.*, p.seller_id, p.name AS pname FROM order_items oi
+     INNER JOIN products p ON p.id = oi.product_id WHERE oi.order_id = ? AND p.seller_id = ?`,
+    [orderId, user.id]
+  );
+
+  const [profileRows] = await pool.query(
+    'SELECT store_name, contact_phone, pickup_address FROM seller_profiles WHERE seller_id = ?', [user.id]
+  );
+  const profile = profileRows[0];
+
   return {
-    order_id: order.id,
-    created_at: order.created_at,
-    buyer_name: order.buyer?.name || 'Pembeli',
-    shipping_address: order.shipping_address,
-    tracking_id: order.tracking_id,
+    order_id: order.id, created_at: order.created_at,
+    buyer_name: order.buyer_name || 'Pembeli',
+    shipping_address: order.shipping_address, tracking_id: order.tracking_id,
     pickup_address: order.pickup_address_snapshot || profile?.pickup_address || null,
     store_name: profile?.store_name || user.name || 'Toko',
     contact_phone: profile?.contact_phone || null,
-    items: (order.items || [])
-      .filter((item) => item.product?.seller_id === user.id)
-      .map((item) => ({
-      product_id: item.product_id,
-      product_name: item.product_name_at_purchase || item.product?.name || 'Produk',
-      qty: item.qty,
-      })),
-  };
-};
-
-/**
- * Ambil status tracking dari LogistiKita
- */
-const getTrackingStatus = async (trackingId) => {
-  try {
-    const target = getIntegrationTarget('logistikita', `/shipping/${trackingId}`);
-    const res = await axios.get(target.url, {
-      headers: { Authorization: `Bearer ${env.GATEWAY_API_KEY || 'mock-key'}` },
-      timeout: 5000,
-    });
-    return res.data?.data ?? null;
-  } catch {
-    return null;
-  }
-};
-
-
-const exportOrdersBySeller = async (sellerId, query) => {
-  // Dapatkan scope order seller
-  const sellerOrderIds = await getSellerOrderScope(sellerId, query.search || '');
-  if (sellerOrderIds.length === 0) {
-    return { csv: 'ID,Status,Subtotal,Fee,Total,Pembeli,Alamat Pengiriman,Resi,Dibuat\r\n', count: 0, truncated: false };
-  }
-
-  let dbQuery = supabase
-    .from('orders')
-    .select('id, status, subtotal, fee_marketplace, total, shipping_address, transaction_id, tracking_id, created_at, buyer:users!buyer_id(id, name)')
-    .in('id', sellerOrderIds)
-    .order('created_at', { ascending: false })
-    .limit(5000);
-
-  if (query.status && ORDER_STATUSES.has(query.status)) {
-    dbQuery = dbQuery.eq('status', query.status);
-  }
-  if (query.created_from) {
-    const from = new Date(`${query.created_from}T00:00:00+07:00`);
-    if (!Number.isNaN(from.getTime())) dbQuery = dbQuery.gte('created_at', from.toISOString());
-  }
-  if (query.created_to) {
-    const to = new Date(`${query.created_to}T23:59:59.999+07:00`);
-    if (!Number.isNaN(to.getTime())) dbQuery = dbQuery.lte('created_at', to.toISOString());
-  }
-
-  const { data, error } = await dbQuery;
-  if (error) throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
-
-  const rows = data || [];
-  const escapeCSV = (val) => {
-    if (val === null || val === undefined) return '';
-    const str = String(val);
-    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-      return `"${str.replace(/"/g, '""')}"`;
-    }
-    return str;
-  };
-  const STATUS_LABEL = {
-    pending: 'Menunggu Pembayaran',
-    paid: 'Perlu Diproses',
-    processing: 'Sedang Dikemas',
-    shipped: 'Sedang Dikirim',
-    delivered: 'Selesai',
-    payment_failed: 'Pembayaran Gagal',
-  };
-  const headers = ['Order ID', 'Status', 'Subtotal', 'Fee Marketplace', 'Total', 'Nama Pembeli', 'Alamat Pengiriman', 'Transaction ID', 'Nomor Resi', 'Tanggal Order'];
-  const lines = [
-    headers.join(','),
-    ...rows.map((row) => [
-      row.id,
-      escapeCSV(STATUS_LABEL[row.status] ?? row.status),
-      row.subtotal,
-      row.fee_marketplace,
-      row.total,
-      escapeCSV(row.buyer?.name),
-      escapeCSV(row.shipping_address),
-      escapeCSV(row.transaction_id),
-      escapeCSV(row.tracking_id),
-      row.created_at ? new Date(row.created_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }) : '',
-    ].join(',')),
-  ];
-
-  return {
-    csv: lines.join('\r\n'),
-    count: rows.length,
-    truncated: rows.length >= 5000,
+    items: items.map(item => ({ product_id: item.product_id, product_name: item.product_name_at_purchase || item.pname || 'Produk', qty: item.qty })),
   };
 };
 
 const cancelOrder = async (orderId, buyerId) => {
-  const { data: order, error: orderErr } = await supabase
-    .from('orders')
-    .select('id, status, stock_reserved')
-    .eq('id', orderId)
-    .eq('buyer_id', buyerId)
-    .single();
-
-  if (orderErr) throw { status: 404, code: 'NOT_FOUND', message: 'Order tidak ditemukan' };
+  const [orderRows] = await pool.query('SELECT * FROM orders WHERE id = ? AND buyer_id = ?', [orderId, buyerId]);
+  const order = orderRows[0];
+  if (!order) throw { status: 404, code: 'NOT_FOUND', message: 'Order tidak ditemukan' };
   if (order.status !== 'pending') throw { status: 400, code: 'INVALID_STATUS', message: 'Hanya pesanan pending yang dapat dibatalkan' };
 
-  // Update status to cancelled
-  const { data: updated, error: updateErr } = await supabase
-    .from('orders')
-    .update({ status: 'cancelled' })
-    .eq('id', orderId)
-    .select()
-    .single();
+  await pool.query("UPDATE orders SET status = 'cancelled' WHERE id = ?", [orderId]);
 
-  if (updateErr) throw { status: 500, code: 'INTERNAL_ERROR', message: updateErr.message };
-
-  // Call rpc to release stock if reserved
   if (order.stock_reserved) {
-    const { error: rpcErr } = await supabase.rpc('release_checkout_stock', { p_order_id: orderId });
-    if (rpcErr) {
-      console.error('[cancelOrder] Gagal restore stok:', rpcErr);
-    }
+    await pool.query('CALL sp_release_checkout_stock(?)', [orderId]).catch(e => {
+      console.error('[cancelOrder] Gagal restore stok:', e);
+    });
   }
 
-  return updated;
+  const [rows] = await pool.query('SELECT * FROM orders WHERE id = ?', [orderId]);
+  return rows[0];
+};
+
+const exportOrdersBySeller = async (sellerId, query) => {
+  const [sellerItems] = await pool.query(
+    `SELECT DISTINCT oi.order_id FROM order_items oi
+     INNER JOIN products p ON p.id = oi.product_id WHERE p.seller_id = ?`, [sellerId]
+  );
+  const sellerOrderIds = sellerItems.map(i => i.order_id);
+  if (sellerOrderIds.length === 0) {
+    return { csv: 'ID,Status,Subtotal,Fee,Total,Pembeli,Alamat Pengiriman,Resi,Dibuat\r\n', count: 0, truncated: false };
+  }
+
+  let where = [`o.id IN (${sellerOrderIds.map(() => '?').join(',')})`];
+  let params = [...sellerOrderIds];
+  if (query.status && ORDER_STATUSES.has(query.status)) { where.push('o.status = ?'); params.push(query.status); }
+  if (query.created_from) { where.push('o.created_at >= ?'); params.push(new Date(`${query.created_from}T00:00:00+07:00`).toISOString()); }
+  if (query.created_to) { where.push('o.created_at <= ?'); params.push(new Date(`${query.created_to}T23:59:59.999+07:00`).toISOString()); }
+
+  const [data] = await pool.query(
+    `SELECT o.id, o.status, o.subtotal, o.fee_marketplace, o.total, o.shipping_address, o.transaction_id, o.tracking_id, o.created_at,
+            b.name AS buyer_name
+     FROM orders o LEFT JOIN users b ON b.id = o.buyer_id
+     WHERE ${where.join(' AND ')} ORDER BY o.created_at DESC LIMIT 5000`,
+    params
+  );
+
+  const STATUS_LABEL = { pending: 'Menunggu Pembayaran', paid: 'Perlu Diproses', processing: 'Sedang Dikemas', shipped: 'Sedang Dikirim', delivered: 'Selesai', payment_failed: 'Pembayaran Gagal' };
+  const escapeCSV = (val) => { if (val === null || val === undefined) return ''; const str = String(val); return (str.includes(',') || str.includes('"') || str.includes('\n')) ? `"${str.replace(/"/g, '""')}"` : str; };
+  const headers = ['Order ID', 'Status', 'Subtotal', 'Fee Marketplace', 'Total', 'Nama Pembeli', 'Alamat Pengiriman', 'Transaction ID', 'Nomor Resi', 'Tanggal Order'];
+  const lines = [headers.join(','), ...data.map(row => [
+    row.id, escapeCSV(STATUS_LABEL[row.status] ?? row.status), row.subtotal, row.fee_marketplace, row.total,
+    escapeCSV(row.buyer_name), escapeCSV(row.shipping_address), escapeCSV(row.transaction_id), escapeCSV(row.tracking_id),
+    row.created_at ? new Date(row.created_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }) : '',
+  ].join(','))];
+
+  return { csv: lines.join('\r\n'), count: data.length, truncated: data.length >= 5000 };
 };
 
 module.exports = {
-  getOrders,
-  getOrderById,
-  updateOrderStatus,
-  getTrackingStatus,
-  startProcessing,
-  shipOrder,
-  retryShipping,
-  getPackingList,
-  exportOrdersBySeller,
-  cancelOrder,
+  getOrders, getOrderById, updateOrderStatus, startProcessing, shipOrder, retryShipping,
+  getPackingList, cancelOrder, exportOrdersBySeller,
 };

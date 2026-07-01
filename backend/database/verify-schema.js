@@ -1,5 +1,5 @@
 require('dotenv').config();
-const supabase = require('../src/config/supabase');
+const pool = require('../src/config/mysql');
 
 const checks = [
   ['users', 'id, name, email, role, is_active, created_at'],
@@ -17,52 +17,110 @@ const checks = [
   ['product_chat_messages', 'id, thread_id, sender_id, content, created_at'],
 ];
 
+const storedProcedures = [
+  'sp_create_checkout_order',
+  'sp_release_checkout_stock',
+  'sp_increment_banner_views',
+  'sp_increment_ad_views',
+  'sp_increment_banner_clicks',
+  'sp_increment_ad_clicks',
+];
+
+const triggers = [
+  'trg_product_chat_messages_touch_thread',
+  'trg_orders_record_status_event',
+  'trg_orders_record_status_update',
+  'trg_orders_set_fulfillment_timestamps',
+];
+
 async function main() {
   let failed = false;
 
+  console.log('=== Verifying MySQL Schema ===\n');
+
+  // 1. Check tables
   for (const [table, columns] of checks) {
-    const { error } = await supabase.from(table).select(columns).limit(1);
-    if (error) {
-      failed = true;
-      console.error(`[GAGAL] ${table}: ${error.message}`);
-    } else {
+    try {
+      await pool.query(`SELECT ${columns} FROM ${table} LIMIT 1`);
       console.log(`[OK] ${table}`);
+    } catch (err) {
+      failed = true;
+      console.error(`[GAGAL] ${table}: ${err.message}`);
     }
   }
 
-  const { data: buckets, error: bucketError } = await supabase.storage.listBuckets();
-  const imageBucket = buckets?.find((bucket) => bucket.id === 'product-images');
-  if (bucketError || !imageBucket) {
-    failed = true;
-    console.error(`[GAGAL] bucket product-images: ${bucketError?.message || 'tidak ditemukan'}`);
-  } else {
-    console.log(`[OK] bucket product-images (${imageBucket.public ? 'public' : 'private'})`);
-  }
-  const storeBucket = buckets?.find((bucket) => bucket.id === 'store-assets');
-  if (bucketError || !storeBucket) {
-    failed = true;
-    console.error(`[GAGAL] bucket store-assets: ${bucketError?.message || 'tidak ditemukan'}`);
-  } else {
-    console.log(`[OK] bucket store-assets (${storeBucket.public ? 'public' : 'private'})`);
-  }
-
-  const { error: rpcError } = await supabase.rpc('create_checkout_order', {
-    p_buyer_id: '00000000-0000-0000-0000-000000000000',
-    p_idempotency_key: '00000000-0000-0000-0000-000000000000',
-    p_shipping_address: 'schema verification only',
-    p_items: [],
-  });
-  if (rpcError?.code === 'PGRST202') {
-    failed = true;
-    console.error('[GAGAL] RPC create_checkout_order belum tersedia');
-  } else {
-    console.log('[OK] RPC create_checkout_order tersedia');
+  // 2. Check stored procedures
+  console.log('\n=== Verifying Stored Procedures ===\n');
+  for (const sp of storedProcedures) {
+    try {
+      const [rows] = await pool.query(
+        "SELECT COUNT(*) as cnt FROM information_schema.routines WHERE routine_schema = ? AND routine_name = ?",
+        [process.env.MYSQL_DATABASE, sp]
+      );
+      if (rows[0].cnt > 0) {
+        console.log(`[OK] SP ${sp}`);
+      } else {
+        failed = true;
+        console.error(`[GAGAL] SP ${sp}: tidak ditemukan`);
+      }
+    } catch (err) {
+      failed = true;
+      console.error(`[GAGAL] SP ${sp}: ${err.message}`);
+    }
   }
 
-  if (failed) process.exitCode = 1;
+  // 3. Check triggers
+  console.log('\n=== Verifying Triggers ===\n');
+  for (const trg of triggers) {
+    try {
+      const [rows] = await pool.query(
+        "SELECT COUNT(*) as cnt FROM information_schema.triggers WHERE trigger_schema = ? AND trigger_name = ?",
+        [process.env.MYSQL_DATABASE, trg]
+      );
+      if (rows[0].cnt > 0) {
+        console.log(`[OK] Trigger ${trg}`);
+      } else {
+        failed = true;
+        console.error(`[GAGAL] Trigger ${trg}: tidak ditemukan`);
+      }
+    } catch (err) {
+      failed = true;
+      console.error(`[GAGAL] Trigger ${trg}: ${err.message}`);
+    }
+  }
+
+  // 4. Check uploads directory
+  console.log('\n=== Verifying Storage ===\n');
+  const fs = require('fs');
+  const pathMod = require('path');
+  const uploadBase = pathMod.join(__dirname, '../uploads');
+  const uploadDirs = ['product-images', 'store-assets', 'review-images'];
+  for (const dir of uploadDirs) {
+    if (fs.existsSync(pathMod.join(uploadBase, dir))) {
+      console.log(`[OK] ${dir}/ exists`);
+    } else {
+      console.error(`[GAGAL] ${dir}/ tidak ditemukan`);
+    }
+  }
+
+  // 5. Summary
+  const tableCount = checks.length;
+  const spCount = storedProcedures.length;
+  const trgCount = triggers.length;
+  console.log(`\n=== Summary ===`);
+  console.log(`Tables: ${tableCount} | Stored Procedures: ${spCount} | Triggers: ${trgCount}`);
+
+  if (failed) {
+    console.error('\n❌ Verifikasi gagal — ada item yang tidak ditemukan.');
+    process.exitCode = 1;
+  } else {
+    console.log('\n✅ Semua komponen database terverifikasi!');
+  }
 }
 
 main().catch((error) => {
   console.error(error);
   process.exitCode = 1;
+}).finally(() => {
+  pool.end();
 });

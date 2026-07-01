@@ -1,60 +1,27 @@
-const supabase = require('../../config/supabase');
+const pool = require('../../config/mysql');
 const { randomUUID } = require('crypto');
 
 const REVIEW_IMAGE_BUCKET = 'review-images';
-const IMAGE_EXTENSIONS = {
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-};
+const IMAGE_EXTENSIONS = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 const MAX_PHOTOS_PER_PRODUCT = 3;
 
-/**
- * Upload foto ulasan ke Supabase Storage.
- * Dipanggil sebelum submitRating; return public URL.
- */
 const uploadReviewImage = async (userId, file) => {
-  if (!file) {
-    throw { status: 400, code: 'FILE_REQUIRED', message: 'File gambar wajib dikirim' };
-  }
-
+  if (!file) throw { status: 400, code: 'FILE_REQUIRED', message: 'File gambar wajib dikirim' };
   const extension = IMAGE_EXTENSIONS[file.mimetype];
-  if (!extension) {
-    throw {
-      status: 400,
-      code: 'INVALID_IMAGE_TYPE',
-      message: 'Format gambar harus JPG, PNG, atau WebP',
-    };
-  }
+  if (!extension) throw { status: 400, code: 'INVALID_IMAGE_TYPE', message: 'Format gambar harus JPG, PNG, atau WebP' };
 
-  const path = `${userId}/${randomUUID()}.${extension}`;
-  const { error } = await supabase.storage
-    .from(REVIEW_IMAGE_BUCKET)
-    .upload(path, file.buffer, {
-      contentType: file.mimetype,
-      cacheControl: '31536000',
-      upsert: false,
-    });
+  const fs = require('fs');
+  const pathMod = require('path');
+  const fileName = `${randomUUID()}.${extension}`;
+  const uploadDir = pathMod.join(__dirname, '../../../uploads', REVIEW_IMAGE_BUCKET, userId);
+  fs.mkdirSync(uploadDir, { recursive: true });
+  fs.writeFileSync(pathMod.join(uploadDir, fileName), file.buffer);
 
-  if (error) {
-    const bucketMissing = error.message?.toLowerCase().includes('bucket');
-    throw {
-      status: 500,
-      code: bucketMissing ? 'STORAGE_NOT_READY' : 'UPLOAD_FAILED',
-      message: bucketMissing
-        ? 'Storage foto ulasan belum aktif. Jalankan backend/database/migrations/012_rating_photos.sql di Supabase SQL Editor.'
-        : `Gagal mengunggah foto: ${error.message}`,
-    };
-  }
-
-  const { data } = supabase.storage.from(REVIEW_IMAGE_BUCKET).getPublicUrl(path);
-  return { image_url: data.publicUrl, path };
+  const filePath = `${userId}/${fileName}`;
+  const imageUrl = `/uploads/${REVIEW_IMAGE_BUCKET}/${filePath}`;
+  return { image_url: imageUrl, path: filePath };
 };
 
-/**
- * Submit rating untuk produk setelah order delivered.
- * Satu order hanya bisa rating satu kali per produk.
- */
 const submitRating = async (buyerId, payload) => {
   const { order_id, product_id, rating, comment, image_urls } = payload;
 
@@ -65,111 +32,57 @@ const submitRating = async (buyerId, payload) => {
     throw { status: 400, code: 'VALIDATION_ERROR', message: 'Rating harus antara 1 dan 5' };
   }
 
-  // Validasi image_urls
   const sanitizedImages = Array.isArray(image_urls)
-    ? image_urls.slice(0, MAX_PHOTOS_PER_PRODUCT).filter((url) => typeof url === 'string' && url.startsWith('http'))
+    ? image_urls.slice(0, MAX_PHOTOS_PER_PRODUCT).filter(url => typeof url === 'string' && url.startsWith('http'))
     : [];
 
-  // Validasi order milik buyer dan statusnya delivered
-  const { data: order, error: orderErr } = await supabase
-    .from('orders')
-    .select('id, buyer_id, status')
-    .eq('id', order_id)
-    .single();
-
-  if (orderErr || !order) {
-    throw { status: 404, code: 'NOT_FOUND', message: 'Order tidak ditemukan' };
-  }
-  if (order.buyer_id !== buyerId) {
-    throw { status: 403, code: 'FORBIDDEN', message: 'Bukan order Anda' };
-  }
+  const [orderRows] = await pool.query(
+    'SELECT id, buyer_id, status FROM orders WHERE id = ?', [order_id]
+  );
+  const order = orderRows[0];
+  if (!order) throw { status: 404, code: 'NOT_FOUND', message: 'Order tidak ditemukan' };
+  if (order.buyer_id !== buyerId) throw { status: 403, code: 'FORBIDDEN', message: 'Bukan order Anda' };
   if (order.status !== 'delivered') {
     throw { status: 400, code: 'INVALID_STATUS', message: 'Rating hanya bisa diberikan setelah pesanan selesai' };
   }
 
-  // Cek apakah sudah pernah rating produk ini di order ini
-  const { data: existing } = await supabase
-    .from('ratings')
-    .select('id')
-    .eq('order_id', order_id)
-    .eq('product_id', product_id)
-    .single();
-
-  if (existing) {
+  const [existing] = await pool.query(
+    'SELECT id FROM ratings WHERE order_id = ? AND product_id = ?', [order_id, product_id]
+  );
+  if (existing.length > 0) {
     throw { status: 409, code: 'ALREADY_RATED', message: 'Anda sudah memberikan ulasan untuk produk ini' };
   }
 
-  // Insert rating (image_urls kolom belum ada sebelum migration 012 dijalankan)
-  const { data, error } = await supabase
-    .from('ratings')
-    .insert([{
-      order_id,
-      product_id,
-      buyer_id: buyerId,
-      rating,
-      comment: comment?.trim() || null,
-      // image_urls: sanitizedImages, // TODO: uncomment setelah migration 012
-    }])
-    .select()
-    .single();
+  const ratingId = randomUUID();
+  await pool.query(
+    `INSERT INTO ratings (id, order_id, product_id, buyer_id, rating, comment, image_urls)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [ratingId, order_id, product_id, buyerId, rating, comment?.trim() || null, JSON.stringify(sanitizedImages)]
+  );
 
-  if (error) {
-    throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
-  }
-
-  return data;
+  const [rows] = await pool.query('SELECT * FROM ratings WHERE id = ?', [ratingId]);
+  return rows[0];
 };
 
-/**
- * Ambil semua rating untuk satu produk beserta summary.
- */
 const getProductRatings = async (productId) => {
-  // Try selecting seller_reply columns; fall back if migration not applied yet
-  let { data: ratings, error } = await supabase
-    .from('ratings')
-    .select('id, rating, comment, created_at, buyer_id, seller_reply, seller_replied_at')
-    .eq('product_id', productId)
-    .order('created_at', { ascending: false });
+  const [ratings] = await pool.query(
+    `SELECT r.id, r.rating, r.comment, r.created_at, r.buyer_id, r.image_urls, r.seller_reply, r.seller_replied_at
+     FROM ratings r WHERE r.product_id = ? ORDER BY r.created_at DESC`,
+    [productId]
+  );
 
-  if (error) {
-    // Columns might not exist yet (migration 015 not applied) — retry without them
-    if (error.message?.includes('seller_reply') || error.message?.includes('column')) {
-      const fallback = await supabase
-        .from('ratings')
-        .select('id, rating, comment, created_at, buyer_id')
-        .eq('product_id', productId)
-        .order('created_at', { ascending: false });
-      ratings = fallback.data;
-      error = fallback.error;
-    }
-  }
-
-  if (error) {
-    throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
-  }
-
-  const list = ratings || [];
-
-  // Fetch buyer names
-  const buyerIds = [...new Set(list.map(r => r.buyer_id))].filter(Boolean);
+  const buyerIds = [...new Set(ratings.map(r => r.buyer_id))].filter(Boolean);
   let buyerMap = {};
   if (buyerIds.length > 0) {
-    const { data: buyers } = await supabase
-      .from('users')
-      .select('id, name')
-      .in('id', buyerIds);
-    buyerMap = Object.fromEntries((buyers || []).map(b => [b.id, b.name]));
+    const placeholders = buyerIds.map(() => '?').join(',');
+    const [buyers] = await pool.query(`SELECT id, name FROM users WHERE id IN (${placeholders})`, buyerIds);
+    buyerMap = Object.fromEntries(buyers.map(b => [b.id, b.name]));
   }
 
-  const total = list.length;
-  const average = total > 0
-    ? Math.round((list.reduce((s, r) => s + r.rating, 0) / total) * 10) / 10
-    : 0;
-
-  // Distribusi per bintang
+  const total = ratings.length;
+  const average = total > 0 ? Math.round((ratings.reduce((s, r) => s + r.rating, 0) / total) * 10) / 10 : 0;
   const distribution = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
-  list.forEach((r) => { distribution[r.rating] = (distribution[r.rating] || 0) + 1; });
-
+  ratings.forEach(r => { distribution[r.rating] = (distribution[r.rating] || 0) + 1; });
   const pct = {};
   Object.entries(distribution).forEach(([star, count]) => {
     pct[star] = total > 0 ? Math.round((count / total) * 100) : 0;
@@ -177,215 +90,106 @@ const getProductRatings = async (productId) => {
 
   return {
     summary: { average, total, distribution: pct },
-    reviews: list.map((r) => ({
-      id: r.id,
-      rating: r.rating,
-      comment: r.comment,
-      image_urls: [], // TODO: ubah ke r.image_urls setelah migration 012 dijalankan
-      date: r.created_at,
-      buyer_name: buyerMap[r.buyer_id] ?? 'Pembeli',
-      seller_reply: r.seller_reply ?? null,
-      seller_replied_at: r.seller_replied_at ?? null,
+    reviews: ratings.map(r => ({
+      id: r.id, rating: r.rating, comment: r.comment,
+      image_urls: typeof r.image_urls === 'string' ? JSON.parse(r.image_urls) : (r.image_urls || []),
+      date: r.created_at, buyer_name: buyerMap[r.buyer_id] ?? 'Pembeli',
+      seller_reply: r.seller_reply ?? null, seller_replied_at: r.seller_replied_at ?? null,
     })),
   };
 };
 
-/**
- * Cek apakah buyer sudah rating produk di order tertentu.
- */
 const checkRated = async (buyerId, orderId, productId) => {
-  const { data } = await supabase
-    .from('ratings')
-    .select('id')
-    .eq('order_id', orderId)
-    .eq('product_id', productId)
-    .eq('buyer_id', buyerId)
-    .single();
-
-  return !!data;
+  const [rows] = await pool.query(
+    'SELECT id FROM ratings WHERE order_id = ? AND product_id = ? AND buyer_id = ?',
+    [orderId, productId, buyerId]
+  );
+  return rows.length > 0;
 };
 
-/**
- * Seller membalas ulasan pada rating tertentu.
- * Hanya seller pemilik produk yang bisa membalas.
- */
 const replyToRating = async (sellerId, ratingId, reply) => {
-  if (!reply || !reply.trim()) {
-    throw { status: 400, code: 'VALIDATION_ERROR', message: 'Balasan tidak boleh kosong' };
-  }
-  if (reply.trim().length > 500) {
-    throw { status: 400, code: 'VALIDATION_ERROR', message: 'Balasan maksimal 500 karakter' };
-  }
+  if (!reply || !reply.trim()) throw { status: 400, code: 'VALIDATION_ERROR', message: 'Balasan tidak boleh kosong' };
+  if (reply.trim().length > 500) throw { status: 400, code: 'VALIDATION_ERROR', message: 'Balasan maksimal 500 karakter' };
 
-  // Ambil rating beserta product untuk validasi ownership
-  const { data: rating, error: ratingErr } = await supabase
-    .from('ratings')
-    .select('id, product_id, seller_reply, products:seller_id')
-    .eq('id', ratingId)
-    .single();
-
-  if (ratingErr) {
-    // Columns might not exist yet — retry without seller_reply
-    if (ratingErr.message?.includes('seller_reply') || ratingErr.message?.includes('column')) {
-      const { data: fallback, error: fallbackErr } = await supabase
-        .from('ratings')
-        .select('id, product_id, products:seller_id')
-        .eq('id', ratingId)
-        .single();
-      if (fallbackErr || !fallback) {
-        throw { status: 404, code: 'NOT_FOUND', message: 'Ulasan tidak ditemukan' };
-      }
-      // Cek apakah sudah pernah membalas (kolom belum ada = belum ada balasan)
-      const { error: updateErr } = await supabase
-        .from('ratings')
-        .update({ seller_reply: reply.trim(), seller_replied_at: new Date().toISOString() })
-        .eq('id', ratingId);
-      if (updateErr) {
-        throw { status: 500, code: 'INTERNAL_ERROR', message: `Kolom seller_reply belum ada. Jalankan migration 015_seller_reply_reviews.sql di Supabase SQL Editor.` };
-      }
-      return { id: ratingId, seller_reply: reply.trim() };
-    }
-    throw { status: 404, code: 'NOT_FOUND', message: 'Ulasan tidak ditemukan' };
-  }
-
-  if (!rating) {
-    throw { status: 404, code: 'NOT_FOUND', message: 'Ulasan tidak ditemukan' };
-  }
-
-  // Validasi seller adalah pemilik produk
-  const productSellerId = rating.products?.seller_id;
-  if (productSellerId !== sellerId) {
+  const [ratingRows] = await pool.query(
+    `SELECT r.id, r.product_id, r.seller_reply, p.seller_id AS product_seller_id
+     FROM ratings r INNER JOIN products p ON p.id = r.product_id WHERE r.id = ?`,
+    [ratingId]
+  );
+  const rating = ratingRows[0];
+  if (!rating) throw { status: 404, code: 'NOT_FOUND', message: 'Ulasan tidak ditemukan' };
+  if (rating.product_seller_id !== sellerId) {
     throw { status: 403, code: 'FORBIDDEN', message: 'Anda bukan pemilik produk ini' };
   }
-
-  // Cek apakah sudah pernah membalas
   if (rating.seller_reply) {
     throw { status: 409, code: 'ALREADY_REPLIED', message: 'Anda sudah membalas ulasan ini' };
   }
 
-  // Update balasan
-  const { data, error } = await supabase
-    .from('ratings')
-    .update({ seller_reply: reply.trim(), seller_replied_at: new Date().toISOString() })
-    .eq('id', ratingId)
-    .select()
-    .single();
+  await pool.query(
+    'UPDATE ratings SET seller_reply = ?, seller_replied_at = NOW() WHERE id = ?',
+    [reply.trim(), ratingId]
+  );
 
-  if (error) {
-    throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
-  }
-
-  return data;
+  const [rows] = await pool.query('SELECT * FROM ratings WHERE id = ?', [ratingId]);
+  return rows[0];
 };
 
-/**
- * Ambil semua ulasan untuk produk-produk seller.
- */
 const getSellerReviews = async (sellerId, options = {}) => {
   const { replied, rating: ratingFilter, page = 1, limit = 20 } = options;
 
-  // Ambil product IDs milik seller
-  const { data: products, error: prodErr } = await supabase
-    .from('products')
-    .select('id')
-    .eq('seller_id', sellerId);
-
-  if (prodErr) {
-    throw { status: 500, code: 'INTERNAL_ERROR', message: prodErr.message };
-  }
-
-  const productIds = (products || []).map((p) => p.id);
+  const [products] = await pool.query('SELECT id FROM products WHERE seller_id = ?', [sellerId]);
+  const productIds = products.map(p => p.id);
   if (productIds.length === 0) {
     return { reviews: [], pagination: { page, limit, total: 0, total_pages: 0 } };
   }
 
-  // Build query — try with seller_reply columns; fall back if migration not applied
-  let useSellerReply = true;
-  let query = supabase
-    .from('ratings')
-    .select('id, rating, comment, image_urls, created_at, buyer_id, product_id, seller_reply, seller_replied_at', { count: 'exact' })
-    .in('product_id', productIds);
+  const placeholders = productIds.map(() => '?').join(',');
+  let where = [`r.product_id IN (${placeholders})`];
+  let params = [...productIds];
 
-  if (replied === true) {
-    query = query.not('seller_reply', 'is', null);
-  } else if (replied === false) {
-    query = query.is('seller_reply', null);
-  }
+  if (replied === true) { where.push('r.seller_reply IS NOT NULL'); }
+  else if (replied === false) { where.push('r.seller_reply IS NULL'); }
+  if (ratingFilter && ratingFilter >= 1 && ratingFilter <= 5) { where.push('r.rating = ?'); params.push(ratingFilter); }
 
-  if (ratingFilter && ratingFilter >= 1 && ratingFilter <= 5) {
-    query = query.eq('rating', ratingFilter);
-  }
+  const offset = (page - 1) * limit;
+  const whereClause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
 
-  query = query.order('created_at', { ascending: false });
-  query = query.range((page - 1) * limit, page * limit - 1);
+  const [[countRow]] = await pool.query(
+    `SELECT COUNT(*) AS cnt FROM ratings r ${whereClause}`, params
+  );
+  const total = countRow.cnt;
 
-  let { data: ratings, error, count } = await query;
+  const [ratings] = await pool.query(
+    `SELECT r.id, r.rating, r.comment, r.image_urls, r.created_at, r.buyer_id, r.product_id, r.seller_reply, r.seller_replied_at
+     FROM ratings r ${whereClause}
+     ORDER BY r.created_at DESC LIMIT ? OFFSET ?`,
+    [...params, limit, offset]
+  );
 
-  if (error && (error.message?.includes('seller_reply') || error.message?.includes('column'))) {
-    // Migration 015 not applied yet — retry without seller_reply columns
-    useSellerReply = false;
-    let fallbackQuery = supabase
-      .from('ratings')
-      .select('id, rating, comment, image_urls, created_at, buyer_id, product_id', { count: 'exact' })
-      .in('product_id', productIds);
+  const buyerIds = [...new Set(ratings.map(r => r.buyer_id))].filter(Boolean);
+  const productIdsForNames = [...new Set(ratings.map(r => r.product_id))].filter(Boolean);
 
-    if (ratingFilter && ratingFilter >= 1 && ratingFilter <= 5) {
-      fallbackQuery = fallbackQuery.eq('rating', ratingFilter);
-    }
-
-    fallbackQuery = fallbackQuery.order('created_at', { ascending: false });
-    fallbackQuery = fallbackQuery.range((page - 1) * limit, page * limit - 1);
-
-    const fallback = await fallbackQuery;
-    ratings = fallback.data;
-    error = fallback.error;
-    count = fallback.count;
-  }
-
-  if (error) {
-    throw { status: 500, code: 'INTERNAL_ERROR', message: error.message };
-  }
-
-  const list = ratings || [];
-
-  // Fetch buyer names dan product names
-  const buyerIds = [...new Set(list.map((r) => r.buyer_id))].filter(Boolean);
-  const productIdsForNames = [...new Set(list.map((r) => r.product_id))].filter(Boolean);
-
-  let buyerMap = {};
+  let buyerMap = {}, productMap = {};
   if (buyerIds.length > 0) {
-    const { data: buyers } = await supabase
-      .from('users')
-      .select('id, name')
-      .in('id', buyerIds);
-    buyerMap = Object.fromEntries((buyers || []).map((b) => [b.id, b.name]));
+    const ph = buyerIds.map(() => '?').join(',');
+    const [buyers] = await pool.query(`SELECT id, name FROM users WHERE id IN (${ph})`, buyerIds);
+    buyerMap = Object.fromEntries(buyers.map(b => [b.id, b.name]));
   }
-
-  let productMap = {};
   if (productIdsForNames.length > 0) {
-    const { data: prods } = await supabase
-      .from('products')
-      .select('id, name')
-      .in('id', productIdsForNames);
-    productMap = Object.fromEntries((prods || []).map((p) => [p.id, p.name]));
+    const ph = productIdsForNames.map(() => '?').join(',');
+    const [prods] = await pool.query(`SELECT id, name FROM products WHERE id IN (${ph})`, productIdsForNames);
+    productMap = Object.fromEntries(prods.map(p => [p.id, p.name]));
   }
-
-  const totalPages = count > 0 ? Math.ceil(count / limit) : 0;
 
   return {
-    reviews: list.map((r) => ({
-      id: r.id,
-      rating: r.rating,
-      comment: r.comment,
-      image_urls: r.image_urls || [],
-      date: r.created_at,
-      buyer_name: buyerMap[r.buyer_id] ?? 'Pembeli',
-      product_name: productMap[r.product_id] ?? 'Produk',
-      product_id: r.product_id,
-      seller_reply: useSellerReply ? (r.seller_reply ?? null) : null,
-      seller_replied_at: useSellerReply ? (r.seller_replied_at ?? null) : null,
+    reviews: ratings.map(r => ({
+      id: r.id, rating: r.rating, comment: r.comment,
+      image_urls: typeof r.image_urls === 'string' ? JSON.parse(r.image_urls) : (r.image_urls || []),
+      date: r.created_at, buyer_name: buyerMap[r.buyer_id] ?? 'Pembeli',
+      product_name: productMap[r.product_id] ?? 'Produk', product_id: r.product_id,
+      seller_reply: r.seller_reply ?? null, seller_replied_at: r.seller_replied_at ?? null,
     })),
-    pagination: { page, limit, total: count || 0, total_pages: totalPages },
+    pagination: { page, limit, total, total_pages: Math.ceil(total / limit) },
   };
 };
 

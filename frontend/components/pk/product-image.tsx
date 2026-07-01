@@ -16,7 +16,6 @@ export default function ProductImage({
   }
 
   return (
-    // URL berasal dari bucket publik Supabase yang dikendalikan backend.
     // eslint-disable-next-line @next/next/no-img-element
     <img
       src={src}

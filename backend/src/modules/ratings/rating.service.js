@@ -1,25 +1,19 @@
 const pool = require('../../config/mysql');
 const { randomUUID } = require('crypto');
+const { AppError } = require('../../utils/app-error');
+const { saveUploadedFile } = require('../../utils/storage');
 
 const REVIEW_IMAGE_BUCKET = 'review-images';
-const IMAGE_EXTENSIONS = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 const MAX_PHOTOS_PER_PRODUCT = 3;
 
 const uploadReviewImage = async (userId, file) => {
-  if (!file) throw { status: 400, code: 'FILE_REQUIRED', message: 'File gambar wajib dikirim' };
-  const extension = IMAGE_EXTENSIONS[file.mimetype];
-  if (!extension) throw { status: 400, code: 'INVALID_IMAGE_TYPE', message: 'Format gambar harus JPG, PNG, atau WebP' };
-
-  const fs = require('fs');
-  const pathMod = require('path');
-  const fileName = `${randomUUID()}.${extension}`;
-  const uploadDir = pathMod.join(__dirname, '../../../uploads', REVIEW_IMAGE_BUCKET, userId);
-  fs.mkdirSync(uploadDir, { recursive: true });
-  fs.writeFileSync(pathMod.join(uploadDir, fileName), file.buffer);
-
-  const filePath = `${userId}/${fileName}`;
-  const imageUrl = `/uploads/${REVIEW_IMAGE_BUCKET}/${filePath}`;
-  return { image_url: imageUrl, path: filePath };
+  try {
+    const result = await saveUploadedFile(REVIEW_IMAGE_BUCKET, userId, file);
+    return { image_url: result.url, path: result.path };
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    throw new AppError(err.status || 500, err.code || 'UPLOAD_FAILED', err.message || 'Gagal mengunggah gambar');
+  }
 };
 
 const submitRating = async (buyerId, payload) => {

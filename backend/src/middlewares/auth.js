@@ -14,34 +14,12 @@ const verifyToken = async (req, res, next) => {
   }
 };
 
-const requireSuperadmin = (req, res, next) => {
-  if (req.user?.role !== 'superadmin') {
-    return res.status(403).json({
-      success: false,
-      message: 'Akses ditolak. Hanya superadmin yang dapat mengakses endpoint ini',
-      error: { code: 'FORBIDDEN' }
-    });
-  }
-  next();
-};
-
-const requireSeller = (req, res, next) => {
-  if (req.user?.role !== 'seller' && req.user?.role !== 'superadmin') {
-    return res.status(403).json({
-      success: false,
-      message: 'Akses ditolak. Endpoint khusus penjual.',
-      error: { code: 'FORBIDDEN' }
-    });
-  }
-  next();
-};
-
-const requireRole = (role) => {
+const requireRole = (role, customMessage) => {
   return (req, res, next) => {
     if (req.user?.role !== role && req.user?.role !== 'superadmin') {
       return res.status(403).json({
         success: false,
-        message: `Akses ditolak. Membutuhkan role: ${role}`,
+        message: customMessage || `Akses ditolak. Membutuhkan role: ${role}`,
         error: { code: 'FORBIDDEN' }
       });
     }
@@ -49,4 +27,8 @@ const requireRole = (role) => {
   };
 };
 
+const requireSuperadmin = requireRole('superadmin', 'Akses ditolak. Hanya superadmin yang dapat mengakses endpoint ini');
+const requireSeller = requireRole('seller', 'Akses ditolak. Endpoint khusus penjual.');
+
 module.exports = { verifyToken, requireAuth: verifyToken, requireSuperadmin, requireSeller, requireRole };
+

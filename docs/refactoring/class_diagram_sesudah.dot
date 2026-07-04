@@ -1,0 +1,71 @@
+digraph ClassDiagramSesudah {
+    rankdir=LR;
+    node [shape=record, fontname="Courier New", fontsize=10];
+    edge [arrowhead=vee, fontname="Arial", fontsize=9];
+
+    ExpressRouter [label="{ExpressRouter|+ mountRoutes()\l}"];
+    AuthMiddleware [label="{AuthMiddleware|+ verifyToken()\l+ requireRole(role)\l}"];
+    ValidateMiddleware [label="{ValidateMiddleware|+ validate(schema)\l}"];
+
+    CheckoutController [label="{CheckoutController|+ processCheckout(req, res)\l}"];
+    OrderController [label="{OrderController|+ getOrders(req, res)\l+ getOrderById(req, res)\l+ updateOrderStatus(req, res)\l}"];
+    ProductController [label="{ProductController|+ getProducts(req, res)\l+ createProduct(req, res)\l+ uploadImage(req, res)\l}"];
+    AdminController [label="{AdminController|+ getUsers(req, res)\l+ getAnalytics(req, res)\l+ moderateProduct(req, res)\l}"];
+
+    CheckoutService [label="{CheckoutService|+ processCheckout(buyerId, payload)\l}"];
+    OrderService [label="{OrderService|+ getOrders(query)\l+ getOrderById(id)\l+ updateOrderStatus(id, status, actor)\l}"];
+    ProductService [label="{ProductService|+ getProducts(query)\l+ createProduct(payload)\l+ uploadProductImage(productId, file)\l}"];
+    
+    subgraph AdminSubServices {
+        label="Admin Sub-services (SRP)";
+        color=blue;
+        AdminUserService [label="{AdminUserService|+ getUsers(query)\l+ getUserById(id)\l+ updateUserStatus(id, isActive)\l}"];
+        AdminModerationService [label="{AdminModerationService|+ getModerationSellers(query)\l+ getModerationProducts(query)\l+ moderateProduct(actor, productId, payload)\l}"];
+        AdminAnalyticsService [label="{AdminAnalyticsService|+ getAnalytics(query)\l}"];
+        AdminReportService [label="{AdminReportService|+ getAuditLogs(query)\l+ previewReport(query)\l+ exportReport(actor, query)\l+ simulateFeeImpact(query)\l}"];
+    }
+
+    AdminServiceDelegator [label="{AdminService (Delegator)\l|+ getUsers()\l+ getUserById()\l+ getAnalytics()\l+ moderateProduct()\l+ ...\l}"];
+
+    IUserRepository [label="{\<\<interface\>\>\lIUserRepository|+ findByEmail(email)\l+ findById(id)\l+ create(name, email, pass, role)\l+ ...\l}"];
+    MySQLUserRepository [label="{MySQLUserRepository|- pool\l+ findByEmail(email)\l+ findById(id)\l+ create()\l}"];
+    CheckoutProcedure [label="{sp_create_checkout_order|+ validate payload\l+ reserve stock atomically\l+ enforce idempotency\l}"];
+    ReleaseStockProcedure [label="{sp_release_checkout_stock|+ release reserved stock\l}"];
+
+    IStorageAdapter [label="{\<\<interface\>\>\lIStorageAdapter|+ saveUploadedFile(bucket, folder, file)\l}"];
+    LocalStorageAdapter [label="{LocalStorageAdapter|+ saveUploadedFile(bucket, folder, file)\l}"];
+
+    OrderConstants [label="{OrderConstants|+ ORDER_STATUS\l+ PAID_STATUSES\l+ ROLE_STATUS_POLICY\l}"];
+    AppError [label="{AppError|+ status: number\l+ code: string\l+ message: string\l}"];
+    AuthService [label="{AuthService|+ register(payload)\l+ login(payload)\l+ getMe(userId)\l}"];
+
+    ExpressRouter -> AuthMiddleware;
+    ExpressRouter -> ValidateMiddleware;
+    ExpressRouter -> CheckoutController;
+    ExpressRouter -> OrderController;
+    ExpressRouter -> ProductController;
+    ExpressRouter -> AdminController;
+
+    CheckoutController -> CheckoutService;
+    OrderController -> OrderService;
+    ProductController -> ProductService;
+    AdminController -> AdminServiceDelegator;
+
+    AdminServiceDelegator -> AdminUserService;
+    AdminServiceDelegator -> AdminModerationService;
+    AdminServiceDelegator -> AdminAnalyticsService;
+    AdminServiceDelegator -> AdminReportService;
+
+    AuthService -> IUserRepository [color=green, label="repository access"];
+    CheckoutService -> CheckoutProcedure [color=green, label="atomic order creation"];
+    CheckoutService -> ReleaseStockProcedure [color=green, label="payment failure rollback"];
+    CheckoutService -> OrderConstants;
+    CheckoutService -> AppError;
+
+    ProductService -> IStorageAdapter [color=green];
+    IStorageAdapter <|.. LocalStorageAdapter [style=dashed, arrowhead=empty];
+    IUserRepository <|.. MySQLUserRepository [style=dashed, arrowhead=empty];
+
+    AdminModerationService -> AppError;
+    AdminReportService -> AppError;
+}

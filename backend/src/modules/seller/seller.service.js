@@ -1,10 +1,11 @@
 const pool = require('../../config/mysql');
 const { randomUUID } = require('crypto');
+const { AppError } = require('../../utils/app-error');
+const { saveUploadedFile } = require('../../utils/storage');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const PAID_STATUSES = ['paid', 'processing', 'shipped', 'delivered'];
 const STORE_ASSET_BUCKET = 'store-assets';
-const IMAGE_EXTENSIONS = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 
 const startOfJakartaDay = (date) => {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
@@ -158,20 +159,13 @@ const updateStoreProfile = async (sellerId, payload) => {
 };
 
 const uploadStoreLogo = async (sellerId, file) => {
-  if (!file) throw { status: 400, code: 'IMAGE_REQUIRED', message: 'Pilih logo toko terlebih dahulu' };
-  const extension = IMAGE_EXTENSIONS[file.mimetype];
-  if (!extension) throw { status: 400, code: 'INVALID_IMAGE_TYPE', message: 'Format logo harus JPG, PNG, atau WebP' };
-
-  const fs = require('fs');
-  const pathMod = require('path');
-  const fileName = `logo-${randomUUID()}.${extension}`;
-  const uploadDir = pathMod.join(__dirname, '../../../uploads', STORE_ASSET_BUCKET, sellerId);
-  fs.mkdirSync(uploadDir, { recursive: true });
-  fs.writeFileSync(pathMod.join(uploadDir, fileName), file.buffer);
-
-  const filePath = `${sellerId}/${fileName}`;
-  const logoUrl = `/uploads/${STORE_ASSET_BUCKET}/${filePath}`;
-  return { logo_url: logoUrl, path: filePath };
+  try {
+    const result = await saveUploadedFile(STORE_ASSET_BUCKET, sellerId, file, 'logo-');
+    return { logo_url: result.url, path: result.path };
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    throw new AppError(err.status || 500, err.code || 'UPLOAD_FAILED', err.message || 'Gagal mengunggah logo');
+  }
 };
 
 const setVacationMode = async (sellerId, payload) => {

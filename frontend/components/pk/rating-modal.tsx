@@ -78,7 +78,6 @@ export default function RatingModal({ orderId, items, onClose, onSubmitted }: Ra
   const [ratings, setRatings] = useState<Record<string, number>>(() => createInitialRatings(items));
   const [comments, setComments] = useState<Record<string, string>>({});
   const [photos, setPhotos] = useState<Record<string, File[]>>({});
-  const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async () => {
@@ -260,7 +259,7 @@ export default function RatingModal({ orderId, items, onClose, onSubmitted }: Ra
                   }}
                   style={{ display: 'none' }}
                   id={`photo-input-${item.product_id}`}
-                  disabled={uploading || submitting}
+                  disabled={submitting}
                 />
                 <label
                   htmlFor={`photo-input-${item.product_id}`}
@@ -312,7 +311,7 @@ export default function RatingModal({ orderId, items, onClose, onSubmitted }: Ra
                       <button
                         type="button"
                         onClick={() => handlePhotoRemove(item.product_id, idx)}
-                        disabled={uploading || submitting}
+                        disabled={submitting}
                         style={{
                           position: 'absolute',
                           top: -6,

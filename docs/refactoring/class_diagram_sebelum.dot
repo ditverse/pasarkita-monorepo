@@ -1,0 +1,41 @@
+digraph ClassDiagramSebelum {
+    rankdir=LR;
+    node [shape=record, fontname="Courier New", fontsize=10];
+    edge [arrowhead=vee, fontname="Arial", fontsize=9];
+
+    ExpressRouter [label="{ExpressRouter|+ mountRoutes()\l}"];
+    AuthMiddleware [label="{AuthMiddleware|+ verifyToken()\l+ requireRole()\l+ requireSuperadmin()\l+ requireSeller()\l}"];
+    ValidateMiddleware [label="{ValidateMiddleware|+ validate(schema)\l}"];
+
+    CheckoutController [label="{CheckoutController|+ processCheckout(req, res)\l}"];
+    OrderController [label="{OrderController|+ getOrders(req, res)\l+ getOrderById(req, res)\l+ updateOrderStatus(req, res)\l}"];
+    ProductController [label="{ProductController|+ getProducts(req, res)\l+ createProduct(req, res)\l+ uploadImage(req, res)\l}"];
+    AdminController [label="{AdminController|+ getUsers(req, res)\l+ getAnalytics(req, res)\l+ moderateProduct(req, res)\l}"];
+
+    CheckoutService [label="{CheckoutService|+ processLegacyCheckout(buyerId, payload)\l+ processCheckout(buyerId, payload)\l}"];
+    OrderService [label="{OrderService|+ getOrders(query)\l+ getOrderById(id)\l+ updateOrderStatus(id, status, actor)\l}"];
+    ProductService [label="{ProductService|+ getProducts(query)\l+ createProduct(payload)\l+ uploadProductImage(productId, file)\l}"];
+    AdminService [label="{AdminService|+ getUsers(query)\l+ getUserById(id)\l+ getAnalytics(query)\l+ moderateProduct(actor, productId, payload)\l+ simulateFeeImpact(query)\l}"];
+
+    MySQLPool [label="{MySQLPool|+ query(sql, params)\l}"];
+    FileSystem [label="{FileSystem|+ mkdirSync(path)\l+ writeFileSync(path, data)\l}"];
+
+    ExpressRouter -> AuthMiddleware;
+    ExpressRouter -> ValidateMiddleware;
+    ExpressRouter -> CheckoutController;
+    ExpressRouter -> OrderController;
+    ExpressRouter -> ProductController;
+    ExpressRouter -> AdminController;
+
+    CheckoutController -> CheckoutService;
+    OrderController -> OrderService;
+    ProductController -> ProductService;
+    AdminController -> AdminService;
+
+    CheckoutService -> MySQLPool [label="Tightly coupled (pool.query)"];
+    OrderService -> MySQLPool [label="Tightly coupled (pool.query)"];
+    ProductService -> MySQLPool [label="Tightly coupled (pool.query)"];
+    AdminService -> MySQLPool [label="Tightly coupled (pool.query)"];
+
+    ProductService -> FileSystem [label="fs.writeFileSync() langsung"];
+}

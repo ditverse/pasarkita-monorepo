@@ -5,7 +5,8 @@ const validate = (schema) => (req, res, next) => {
     req.body = schema.parse(req.body);
     next();
   } catch (err) {
-    return errorResponse(res, 400, 'Validasi gagal', 'VALIDATION_ERROR', err.errors);
+    const details = err.issues ?? err.errors ?? null;
+    return errorResponse(res, 400, 'Validasi gagal', 'VALIDATION_ERROR', details);
   }
 };
 

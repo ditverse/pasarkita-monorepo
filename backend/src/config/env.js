@@ -6,7 +6,7 @@ const envSchema = z.object({
   MYSQL_HOST: z.string().min(1, 'MYSQL_HOST is required'),
   MYSQL_PORT: z.string().transform(Number).default('3306'),
   MYSQL_USER: z.string().min(1, 'MYSQL_USER is required'),
-  MYSQL_PASSWORD: z.string().min(1, 'MYSQL_PASSWORD is required'),
+  MYSQL_PASSWORD: z.string().default(''),
   MYSQL_DATABASE: z.string().min(1, 'MYSQL_DATABASE is required'),
 
   // JWT
@@ -30,6 +30,8 @@ if (!envParsed.success) {
   process.exit(1);
 }
 
-console.log('✅ Environment variables loaded. MySQL:', envParsed.data.MYSQL_HOST + ':' + envParsed.data.MYSQL_PORT + '/' + envParsed.data.MYSQL_DATABASE);
+if (envParsed.data.NODE_ENV !== 'test') {
+  console.log('✅ Environment variables loaded. MySQL:', envParsed.data.MYSQL_HOST + ':' + envParsed.data.MYSQL_PORT + '/' + envParsed.data.MYSQL_DATABASE);
+}
 
 module.exports = envParsed.data;

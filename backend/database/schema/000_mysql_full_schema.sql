@@ -253,7 +253,7 @@ CREATE TABLE IF NOT EXISTS order_status_history (
   order_id   CHAR(36)     NOT NULL,
   status     VARCHAR(20)  NOT NULL CHECK (status IN ('pending', 'paid', 'processing', 'shipped', 'delivered', 'payment_failed', 'cancelled')),
   actor_id   CHAR(36)     DEFAULT NULL,
-  source     TEXT         NOT NULL DEFAULT 'system',
+  source     VARCHAR(50)  NOT NULL DEFAULT 'system',
   note       TEXT         DEFAULT NULL,
   created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
 

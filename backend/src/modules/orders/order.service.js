@@ -5,20 +5,16 @@ const env = require('../../config/env');
 const { writeAuditLog, writeIntegrationLog } = require('../../utils/observability');
 const { getIntegrationTarget } = require('../../integrations/target');
 const { kmpSearch } = require('../../utils/kmp-search');
+const { AppError } = require('../../utils/app-error');
+const { ORDER_STATUSES, ROLE_STATUS_POLICY, ORDER_STATUS } = require('../../constants');
+const { parsePositiveInt, escapeCSV } = require('../../utils/shared');
 
-const ORDER_STATUSES = new Set(['pending', 'paid', 'processing', 'shipped', 'delivered', 'payment_failed']);
 const ORDER_SORTS = {
   created_desc: 'o.created_at DESC', created_asc: 'o.created_at ASC',
   total_desc: 'o.total DESC', total_asc: 'o.total ASC',
   status_asc: 'o.status ASC', status_desc: 'o.status DESC',
   updated_desc: 'o.updated_at DESC', updated_asc: 'o.updated_at ASC',
   action_deadline: 'o.created_at ASC',
-};
-
-const parsePositiveInt = (value, fallback, max = 100) => {
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
-  return Math.min(parsed, max);
 };
 
 const getOrders = async (user, query) => {
@@ -134,7 +130,7 @@ const getOrderById = async (user, orderId) => {
      FROM orders o LEFT JOIN users b ON b.id = o.buyer_id WHERE o.id = ?`, [orderId]
   );
   const order = orderRows[0];
-  if (!order) throw { status: 404, code: 'NOT_FOUND', message: 'Order tidak ditemukan' };
+  if (!order) throw new AppError(404, 'NOT_FOUND', 'Order tidak ditemukan');
 
   order.buyer = order.buyer_name ? { id: order.buyer_id, name: order.buyer_name, email: order.buyer_email } : null;
 
@@ -162,10 +158,10 @@ const getOrderById = async (user, orderId) => {
   // Access checks
   if (user.role === 'seller') {
     if (!order.items.some(i => i.seller?.id === user.id)) {
-      throw { status: 403, code: 'FORBIDDEN', message: 'Akses ditolak' };
+      throw new AppError(403, 'FORBIDDEN', 'Akses ditolak');
     }
   } else if (user.role !== 'superadmin' && order.buyer_id !== user.id) {
-    throw { status: 403, code: 'FORBIDDEN', message: 'Akses ditolak' };
+    throw new AppError(403, 'FORBIDDEN', 'Akses ditolak');
   }
 
   // Status history
@@ -203,24 +199,18 @@ const getOrderById = async (user, orderId) => {
 };
 
 const updateOrderStatus = async (user, orderId, status, reason = null) => {
-  const adminAllowed = ['pending', 'paid', 'processing', 'shipped', 'delivered', 'payment_failed'];
-  const buyerAllowed = ['delivered'];
-
-  let allowed;
-  if (user.role === 'superadmin') allowed = adminAllowed;
-  else if (user.role === 'buyer') allowed = buyerAllowed;
-  else allowed = [];
+  const allowed = ROLE_STATUS_POLICY[user.role] || [];
 
   if (!allowed.includes(status)) {
-    throw { status: 403, code: 'FORBIDDEN', message: `Status tidak valid. Pilihan: ${allowed.join(', ')}` };
+    throw new AppError(403, 'FORBIDDEN', `Status tidak valid. Pilihan: ${allowed.join(', ')}`);
   }
   if (user.role === 'superadmin' && (!reason || reason.trim().length < 3)) {
-    throw { status: 400, code: 'VALIDATION_ERROR', message: 'Alasan perubahan status wajib diisi oleh admin' };
+    throw new AppError(400, 'VALIDATION_ERROR', 'Alasan perubahan status wajib diisi oleh admin');
   }
 
   const [orderRows] = await pool.query('SELECT * FROM orders WHERE id = ?', [orderId]);
   const order = orderRows[0];
-  if (!order) throw { status: 404, code: 'NOT_FOUND', message: 'Order tidak ditemukan' };
+  if (!order) throw new AppError(404, 'NOT_FOUND', 'Order tidak ditemukan');
 
   await pool.query('UPDATE orders SET status = ? WHERE id = ?', [status, orderId]);
 
@@ -238,16 +228,16 @@ const updateOrderStatus = async (user, orderId, status, reason = null) => {
 const startProcessing = async (user, orderId, pickupAddress) => {
   const [orderRows] = await pool.query('SELECT * FROM orders WHERE id = ?', [orderId]);
   const order = orderRows[0];
-  if (!order) throw { status: 404, code: 'NOT_FOUND', message: 'Order tidak ditemukan' };
+  if (!order) throw new AppError(404, 'NOT_FOUND', 'Order tidak ditemukan');
 
   // Verify seller owns items
   const [sellerItems] = await pool.query(
     `SELECT 1 FROM order_items oi INNER JOIN products p ON p.id = oi.product_id
      WHERE oi.order_id = ? AND p.seller_id = ? LIMIT 1`, [orderId, user.id]
   );
-  if (sellerItems.length === 0) throw { status: 403, code: 'FORBIDDEN', message: 'Akses ditolak' };
+  if (sellerItems.length === 0) throw new AppError(403, 'FORBIDDEN', 'Akses ditolak');
 
-  if (order.status !== 'paid') throw { status: 400, code: 'INVALID_STATUS', message: 'Hanya pesanan berstatus paid yang dapat mulai diproses' };
+  if (order.status !== ORDER_STATUS.PAID) throw new AppError(400, 'INVALID_STATUS', 'Hanya pesanan berstatus paid yang dapat mulai diproses');
 
   await pool.query(
     'UPDATE orders SET status = ?, pickup_address_snapshot = ? WHERE id = ? AND status = ?',
@@ -277,7 +267,7 @@ const syncShipping = async (order) => {
         itemsCount: (order.items || []).reduce((sum, item) => sum + item.qty, 0),
       });
       trackingId = result.data?.tracking_id ?? null;
-      if (!trackingId) throw { status: 502, code: 'TRACKING_ID_MISSING', message: 'LogistiKita tidak mengembalikan tracking ID' };
+      if (!trackingId) throw new AppError(502, 'TRACKING_ID_MISSING', 'LogistiKita tidak mengembalikan tracking ID');
     } else {
       const target = getIntegrationTarget('logistikita', `/shipping/${trackingId}`);
       const startedAt = Date.now();
@@ -297,21 +287,21 @@ const syncShipping = async (order) => {
   } catch (error) {
     const message = error.message || 'Sinkronisasi LogistiKita gagal';
     await saveShippingSync(order.id, 'failed', message);
-    throw { status: error.status || 502, code: 'LOGISTICS_SYNC_FAILED', message };
+    throw new AppError(error.status || 502, 'LOGISTICS_SYNC_FAILED', message);
   }
 };
 
 const shipOrder = async (user, orderId) => {
   const [orderRows] = await pool.query('SELECT * FROM orders WHERE id = ?', [orderId]);
   const order = orderRows[0];
-  if (!order) throw { status: 404, code: 'NOT_FOUND', message: 'Order tidak ditemukan' };
+  if (!order) throw new AppError(404, 'NOT_FOUND', 'Order tidak ditemukan');
 
   const [sellerItems] = await pool.query(
     'SELECT 1 FROM order_items oi INNER JOIN products p ON p.id = oi.product_id WHERE oi.order_id = ? AND p.seller_id = ? LIMIT 1',
     [orderId, user.id]
   );
-  if (sellerItems.length === 0) throw { status: 403, code: 'FORBIDDEN', message: 'Akses ditolak' };
-  if (order.status !== 'processing') throw { status: 400, code: 'INVALID_STATUS', message: 'Pesanan harus berstatus processing sebelum dikirim' };
+  if (sellerItems.length === 0) throw new AppError(403, 'FORBIDDEN', 'Akses ditolak');
+  if (order.status !== ORDER_STATUS.PROCESSING) throw new AppError(400, 'INVALID_STATUS', 'Pesanan harus berstatus processing sebelum dikirim');
 
   await syncShipping(order);
   await pool.query('UPDATE orders SET status = ? WHERE id = ? AND status = ?', ['shipped', orderId, 'processing']);
@@ -322,9 +312,9 @@ const shipOrder = async (user, orderId) => {
 const retryShipping = async (user, orderId) => {
   const [orderRows] = await pool.query('SELECT * FROM orders WHERE id = ?', [orderId]);
   const order = orderRows[0];
-  if (!order) throw { status: 404, code: 'NOT_FOUND', message: 'Order tidak ditemukan' };
-  if (order.status !== 'processing') throw { status: 400, code: 'INVALID_STATUS', message: 'Sinkronisasi hanya dapat dilakukan saat pesanan diproses' };
-  if (!order.pickup_address_snapshot) throw { status: 400, code: 'PICKUP_REQUIRED', message: 'Alamat pickup belum dikonfirmasi' };
+  if (!order) throw new AppError(404, 'NOT_FOUND', 'Order tidak ditemukan');
+  if (order.status !== ORDER_STATUS.PROCESSING) throw new AppError(400, 'INVALID_STATUS', 'Sinkronisasi hanya dapat dilakukan saat pesanan diproses');
+  if (!order.pickup_address_snapshot) throw new AppError(400, 'PICKUP_REQUIRED', 'Alamat pickup belum dikonfirmasi');
 
   const trackingId = await syncShipping(order);
   return { tracking_id: trackingId, shipping_sync_status: 'synced' };
@@ -335,7 +325,7 @@ const getPackingList = async (user, orderId) => {
     `SELECT o.*, b.name AS buyer_name FROM orders o LEFT JOIN users b ON b.id = o.buyer_id WHERE o.id = ?`, [orderId]
   );
   const order = orderRows[0];
-  if (!order) throw { status: 404, code: 'NOT_FOUND', message: 'Order tidak ditemukan' };
+  if (!order) throw new AppError(404, 'NOT_FOUND', 'Order tidak ditemukan');
 
   const [items] = await pool.query(
     `SELECT oi.*, p.seller_id, p.name AS pname FROM order_items oi
@@ -362,8 +352,8 @@ const getPackingList = async (user, orderId) => {
 const cancelOrder = async (orderId, buyerId) => {
   const [orderRows] = await pool.query('SELECT * FROM orders WHERE id = ? AND buyer_id = ?', [orderId, buyerId]);
   const order = orderRows[0];
-  if (!order) throw { status: 404, code: 'NOT_FOUND', message: 'Order tidak ditemukan' };
-  if (order.status !== 'pending') throw { status: 400, code: 'INVALID_STATUS', message: 'Hanya pesanan pending yang dapat dibatalkan' };
+  if (!order) throw new AppError(404, 'NOT_FOUND', 'Order tidak ditemukan');
+  if (order.status !== ORDER_STATUS.PENDING) throw new AppError(400, 'INVALID_STATUS', 'Hanya pesanan pending yang dapat dibatalkan');
 
   await pool.query("UPDATE orders SET status = 'cancelled' WHERE id = ?", [orderId]);
 
@@ -402,7 +392,6 @@ const exportOrdersBySeller = async (sellerId, query) => {
   );
 
   const STATUS_LABEL = { pending: 'Menunggu Pembayaran', paid: 'Perlu Diproses', processing: 'Sedang Dikemas', shipped: 'Sedang Dikirim', delivered: 'Selesai', payment_failed: 'Pembayaran Gagal' };
-  const escapeCSV = (val) => { if (val === null || val === undefined) return ''; const str = String(val); return (str.includes(',') || str.includes('"') || str.includes('\n')) ? `"${str.replace(/"/g, '""')}"` : str; };
   const headers = ['Order ID', 'Status', 'Subtotal', 'Fee Marketplace', 'Total', 'Nama Pembeli', 'Alamat Pengiriman', 'Transaction ID', 'Nomor Resi', 'Tanggal Order'];
   const lines = [headers.join(','), ...data.map(row => [
     row.id, escapeCSV(STATUS_LABEL[row.status] ?? row.status), row.subtotal, row.fee_marketplace, row.total,

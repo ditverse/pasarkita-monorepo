@@ -1,4 +1,6 @@
 const pool = require('../../config/mysql');
+const { randomUUID } = require('crypto');
+const { AppError } = require('../../utils/app-error');
 const {
   notifyComplaintCreated,
   notifyComplaintReplied,
@@ -17,21 +19,21 @@ const createComplaint = async (buyerId, orderId, payload) => {
   );
   const order = orderRows[0];
 
-  if (!order) throw { status: 404, message: 'Pesanan tidak ditemukan' };
-  if (order.buyer_id !== buyerId) throw { status: 403, message: 'Tidak diizinkan mengakses pesanan ini' };
+  if (!order) throw new AppError(404, 'NOT_FOUND', 'Pesanan tidak ditemukan');
+  if (order.buyer_id !== buyerId) throw new AppError(403, 'FORBIDDEN', 'Tidak diizinkan mengakses pesanan ini');
   if (!['shipped', 'delivered'].includes(order.status)) {
-    throw { status: 400, message: 'Komplain hanya dapat diajukan untuk pesanan yang sudah dikirim atau diterima' };
+    throw new AppError(400, 'INVALID_STATUS', 'Komplain hanya dapat diajukan untuk pesanan yang sudah dikirim atau diterima');
   }
 
   const [existing] = await pool.query('SELECT id FROM complaints WHERE order_id = ?', [orderId]);
   if (existing.length > 0) {
-    throw { status: 400, message: 'Komplain untuk pesanan ini sudah diajukan sebelumnya' };
+    throw new AppError(409, 'COMPLAINT_ALREADY_EXISTS', 'Komplain untuk pesanan ini sudah diajukan sebelumnya');
   }
 
   const sellerId = order.seller_id;
-  if (!sellerId) throw { status: 500, message: 'Gagal mendeteksi penjual' };
+  if (!sellerId) throw new AppError(500, 'SELLER_NOT_FOUND', 'Gagal mendeteksi penjual');
 
-  const complaintId = require('crypto').randomUUID();
+  const complaintId = randomUUID();
   await pool.query(
     `INSERT INTO complaints (id, order_id, buyer_id, seller_id, type, description, status)
      VALUES (?, ?, ?, ?, ?, ?, 'open')`,
@@ -85,16 +87,16 @@ const getComplaintById = async (complaintId, userId, role) => {
     [complaintId]
   );
   const data = rows[0];
-  if (!data) throw { status: 404, message: 'Komplain tidak ditemukan' };
-  if (role === 'buyer' && data.buyer_id !== userId) throw { status: 403, message: 'Akses ditolak' };
-  if (role === 'seller' && data.seller_id !== userId) throw { status: 403, message: 'Akses ditolak' };
+  if (!data) throw new AppError(404, 'NOT_FOUND', 'Komplain tidak ditemukan');
+  if (role === 'buyer' && data.buyer_id !== userId) throw new AppError(403, 'FORBIDDEN', 'Akses ditolak');
+  if (role === 'seller' && data.seller_id !== userId) throw new AppError(403, 'FORBIDDEN', 'Akses ditolak');
   return data;
 };
 
 const replyComplaint = async (sellerId, complaintId, replyText) => {
   const comp = await getComplaintById(complaintId, sellerId, 'seller');
   if (comp.status !== 'open') {
-    throw { status: 400, message: 'Hanya bisa merespons komplain yang berstatus open' };
+    throw new AppError(400, 'INVALID_STATUS', 'Hanya bisa merespons komplain yang berstatus open');
   }
 
   await pool.query(
@@ -111,7 +113,7 @@ const replyComplaint = async (sellerId, complaintId, replyText) => {
 const resolveComplaint = async (buyerId, complaintId, accepted) => {
   const comp = await getComplaintById(complaintId, buyerId, 'buyer');
   if (comp.status !== 'seller_replied') {
-    throw { status: 400, message: 'Komplain belum direspons penjual' };
+    throw new AppError(400, 'INVALID_STATUS', 'Komplain belum direspons penjual');
   }
 
   const newStatus = accepted ? 'resolved' : 'admin_review';
@@ -128,7 +130,7 @@ const resolveComplaint = async (buyerId, complaintId, accepted) => {
 const adminResolveComplaint = async (adminId, complaintId, payload) => {
   const comp = await getComplaintById(complaintId, adminId, 'superadmin');
   if (comp.status !== 'admin_review') {
-    throw { status: 400, message: 'Hanya komplain dengan status admin_review yang bisa diputuskan admin' };
+    throw new AppError(400, 'INVALID_STATUS', 'Hanya komplain dengan status admin_review yang bisa diputuskan admin');
   }
 
   await pool.query(

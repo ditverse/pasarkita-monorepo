@@ -2,13 +2,11 @@ const pool = require('../../config/mysql');
 const { randomUUID } = require('crypto');
 const { kmpFilterProducts } = require('../../utils/kmp-search');
 const { enrichProductsWithPromotions } = require('../promotions/promotion.service');
+const { AppError } = require('../../utils/app-error');
+const { saveUploadedFile } = require('../../utils/storage');
+const { escapeCSV } = require('../../utils/shared');
 
 const PRODUCT_IMAGE_BUCKET = 'product-images';
-const IMAGE_EXTENSIONS = {
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-};
 const SELLER_PRODUCT_SORTS = {
   created_desc: 'created_at DESC',
   created_asc: 'created_at ASC',
@@ -23,26 +21,13 @@ const SELLER_PRODUCT_SORTS = {
 };
 
 const uploadProductImage = async (sellerId, file) => {
-  if (!file) {
-    throw { status: 400, code: 'IMAGE_REQUIRED', message: 'Pilih gambar produk terlebih dahulu' };
+  try {
+    const result = await saveUploadedFile(PRODUCT_IMAGE_BUCKET, sellerId, file);
+    return { image_url: result.url, path: result.path };
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    throw new AppError(err.status || 500, err.code || 'UPLOAD_FAILED', err.message || 'Gagal mengunggah gambar');
   }
-
-  const extension = IMAGE_EXTENSIONS[file.mimetype];
-  if (!extension) {
-    throw { status: 400, code: 'INVALID_IMAGE_TYPE', message: 'Format gambar harus JPG, PNG, atau WebP' };
-  }
-
-  // Simpan file ke filesystem lokal (ganti dengan S3/Cloudinary di production)
-  const fs = require('fs');
-  const pathMod = require('path');
-  const fileName = `${randomUUID()}.${extension}`;
-  const uploadDir = pathMod.join(__dirname, '../../../uploads', PRODUCT_IMAGE_BUCKET, sellerId);
-  fs.mkdirSync(uploadDir, { recursive: true });
-  fs.writeFileSync(pathMod.join(uploadDir, fileName), file.buffer);
-
-  const filePath = `${sellerId}/${fileName}`;
-  const imageUrl = `/uploads/${PRODUCT_IMAGE_BUCKET}/${filePath}`;
-  return { image_url: imageUrl, path: filePath };
 };
 
 const getProducts = async (query) => {
@@ -365,12 +350,6 @@ const exportProductsBySeller = async (sellerId, query) => {
 
   const rows = data || [];
   const headers = ['ID', 'Nama Produk', 'Kategori', 'Deskripsi', 'Harga', 'Stok', 'Stok Minimum', 'Status', 'Gambar URL', 'Dibuat', 'Diperbarui'];
-  const escapeCSV = (val) => {
-    if (val === null || val === undefined) return '';
-    const str = String(val);
-    if (str.includes(',') || str.includes('"') || str.includes('\n')) return `"${str.replace(/"/g, '""')}"`;
-    return str;
-  };
   const lines = [
     headers.join(','),
     ...rows.map(row => [

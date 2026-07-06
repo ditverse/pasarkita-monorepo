@@ -21,6 +21,10 @@ const buyers = [
   { name: 'Yoga Kurniawan', email: 'yoga.kurniawan@pasarkita.demo' },
 ];
 
+const admins = [
+  { name: 'Administrator', email: 'admin@pasarkita.demo' },
+];
+
 const products = [
   ['Nusantara Rasa', 'Kopi Arabika Gayo 250g', 'Makanan', 'Kopi arabika single origin dengan aroma cokelat dan citrus.', 78000, 42],
   ['Nusantara Rasa', 'Keripik Tempe Daun Jeruk', 'Makanan', 'Keripik tempe renyah dengan daun jeruk dan bumbu gurih.', 24000, 85],
@@ -76,11 +80,16 @@ async function seedDemoCatalog() {
   const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
   const sellerRows = [];
   const buyerRows = [];
+  const adminRows = [];
+
+  for (const admin of admins) {
+    const row = await ensureDemoUser(admin, 'superadmin', passwordHash);
+    adminRows.push(row);
+  }
 
   for (const seller of sellers) {
     const row = await ensureDemoUser(seller, 'seller', passwordHash);
     sellerRows.push(row);
-    // Upsert seller_profile for each demo seller
     const [existingProfile] = await pool.query('SELECT seller_id FROM seller_profiles WHERE seller_id = ?', [row.id]);
     if (existingProfile.length === 0) {
       await pool.query(
@@ -120,6 +129,7 @@ async function seedDemoCatalog() {
     );
   }
 
+  console.log(`Admin (Super Admin) demo tersedia: ${adminRows.length}`);
   console.log(`Seller demo tersedia: ${sellerRows.length}`);
   console.log(`Pembeli demo tersedia: ${buyerRows.length}`);
   console.log(`Produk baru ditambahkan: ${newProducts.length}`);

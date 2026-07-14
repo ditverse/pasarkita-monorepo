@@ -20,7 +20,7 @@ graph TD
     subgraph PASARKITA["PasarKita — Kelompok 2 (repo ini)"]
         FE["Frontend\nNext.js 16.2\npasarkita.vercel.app"]
         BE["Backend API\nExpress.js\npasarkita-api.vercel.app"]
-        DB[("Supabase\nPostgreSQL")]
+        DB[("MySQL 8.0+")]
         FE <--> BE
         BE <--> DB
     end
@@ -72,7 +72,7 @@ graph TD
         V2["pasarkita-api.vercel.app\nRoot Dir: backend"]
     end
  
-    DB[("Supabase\nPostgreSQL")]
+    DB[("MySQL 8.0+")]
  
     FE_DIR -->|deploy| V1
     BE_DIR -->|deploy| V2
@@ -90,7 +90,7 @@ sequenceDiagram
     actor Buyer
     participant FE as Frontend
     participant BE as Backend API
-    participant DB as Supabase
+    participant DB as MySQL
     participant GW as API Gateway
     participant SB as SmartBank
     participant LK as LogistiKita
@@ -144,7 +144,7 @@ pasarkita/
 │   │   ├── middlewares/    # auth, validate, errorHandler
 │   │   ├── integrations/   # smartbank, logistikita
 │   │   └── utils/          # fee, response
-│   ├── database/           # Full schema, migration, dan verifikasi Supabase
+│   ├── database/           # Full schema, migration, dan setup MySQL
 │   ├── vercel.json         # Konfigurasi Vercel routing
 │   └── package.json
 │
@@ -165,7 +165,7 @@ pasarkita/
 | Frontend | Next.js 16.2, TypeScript, Tailwind CSS, shadcn/ui |
 | State | Zustand, TanStack Query |
 | Backend | Express.js, serverless-http |
-| Database | Supabase (PostgreSQL) |
+| Database | MySQL 8.0+ |
 | Auth | JWT |
 | Validasi | Zod, React Hook Form |
 | Deploy | Vercel (frontend + backend, project terpisah) |
@@ -175,10 +175,10 @@ pasarkita/
 
 ## Cara Menjalankan
 
-### Prasyarat
+## Prasyarat
 
 - Node.js v18+
-- Akun Supabase
+- MySQL 8.0+
 - Akun Vercel
 
 ### 1. Clone repo
@@ -200,19 +200,23 @@ npm run dev       # Berjalan di port 3001
 
 ### 3. Setup Database
 
-Untuk project Supabase baru, jalankan:
+Buat database MySQL baru:
 
-```text
-backend/database/schema/000_full_schema.sql
+```sql
+CREATE DATABASE pasarkita CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
-Untuk database yang sudah ada, jalankan migration berurutan melalui Supabase SQL
-Editor atau:
+Jalankan schema dan migration:
 
 ```bash
 cd backend
-DATABASE_URL='postgresql://...' npm run db:migrate
-npm run db:verify
+# Setup .env dengan kredensial MySQL Anda
+mysql -u root -p pasarkita < database/schema/000_mysql_full_schema.sql
+mysql -u root -p pasarkita < database/schema/001_mysql_stored_procedures.sql
+mysql -u root -p pasarkita < database/schema/002_mysql_triggers.sql
+
+# Opsional: seed data demo
+npm run seed:demo
 ```
 
 Panduan lengkap tersedia di `backend/database/README.md`.
@@ -242,10 +246,12 @@ npm run all       # SmartBank :4001, LogistiKita :4002
 ### Backend (`backend/.env.development`)
 
 ```env
-# Supabase
-SUPABASE_URL=https://xxxx.supabase.co
-SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
+# MySQL
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+MYSQL_USER=your_mysql_user
+MYSQL_PASSWORD=your_mysql_password
+MYSQL_DATABASE=pasarkita
 
 # JWT
 JWT_SECRET=

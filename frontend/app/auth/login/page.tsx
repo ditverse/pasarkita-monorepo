@@ -122,7 +122,7 @@ export default function LoginPage() {
             }}
             onMouseEnter={(e) => (e.currentTarget.style.filter = 'brightness(0.95)')}
             onMouseLeave={(e) => (e.currentTarget.style.filter = 'none')}
-            onClick={() => mutation.mutate({ email: 'admin@pasarkita.com', password: 'password123' })}
+            onClick={() => mutation.mutate({ email: 'admin@pasarkita.demo', password: 'password123' })}
             disabled={mutation.isPending}
           >
             <Icon name="users" size={16} />
@@ -150,7 +150,7 @@ export default function LoginPage() {
             }}
             onMouseEnter={(e) => (e.currentTarget.style.filter = 'brightness(0.95)')}
             onMouseLeave={(e) => (e.currentTarget.style.filter = 'none')}
-            onClick={() => mutation.mutate({ email: 'seller@pasarkita.com', password: 'password123' })}
+            onClick={() => mutation.mutate({ email: 'seller.rasa@pasarkita.demo', password: 'password123' })}
             disabled={mutation.isPending}
           >
             <Icon name="store" size={16} />
@@ -178,7 +178,7 @@ export default function LoginPage() {
             }}
             onMouseEnter={(e) => (e.currentTarget.style.filter = 'brightness(0.95)')}
             onMouseLeave={(e) => (e.currentTarget.style.filter = 'none')}
-            onClick={() => mutation.mutate({ email: 'buyer@pasarkita.com', password: 'password123' })}
+            onClick={() => mutation.mutate({ email: 'alya.putri@pasarkita.demo', password: 'password123' })}
             disabled={mutation.isPending}
           >
             <Icon name="user" size={16} />

@@ -1,83 +1,70 @@
 # Database PasarKita
 
-Folder ini menjadi sumber schema PostgreSQL/Supabase PasarKita yang portabel.
+Folder ini menjadi sumber schema MySQL PasarKita yang portabel.
 
 ## Struktur
 
-- `schema/000_full_schema.sql`: setup lengkap untuk project Supabase baru.
-- `migrations/000_core_compatibility.sql`: index, trigger, dan RLS schema lama.
-- `migrations/001_product_images.sql`: kolom dan bucket gambar produk.
-- `migrations/002_observability.sql`: audit log admin dan log integrasi.
-- `migrations/003_checkout_hardening.sql`: checkout idempotent, stok atomik, dan
-  snapshot nama produk.
-- `migrations/004_order_history_notifications.sql`: histori status bertimestamp
-  dan notifikasi transaksional pembeli.
-- `migrations/005_seller_inventory_basics.sql`: batas stok minimum dan index
-  inventori seller.
-- `migrations/006_seller_profiles.sql`: identitas toko, operasional, alamat pickup,
-  dan bucket logo toko.
-- `migrations/007_seller_fulfillment.sql`: status proses, snapshot pickup, timestamp
-  SLA, dan status sinkronisasi LogistiKita.
-- `scripts/apply-migrations.sh`: menjalankan migration berurutan melalui `psql`.
+- `schema/000_mysql_full_schema.sql`: setup lengkap tabel, index, constraints untuk MySQL 8.0+.
+- `schema/001_mysql_stored_procedures.sql`: stored procedures untuk operasi bisnis.
+- `schema/002_mysql_triggers.sql`: triggers untuk audit dan validasi otomatis.
+- `scripts/apply-migrations.js`: runner migration untuk MySQL.
+- `archive_pg/`: arsip schema PostgreSQL/Supabase lama (referensi historis).
 
-## Project Supabase Baru
+## Setup Database MySQL Baru
 
-Jalankan satu file berikut melalui Supabase SQL Editor:
+Buat database baru:
 
-```text
-backend/database/schema/000_full_schema.sql
+```sql
+CREATE DATABASE pasarkita CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
-File tersebut sudah mencakup seluruh tabel, index, trigger, storage bucket,
-observability, dan RPC checkout.
-
-## Database PasarKita yang Sudah Ada
-
-Jalankan migration sesuai nomor urut:
-
-```text
-000_core_compatibility.sql
-001_product_images.sql
-002_observability.sql
-003_checkout_hardening.sql
-004_order_history_notifications.sql
-005_seller_inventory_basics.sql
-006_seller_profiles.sql
-007_seller_fulfillment.sql
-```
-
-Semua migration dibuat idempotent dan tidak menghapus tabel atau data transaksi.
-
-Alternatif melalui terminal:
+Jalankan schema files secara berurutan:
 
 ```bash
 cd backend
-DATABASE_URL='postgresql://...' npm run db:migrate
+
+# Jalankan schema utama
+mysql -u root -p pasarkita < database/schema/000_mysql_full_schema.sql
+
+# Jalankan stored procedures
+mysql -u root -p pasarkita < database/schema/001_mysql_stored_procedures.sql
+
+# Jalankan triggers
+mysql -u root -p pasarkita < database/schema/002_mysql_triggers.sql
 ```
 
-Gunakan **Session pooler URI** dari Supabase Dashboard pada **Connect**, terutama
-jika mesin tidak memiliki jaringan IPv6. Direct connection `db.<ref>.supabase.co`
-sering hanya tersedia melalui IPv6. Jangan commit `DATABASE_URL`, password
-database, service-role key, atau secret lain.
+## Seeding Data Demo
 
-## Keamanan
+Untuk menambahkan data demo (users, products, sellers):
 
-- Backend menggunakan service-role key dan tetap menjadi satu-satunya pihak yang
-  mengakses tabel aplikasi.
-- RLS diaktifkan tanpa policy permisif `USING (true)` untuk `anon` atau
-  `authenticated`.
-- RPC checkout dicabut dari `PUBLIC`, `anon`, dan `authenticated`, lalu hanya
-  diberikan kepada `service_role`.
-- Bucket gambar bersifat publik hanya untuk membaca URL gambar. Upload tetap
-  dilakukan backend menggunakan service role.
+```bash
+cd backend
+npm run seed:demo
+```
 
-## Memindahkan Database
+Script seeder:
+- `seed.js`: Data mock minimal (3 users, 4 products)
+- `seed-demo-catalog.js`: Katalog lengkap (4 sellers, 40+ products, 8 buyers, 1 admin)
 
-1. Buat project Supabase tujuan.
-2. Jalankan `schema/000_full_schema.sql`.
-3. Salin environment backend ke project tujuan dengan secret baru.
-4. Jalankan seed hanya jika memang memerlukan data demo.
-5. Uji register, login, upload gambar, checkout, order, rating, dan admin.
+## Konfigurasi Environment
 
-Schema ini tidak memindahkan data lama. Untuk data, gunakan backup/restore
-PostgreSQL (`pg_dump` dan `pg_restore`) dari project sumber.
+Setup `.env` dengan kredensial MySQL Anda:
+
+```env
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+MYSQL_USER=your_mysql_user
+MYSQL_PASSWORD=your_mysql_password
+MYSQL_DATABASE=pasarkita
+```
+
+## Migrasi dari Supabase (PostgreSQL)
+
+Schema PostgreSQL/Supabase lama tersimpan di folder `archive_pg/` sebagai referensi historis. Konversi tipe data utama:
+
+- UUID → CHAR(36)
+- TIMESTAMPTZ → DATETIME
+- BOOLEAN → TINYINT(1)
+- JSONB → JSON
+- TEXT[] → JSON
+- gen_random_uuid() → UUID() (application layer)

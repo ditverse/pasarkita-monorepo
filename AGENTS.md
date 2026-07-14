@@ -5,7 +5,7 @@ Instruksi ini berlaku untuk seluruh repo. Untuk pekerjaan di `frontend/`, baca j
 pengetahuan lama agent dan meminta agent membaca docs Next yang relevan sebelum
 menulis kode frontend.
 
-Dokumen ini ditulis berdasarkan scan workspace pada 2026-06-24. Jika struktur
+Dokumen ini ditulis berdasarkan scan workspace pada 2026-07-14. Jika struktur
 repo berubah, verifikasi ulang dengan source code, bukan hanya README/PRD.
 
 ## Gambaran Umum Project
@@ -41,8 +41,8 @@ Frontend (`frontend/package.json`):
 Backend (`backend/package.json`):
 
 - Node.js CommonJS, Express `5.2.1`, `serverless-http`.
-- Supabase JS v2, bcrypt, jsonwebtoken, zod, axios, cors, dotenv.
-- Multer untuk upload gambar, pg untuk migration runner, nodemon untuk dev.
+- MySQL2 v3 (connection pool), bcrypt, jsonwebtoken, zod, axios, cors, dotenv.
+- Multer untuk upload gambar, nodemon untuk dev.
 
 Mock (`mock/package.json`):
 
@@ -51,7 +51,7 @@ Mock (`mock/package.json`):
 
 Database/deploy:
 
-- Supabase PostgreSQL.
+- MySQL 8.0+ (migrated from Supabase PostgreSQL on July 7, 2026).
 - Vercel project terpisah untuk `frontend` dan `backend`.
 - README menyebut prasyarat Node.js v18+.
 
@@ -61,13 +61,14 @@ Database/deploy:
 - `backend/api/index.js`: entry serverless Vercel dan fallback local server.
 - `backend/src/app.js`: Express app, middleware global, mount route `/api/*`.
 - `backend/src/modules/*`: modul fitur backend.
-- `backend/src/config`: validasi env dan client Supabase.
+- `backend/src/config`: validasi env (`env.js`) dan MySQL pool (`mysql.js`).
 - `backend/src/middlewares`: auth JWT/role, validation, error handler.
 - `backend/src/integrations`: target SmartBank/LogistiKita via direct mock dev
   atau API Gateway.
 - `backend/src/utils`: response helper, fee, observability, KMP search.
-- `backend/database/`: baseline schema lengkap, migration berurutan, runner
-  `psql`, dan verifikasi schema Supabase.
+- `backend/database/schema/`: baseline schema lengkap MySQL (000, 001, 002).
+- `backend/database/scripts/`: migration runner untuk MySQL.
+- `backend/database/archive_pg/`: arsip schema PostgreSQL/Supabase lama (referensi historis).
 - `backend/docs/prd-backend.md`: PRD backend yang lebih luas dari kode saat ini.
 - `frontend/app`: route groups App Router `(main)`, `(admin)`, `(seller)`, `auth`.
 - `frontend/proxy.ts`: UX route guard berbasis cookie token dan decode JWT tanpa
@@ -108,13 +109,12 @@ Catatan backend:
 
 - `npm run dev` menjalankan `nodemon api/index.js`.
 - `npm start` menjalankan `node api/index.js`.
-- `npm run db:migrate` memerlukan `DATABASE_URL`; jangan jalankan ke database
+- `npm run db:migrate` menjalankan migration runner MySQL; jangan jalankan ke database
   bersama/production tanpa izin eksplisit.
-- `npm run db:verify` memeriksa schema Supabase aktif.
+- `npm run db:verify` memeriksa schema MySQL aktif.
 - `npm run seed:demo` mengisi data demo; jangan jalankan ke database
   bersama/production tanpa izin eksplisit.
-- `npm test` saat ini hanya placeholder:
-  `echo "Error: no test specified" && exit 1`.
+- `npm test` menjalankan test suite Node.js built-in runner (`node --test test/*.test.js`).
 - `node seed.js` dan `node scratch_test_db.js` ada. Jangan menjalankan script yang
   menyentuh database/secrets tanpa kebutuhan jelas; jangan bagikan output secret.
 
@@ -165,9 +165,9 @@ Alur pembeli:
 
 Alur checkout backend:
 
-- `checkout.service.js` mencoba RPC Supabase `create_checkout_order` dari migration
-  `003_checkout_hardening.sql`.
-- Jika RPC belum tersedia, service fallback ke legacy checkout.
+- `checkout.service.js` memanggil stored procedure MySQL `sp_create_checkout_order` dari
+  schema `001_mysql_stored_procedures.sql`.
+- Jika SP belum tersedia, service fallback ke legacy checkout.
 - Payment dikirim via `sendPaymentRequest` ke SmartBank/direct mock atau API
   Gateway berdasarkan `getIntegrationTarget`.
 - Jika payment gagal, order menjadi `payment_failed` dan stok dilepas/di-rollback.
@@ -239,26 +239,30 @@ response/error shape lokal.
 
 ## Database dan Migration
 
-- Untuk project Supabase baru, gunakan `backend/database/schema/000_full_schema.sql`.
-- Untuk database yang sudah ada, jalankan migration berurutan di
-  `backend/database/migrations/`.
-- `003_checkout_hardening.sql` penting untuk checkout atomik, idempotency, dan RPC
-  `create_checkout_order`.
-- Migration dibuat idempotent menurut `backend/database/README.md`.
+- Database production: MySQL 8.0+ (migrated from PostgreSQL on 2026-07-07).
+- Untuk setup database MySQL baru, jalankan berurutan:
+  - `mysql -u root -p pasarkita < database/schema/000_mysql_full_schema.sql`
+  - `mysql -u root -p pasarkita < database/schema/001_mysql_stored_procedures.sql`
+  - `mysql -u root -p pasarkita < database/schema/002_mysql_triggers.sql`
+- Stored procedure `sp_create_checkout_order` penting untuk checkout atomik dan idempotency.
+- Triggers: `trg_orders_record_status_event`, `trg_orders_set_fulfillment_timestamps`,
+  `trg_product_chat_messages_touch_thread`.
+- Migration runner: `npm run db:migrate` di `backend/`.
+- Panduan lengkap di `backend/database/README.md` dan `backend/TUTORIAL_MIGRASI_MYSQL.md`.
+- Schema PostgreSQL/Supabase lama ada di `backend/database/archive_pg/` (referensi historis).
 - Jangan menjalankan migration, seed, query destruktif, atau perubahan schema ke
   database bersama/production tanpa izin eksplisit.
-- Gunakan `DATABASE_URL` hanya di environment lokal/CI yang disetujui; jangan
-  commit atau menampilkan nilainya.
+- Jangan commit atau menampilkan credential MySQL.
 
 ## Environment
 
 Backend env yang divalidasi oleh `backend/src/config/env.js`:
 
-- Wajib: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `JWT_SECRET`.
-- Opsional: `GATEWAY_BASE_URL`, `GATEWAY_API_KEY`, `SMARTBANK_URL`,
-  `LOGISTIKITA_URL`.
+- Wajib: `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DATABASE`, `JWT_SECRET`.
+- Opsional: `GATEWAY_BASE_URL`, `GATEWAY_API_KEY`, `SMARTBANK_URL`, `LOGISTIKITA_URL`.
 - `NODE_ENV`: `development`, `test`, atau `production`; default `development`.
 - `PORT` default ke `3001`.
+- `MYSQL_PORT` default ke `3306`.
 
 Frontend env:
 
@@ -268,21 +272,29 @@ Frontend env:
 Mock/dev integration env yang umum:
 
 ```env
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+MYSQL_USER=root
+MYSQL_PASSWORD=your_password
+MYSQL_DATABASE=pasarkita
+JWT_SECRET=your_jwt_secret
 SMARTBANK_URL=http://localhost:4001/smartbank
 LOGISTIKITA_URL=http://localhost:4002/logistikita
 GATEWAY_BASE_URL=http://localhost:4000
 GATEWAY_API_KEY=mock-key
 MOCK_DEV_SECRET=mock-dev-secret
+NODE_ENV=development
+PORT=3001
 ```
 
 Catatan penting:
 
 - Jangan membaca atau mencetak `.env` kecuali benar-benar diperlukan.
 - Jika secret terbaca, jangan ulangi nilainya di chat, log, commit, atau docs.
-- Jangan memasukkan service-role key, JWT secret, gateway API key, atau token user
+- Jangan memasukkan MySQL password, JWT secret, gateway API key, atau token user
   ke frontend/client code.
-- `backend/src/config/env.js` menulis Supabase URL ke log saat env valid; jangan
-  memperluas logging ini ke secret.
+- `backend/src/config/env.js` menulis MySQL connection string ke log saat env valid;
+  jangan memperluas logging ini ke password atau secret.
 
 ## Konvensi Penulisan Kode
 
@@ -308,7 +320,7 @@ Catatan penting:
 
 - Checkout, payment, fee, stok, idempotency, order status, dan shipping sync.
 - Auth JWT, role guard, seller ownership, buyer ownership, dan superadmin actions.
-- Upload gambar produk/review/logo dan storage Supabase.
+- Upload gambar produk/review/logo (local filesystem di `backend/uploads/`).
 - Migration database dan seed data.
 - Search/filter admin/seller yang saat ini sebagian dilakukan manual di memory.
 - Mock server state JSON; perubahan route mock harus tetap kompatibel dengan
@@ -316,12 +328,13 @@ Catatan penting:
 
 ## Testing dan Verifikasi
 
-Tidak ada test suite nyata yang ditemukan; `backend npm test` masih placeholder.
+Backend memiliki test suite di `backend/test/` menggunakan Node.js built-in test runner.
 
 Verifikasi backend yang disarankan:
 
 - `cd backend && npm run dev`
 - Cek `GET /api/health`.
+- `npm test` untuk menjalankan test suite.
 - Smoke test auth, products, fee, checkout, orders, seller, admin, chats,
   complaints, ratings, notifications sesuai role.
 - Jika menyentuh database, jalankan `npm run db:verify` hanya pada environment yang
@@ -366,10 +379,8 @@ Jika mengubah kontrak API, uji backend dan frontend bersama.
   untuk SmartBank/LogistiKita.
 - Environment deploy Vercel: apakah `NEXT_PUBLIC_API_URL` menunjuk origin backend
   atau sudah menyertakan `/api`.
-- Apakah database target sudah menjalankan semua migration, terutama checkout
-  hardening dan observability.
+- Apakah database target sudah menjalankan semua schema files (000, 001, 002) dan
+  stored procedures tersedia.
 - Apakah demo memakai direct mock lokal atau Gateway lokal.
 - Strategi multi-seller fulfillment jangka panjang; service saat ini membatasi aksi
   seller pada order multi-toko tertentu.
-- Test framework belum dikonfigurasi; tambahkan hanya jika task memang meminta atau
-  perubahan berisiko membutuhkan coverage otomatis.

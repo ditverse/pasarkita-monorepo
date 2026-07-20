@@ -6,8 +6,8 @@
 **Dosen:** M. Yusril Helmi Setyawan, S.Kom., M.Kom.
 **Kelompok:** 2 — PasarKita (Marketplace)
 **Dokumen:** Mock Server Specification
-**Versi:** 1.1
-**Tanggal:** 18 April 2026
+**Versi:** 1.2
+**Tanggal:** 20 Juli 2026 (updated)
 
 ---
 
@@ -15,7 +15,7 @@
 
 Dokumen ini mendeskripsikan setup dan implementasi mock server yang digunakan selama fase development dan unit testing PasarKita. Mock server mensimulasikan response dari service eksternal — SmartBank (Kelompok 1) dan LogistiKita (Kelompok 5) — sehingga development dan testing dapat berjalan sepenuhnya tanpa bergantung pada kesiapan kelompok lain.
 
-Mock server **hanya berjalan secara lokal** di mesin developer, tidak pernah di-deploy ke environment manapun. Seluruh file mock berada di dalam `backend/mock/` — bagian dari repo `pasarkita` yang sama.
+Mock server **hanya berjalan secara lokal** di mesin developer, tidak pernah di-deploy ke environment manapun. Seluruh file mock berada di dalam `mock/` di root repo — bagian dari repo `pasarkita` yang sama.
 
 ---
 
@@ -47,23 +47,24 @@ Testing full flow checkout ke SmartBank asli sangat terbatas. Mock server bukan 
 
 ## 4. Struktur Folder
 
-Mock server berada di dalam `backend/mock/` — subfolder dari repo `pasarkita`:
+Mock server berada di `mock/` di root repo `pasarkita`:
 
 ```
 pasarkita/                          ← root repo
 ├── frontend/
 ├── backend/
-│   ├── src/
-│   ├── mock/                       ← scope dokumen ini
-│   │   ├── package.json            # Dependencies & scripts
-│   │   ├── server.js               # Entry point, jalankan semua mock
-│   │   ├── smartbank/
-│   │   │   ├── db.json             # State saldo & riwayat transaksi
-│   │   │   └── routes.js           # Handler semua endpoint SmartBank
-│   │   └── logistikita/
-│   │       ├── db.json             # State pengiriman
-│   │       └── routes.js           # Handler semua endpoint LogistiKita
-│   └── package.json
+│   └── src/
+├── mock/                           ← scope dokumen ini
+│   ├── package.json                # Dependencies & scripts
+│   ├── server.js                   # Entry point, jalankan semua mock
+│   ├── smartbank/
+│   │   ├── db.json                 # State saldo & riwayat transaksi
+│   │   └── routes.js               # Handler semua endpoint SmartBank
+│   ├── logistikita/
+│   │   ├── db.json                 # State pengiriman
+│   │   └── routes.js               # Handler semua endpoint LogistiKita
+│   └── docs/
+│       └── prd-mock.md             # Dokumen ini
 └── README.md
 ```
 
@@ -75,16 +76,18 @@ pasarkita/                          ← root repo
 
 ```json
 {
-  "name": "pasarkita-mock",
+  "name": "mock",
   "version": "1.0.0",
+  "description": "Mock server SmartBank & LogistiKita — dev only",
+  "main": "server.js",
   "scripts": {
-    "all": "concurrently \"node server.js --service=smartbank\" \"node server.js --service=logistikita\"",
-    "smartbank": "node server.js --service=smartbank",
-    "logistikita": "node server.js --service=logistikita"
+    "start": "node server.js",
+    "dev": "node server.js"
   },
   "dependencies": {
-    "express": "^4.18.0",
-    "concurrently": "^8.0.0"
+    "express": "^5.2.1",
+    "cors": "^2.8.6",
+    "concurrently": "^9.2.1"
   }
 }
 ```
@@ -92,21 +95,36 @@ pasarkita/                          ← root repo
 **`mock/server.js`:**
 
 ```javascript
-const express = require('express')
-const smartbankRoutes = require('./smartbank/routes')
-const logistiKitaRoutes = require('./logistikita/routes')
+const express = require('express');
+const cors = require('cors');
+const smartbankRoutes = require('./smartbank/routes');
+const logistiKitaRoutes = require('./logistikita/routes');
 
 // Mock SmartBank — port 4001
-const smartbank = express()
-smartbank.use(express.json())
-smartbank.use('/smartbank', smartbankRoutes)
-smartbank.listen(4001, () => console.log('[Mock] SmartBank running on :4001'))
+const smartbank = express();
+smartbank.use(cors());
+smartbank.use(express.json());
+smartbank.use('/smartbank', smartbankRoutes);
+smartbank.listen(4001, () => {
+  console.log('[Mock] SmartBank running on :4001');
+  console.log('[Mock]   POST /smartbank/payment');
+  console.log('[Mock]   GET  /smartbank/balance/:userId');
+  console.log('[Mock]   POST /smartbank/debug/reset');
+  console.log('[Mock]   POST /smartbank/debug/reset-all');
+});
 
 // Mock LogistiKita — port 4002
-const logistikita = express()
-logistikita.use(express.json())
-logistikita.use('/logistikita', logistiKitaRoutes)
-logistikita.listen(4002, () => console.log('[Mock] LogistiKita running on :4002'))
+const logistikita = express();
+logistikita.use(cors());
+logistikita.use(express.json());
+logistikita.use('/logistikita', logistiKitaRoutes);
+logistikita.listen(4002, () => {
+  console.log('[Mock] LogistiKita running on :4002');
+  console.log('[Mock]   POST  /logistikita/shipping');
+  console.log('[Mock]   PATCH /logistikita/shipping/:trackingId');
+  console.log('[Mock]   GET   /logistikita/shipping/:trackingId');
+  console.log('[Mock]   POST  /logistikita/debug/reset');
+});
 ```
 
 ---

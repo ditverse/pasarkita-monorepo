@@ -6,8 +6,8 @@
 **Dosen:** M. Yusril Helmi Setyawan, S.Kom., M.Kom.
 **Kelompok:** 2 — PasarKita (Marketplace)
 **Dokumen:** Frontend Specification
-**Versi:** 1.3
-**Tanggal:** 18 April 2026
+**Versi:** 1.4
+**Tanggal:** 20 Juli 2026 (updated)
 
 ---
 
@@ -850,21 +850,27 @@ export const config = {
 
 ```mermaid
 flowchart TD
-    A([User buka app]) --> B{Token di localStorage?}
+    A([User buka app]) --> B{Token cookie ada?}
     B -- Ada --> C[Validasi token ke /auth/me]
     C --> D{Token valid?}
     D -- Ya --> E[Set user ke AuthStore\nlanjut ke halaman tujuan]
-    D -- Tidak --> F[Clear token\nRedirect ke /auth/login]
+    D -- Tidak --> F[Clear token cookie & localStorage\nRedirect ke /auth/login]
     B -- Tidak --> G{Halaman protected?}
     G -- Ya --> H[Redirect ke /auth/login]
     G -- Tidak --> I[Render halaman normal]
 
     J([User submit login]) --> K[POST /auth/login]
     K --> L{Response sukses?}
-    L -- Ya --> M[Simpan token + user\nke AuthStore & localStorage]
+    L -- Ya --> M[Simpan token ke cookie\nSet user ke AuthStore\nPersist ke localStorage]
     M --> N[Redirect ke halaman asal\natau homepage]
     L -- Tidak --> O[Tampilkan error toast]
 ```
+
+**Catatan Auth Storage:**
+- **Token** disimpan di **cookie** (`token` cookie, HttpOnly-like via `SameSite=Strict`) untuk routing/middleware
+- **User state** disimpan di **Zustand AuthStore** dan dipersist ke **localStorage** (`pk-auth` key)
+- Middleware Next.js membaca cookie untuk route protection
+- Pada logout, cookie dan localStorage dibersihkan
 
 ### 10.2 Alur Checkout (Frontend)
 

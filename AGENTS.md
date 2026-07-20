@@ -5,8 +5,11 @@ Instruksi ini berlaku untuk seluruh repo. Untuk pekerjaan di `frontend/`, baca j
 pengetahuan lama agent dan meminta agent membaca docs Next yang relevan sebelum
 menulis kode frontend.
 
-Dokumen ini ditulis berdasarkan scan workspace pada 2026-07-14. Jika struktur
+Dokumen ini ditulis berdasarkan scan workspace pada 2026-07-20. Jika struktur
 repo berubah, verifikasi ulang dengan source code, bukan hanya README/PRD.
+
+**Penting:** Root `src/` berisi dokumen proyek (PDF, Excel), bukan kode. Kode backend
+ada di `backend/src/`.
 
 ## Gambaran Umum Project
 
@@ -134,22 +137,19 @@ Mock server:
 ```bash
 cd mock
 npm install
-npm run dev
-# atau npm start
+npm run dev     # atau npm start (keduanya sama: node server.js)
 ```
 
 Catatan mock:
 
 - SmartBank berjalan di `http://localhost:4001/smartbank`.
 - LogistiKita berjalan di `http://localhost:4002/logistikita`.
-- Dashboard mock tersedia di root masing-masing service:
-  `http://localhost:4001/smartbank` dan `http://localhost:4002/logistikita`.
-- README masih bisa menyebut `cd backend/mock`; source code saat ini memakai
-  folder root `mock/`.
+- Dashboard mock tersedia di root masing-masing service.
+- Mock folder ada di root `mock/`, bukan `backend/mock`.
 
 ## Workflow Aplikasi Saat Ini
 
-Alur pembeli:
+### Alur pembeli
 
 1. Pembeli register/login melalui `/api/auth`.
 2. Frontend menyimpan token di Zustand auth store dan cookie untuk UX routing.
@@ -163,7 +163,7 @@ Alur pembeli:
 7. Pembeli melihat daftar/detail order, tracking, chat order, komplain, rating,
    dan konfirmasi delivered.
 
-Alur checkout backend:
+### Alur checkout backend
 
 - `checkout.service.js` memanggil stored procedure MySQL `sp_create_checkout_order` dari
   schema `001_mysql_stored_procedures.sql`.
@@ -177,7 +177,7 @@ Alur checkout backend:
   `failed` supaya seller/admin bisa retry.
 - Checkout menerima `idempotency_key`; jaga sifat idempotent jika mengubah alur ini.
 
-Alur seller:
+### Alur seller
 
 - Seller mengelola produk sendiri melalui `/api/products/mine` dan upload gambar.
 - Seller dashboard memakai `/api/seller/analytics`, review, profil toko, logo,
@@ -186,14 +186,14 @@ Alur seller:
   shipping. Order multi-toko dibatasi oleh scope seller di service.
 - Seller juga memiliki chat, komplain, reviews, dan packing list.
 
-Alur admin:
+### Alur admin
 
 - Superadmin mengakses users, moderation sellers/products, orders, analytics,
   audit logs, reports, fee simulator, complaints, action center, dan health center.
 - Admin service sudah memakai audit log untuk beberapa aksi dan KMP search untuk
   pencarian yang menghindari pola ILIKE tertentu.
 
-Alur mock:
+### Alur mock
 
 - SmartBank mock menyediakan payment, balance, topup, reset, state dashboard,
   cooldown transaksi 10 detik, dan limit harian 10 transaksi per user.
@@ -220,6 +220,8 @@ Alur mock:
 - `/api/seller`
 - `/api/complaints`
 - `/api/chats`
+- `/api/promotions`
+- `/api/ads`
 
 Pola modul yang dipakai adalah `routes -> controller -> service`. Untuk endpoint
 baru, ikuti pola ini, gunakan Zod schema jika ada body/query kompleks, dan pakai
@@ -330,7 +332,7 @@ Catatan penting:
 
 Backend memiliki test suite di `backend/test/` menggunakan Node.js built-in test runner.
 
-Verifikasi backend yang disarankan:
+### Verifikasi backend yang disarankan
 
 - `cd backend && npm run dev`
 - Cek `GET /api/health`.
@@ -340,7 +342,7 @@ Verifikasi backend yang disarankan:
 - Jika menyentuh database, jalankan `npm run db:verify` hanya pada environment yang
   disetujui.
 
-Verifikasi frontend yang disarankan:
+### Verifikasi frontend yang disarankan
 
 - `cd frontend && npm run lint`
 - `cd frontend && npm run build`
@@ -348,7 +350,7 @@ Verifikasi frontend yang disarankan:
   sukses/gagal checkout, orders, tracking, rating, chat, seller dashboard/products,
   seller orders, admin users/orders/analytics.
 
-Verifikasi mock/integrasi lokal:
+### Verifikasi mock/integrasi lokal
 
 1. Jalankan `cd mock && npm run dev`.
 2. Jalankan backend dengan env direct mock:

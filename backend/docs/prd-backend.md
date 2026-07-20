@@ -6,8 +6,8 @@
 **Dosen:** M. Yusril Helmi Setyawan, S.Kom., M.Kom.
 **Kelompok:** 2 — PasarKita (Marketplace)
 **Dokumen:** Backend API Specification
-**Versi:** 1.5
-**Tanggal:** 18 April 2026
+**Versi:** 2.0
+**Tanggal:** 20 Juli 2026 (updated - MySQL migration)
 
 ---
 
@@ -15,7 +15,7 @@
 
 Dokumen ini mendeskripsikan spesifikasi teknis backend API PasarKita secara menyeluruh — mencakup arsitektur server, struktur folder, daftar endpoint, business logic, integrasi ke service eksternal, penanganan error, dan aturan keamanan.
 
-Backend PasarKita dibangun menggunakan **Express.js** yang di-deploy di Vercel sebagai serverless function menggunakan `serverless-http`. Backend berada di subfolder `backend/` dalam satu repo GitHub bersama frontend, di-deploy sebagai project Vercel terpisah dengan Root Directory di-set ke `backend`. Semua data disimpan di **Supabase (PostgreSQL)**. Mock server untuk testing lokal berada di `backend/mock/` dan tidak pernah di-deploy.
+Backend PasarKita dibangun menggunakan **Express.js** yang di-deploy di Vercel sebagai serverless function menggunakan `serverless-http`. Backend berada di subfolder `backend/` dalam satu repo GitHub bersama frontend, di-deploy sebagai project Vercel terpisah dengan Root Directory di-set ke `backend`. Semua data disimpan di **MySQL 8.0+** (migrated from Supabase PostgreSQL on July 7, 2026). Mock server untuk testing lokal berada di `mock/` (root repo) dan tidak pernah di-deploy.
 
 ---
 
@@ -24,13 +24,15 @@ Backend PasarKita dibangun menggunakan **Express.js** yang di-deploy di Vercel s
 | Komponen | Teknologi | Keterangan |
 |---|---|---|
 | Runtime | Node.js | v18+ |
-| Framework | Express.js | REST API |
+| Framework | Express.js 5.2.1 | REST API |
 | Serverless Adapter | serverless-http | Agar bisa deploy di Vercel |
-| Database | Supabase (PostgreSQL) | Managed PostgreSQL, gratis, no CC |
-| ORM / Query Builder | Supabase JS Client | `@supabase/supabase-js` |
-| Autentikasi | JWT | Library `jose` atau `jsonwebtoken` |
+| Database | MySQL 8.0+ | Managed MySQL (migrated from PostgreSQL July 2026) |
+| Database Driver | mysql2 | Connection pooling, promise wrapper |
+| Autentikasi | JWT | Library `jsonwebtoken` |
+| Password Hashing | bcrypt | User password security |
 | Validasi Input | Zod | Schema validation |
 | HTTP Client | Axios | Request ke SmartBank & LogistiKita |
+| File Upload | Multer | Product images, store logos |
 | Environment Config | dotenv | Manage environment variables |
 
 ---
@@ -48,7 +50,7 @@ pasarkita/                          ← root repo
 │   ├── src/
 │   │   ├── app.js                  # Setup Express, middleware, dan routing
 │   │   ├── config/
-│   │   │   ├── supabase.js         # Inisialisasi Supabase client
+│   │   │   ├── mysql.js            # MySQL connection pool
 │   │   │   └── env.js              # Validasi environment variables
 │   │   ├── middlewares/
 │   │   │   ├── auth.js             # Verifikasi JWT token
@@ -93,22 +95,32 @@ Root Directory: backend
 ## 4. Environment Variables
 
 ```env
-# Supabase
-SUPABASE_URL=https://xxxx.supabase.co
-SUPABASE_ANON_KEY=your_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+# MySQL
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+MYSQL_USER=your_mysql_user
+MYSQL_PASSWORD=your_mysql_password
+MYSQL_DATABASE=pasarkita
 
 # JWT
 JWT_SECRET=your_jwt_secret
 
-# API Gateway
+# Integrations
 GATEWAY_BASE_URL=https://gateway.vercel.app/api
 GATEWAY_API_KEY=your_gateway_api_key
+SMARTBANK_URL=http://localhost:4001/smartbank       # dev only
+LOGISTIKITA_URL=http://localhost:4002/logistikita   # dev only
+MOCK_DEV_SECRET=mock-dev-secret                      # dev only
 
 # App
 NODE_ENV=development
 PORT=3001
 ```
+
+**Catatan:**
+- `SMARTBANK_URL` dan `LOGISTIKITA_URL` hanya digunakan untuk direct mock saat `NODE_ENV=development`
+- Environment staging/production selalu melalui `GATEWAY_BASE_URL` sesuai aturan integrasi
+- MySQL credentials production disimpan di Vercel environment variables, jangan commit ke repo
 
 ---
 
@@ -216,7 +228,7 @@ const verifyToken = async (req, res, next) => {
 
 ### 7.3 Superadmin Middleware
 
-Superadmin tidak punya endpoint registrasi — akun dibuat langsung di database Supabase saat setup awal (lihat section 12.3). Middleware `requireSuperadmin` digunakan untuk memproteksi endpoint yang hanya boleh diakses superadmin:
+Superadmin tidak punya endpoint registrasi — akun dibuat langsung di database MySQL saat setup awal (lihat section 13.3). Middleware `requireSuperadmin` digunakan untuk memproteksi endpoint yang hanya boleh diakses superadmin:
 
 ```javascript
 // src/middlewares/auth.js
@@ -525,18 +537,6 @@ Response `400` (stok tidak cukup):
 }
 ```
 
-Response `429` (cooldown / limit harian):
-```json
-{
-  "success": false,
-  "message": "Terlalu banyak transaksi. Coba lagi dalam 30 detik",
-  "error": {
-    "code": "TRANSACTION_COOLDOWN",
-    "retry_after": 30
-  }
-}
-```
-
 Response `402` (saldo tidak cukup dari SmartBank):
 ```json
 {
@@ -766,11 +766,7 @@ flowchart TD
     C -- Tidak --> D[Return 401\nUNAUTHORIZED]
     C -- Ya --> E{Stok semua\nitem tersedia?}
     E -- Tidak --> F[Return 400\nINSUFFICIENT_STOCK]
-    E -- Ya --> G{Cooldown\naktif?}
-    G -- Ya --> H[Return 429\nTRANSACTION_COOLDOWN]
-    G -- Tidak --> I{Limit harian\ntercapai?}
-    I -- Ya --> J[Return 429\nDAILY_LIMIT_EXCEEDED]
-    I -- Tidak --> K[Hitung subtotal\n+ fee 2%]
+    E -- Ya --> K[Hitung subtotal\n+ fee 2%]
     K --> L[Buat order\nstatus: pending]
     L --> M[Kurangi stok\ndi database]
     M --> N[Kirim payment request\nke SmartBank via Gateway]
@@ -868,60 +864,19 @@ const calculateFee = (subtotal) => {
 }
 ```
 
-### 10.2 Validasi Cooldown Transaksi
-
-```javascript
-// Cek apakah user masih dalam masa cooldown (10-30 detik)
-const checkCooldown = async (userId) => {
-  const { data: lastOrder } = await supabase
-    .from('orders')
-    .select('created_at')
-    .eq('buyer_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single()
-
-  if (!lastOrder) return true
-
-  const secondsSinceLastOrder = (Date.now() - new Date(lastOrder.created_at)) / 1000
-  if (secondsSinceLastOrder < 10) {
-    throw { status: 429, code: 'TRANSACTION_COOLDOWN', retry_after: Math.ceil(10 - secondsSinceLastOrder) }
-  }
-  return true
-}
-```
-
-### 10.3 Validasi Limit Transaksi Harian
-
-```javascript
-// Cek apakah user sudah mencapai 10 transaksi hari ini
-const checkDailyLimit = async (userId) => {
-  const today = new Date().toISOString().split('T')[0]
-  const { count } = await supabase
-    .from('orders')
-    .select('*', { count: 'exact', head: true })
-    .eq('buyer_id', userId)
-    .gte('created_at', `${today}T00:00:00Z`)
-    .lte('created_at', `${today}T23:59:59Z`)
-
-  if (count >= 10) {
-    throw { status: 429, code: 'DAILY_LIMIT_EXCEEDED', message: 'Batas 10 transaksi per hari telah tercapai' }
-  }
-  return true
-}
-```
-
-### 10.4 Rollback Stok saat Payment Gagal
+### 10.2 Rollback Stok saat Payment Gagal
 
 Jika SmartBank mereturn response gagal, stok yang sudah dikurangi saat validasi harus dikembalikan:
 
 ```javascript
 const rollbackStock = async (items) => {
   for (const item of items) {
-    await supabase.rpc('increment_stock', {
-      product_id: item.product_id,
-      amount: item.qty
-    })
+    await pool.query(
+      `UPDATE products 
+       SET stock = stock + ? 
+       WHERE id = ?`,
+      [item.qty, item.product_id]
+    );
   }
 }
 ```
@@ -1005,8 +960,6 @@ const triggerShipping = async ({ orderId, fromAddress, toAddress, itemsCount }) 
 | 404 | `NOT_FOUND` | Resource tidak ditemukan |
 | 409 | `PRODUCT_HAS_ACTIVE_ORDER` | Produk tidak bisa dihapus karena ada order aktif |
 | 402 | `PAYMENT_FAILED` | Pembayaran ditolak SmartBank |
-| 429 | `TRANSACTION_COOLDOWN` | Transaksi terlalu cepat, masih dalam cooldown |
-| 429 | `DAILY_LIMIT_EXCEEDED` | Limit 10 transaksi harian tercapai |
 | 502 | `GATEWAY_ERROR` | API Gateway atau service eksternal tidak merespons |
 | 500 | `INTERNAL_ERROR` | Kesalahan server yang tidak terduga |
 
@@ -1080,193 +1033,201 @@ erDiagram
 
 ### 13.3 Setup Superadmin
 
-Superadmin tidak dibuat melalui endpoint — di-insert langsung ke Supabase satu kali saat setup awal project:
+Superadmin tidak dibuat melalui endpoint — di-insert langsung ke MySQL satu kali saat setup awal project:
 
 ```sql
-INSERT INTO users (id, name, email, password_hash, role, is_active)
+-- Generate UUID di application layer, atau gunakan UUID() MySQL function
+INSERT INTO users (id, name, email, password_hash, role, is_active, created_at)
 VALUES (
-  gen_random_uuid(),
+  UUID(),  -- atau generate UUID di Node.js dengan crypto.randomUUID()
   'Super Admin',
   'admin@pasarkita.com',
-  'bcrypt_hashed_password_here',
+  '$2b$10$hashed_password_here',  -- hash password dengan bcrypt terlebih dahulu
   'superadmin',
-  true
+  1,
+  NOW()
 );
 ```
 
-> **Catatan:** Hash password menggunakan bcrypt sebelum di-insert. Jangan pernah menyimpan plain text password di database.
+> **Catatan:** Hash password menggunakan bcrypt dengan cost factor 10 sebelum di-insert. Jangan pernah menyimpan plain text password di database. Untuk production, generate UUID di application layer menggunakan `crypto.randomUUID()` untuk konsistensi dengan schema.
 
-### 13.4 SQL Queries
+### 13.4 Database Schema & Setup
 
-#### Create Tables
+**Catatan Migrasi:** Backend telah bermigrasi dari Supabase PostgreSQL ke MySQL 8.0+ pada Juli 2026. Schema lengkap, stored procedures, triggers, dan migration scripts tersedia di `backend/database/`.
+
+**Schema Files:**
+- `backend/database/schema/000_mysql_full_schema.sql` — Full database schema
+- `backend/database/schema/001_mysql_stored_procedures.sql` — Stored procedures (checkout, dll)
+- `backend/database/schema/002_mysql_triggers.sql` — Triggers untuk audit dan timestamps
+
+**Setup Database Baru:**
+
+```bash
+# 1. Buat database
+mysql -u root -p -e "CREATE DATABASE pasarkita CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+# 2. Jalankan schema files berurutan
+mysql -u root -p pasarkita < backend/database/schema/000_mysql_full_schema.sql
+mysql -u root -p pasarkita < backend/database/schema/001_mysql_stored_procedures.sql
+mysql -u root -p pasarkita < backend/database/schema/002_mysql_triggers.sql
+
+# 3. Opsional: seed data demo
+cd backend
+npm run seed:demo
+```
+
+**Contoh Struktur Tabel (MySQL):**
 
 ```sql
--- Enable UUID extension (wajib di Supabase)
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+-- Users table
+CREATE TABLE IF NOT EXISTS users (
+  id            CHAR(36)     NOT NULL,
+  name          VARCHAR(255) NOT NULL,
+  email         VARCHAR(255) NOT NULL,
+  password_hash TEXT         NOT NULL,
+  role          VARCHAR(20)  NOT NULL CHECK (role IN ('buyer', 'seller', 'superadmin')),
+  is_active     TINYINT(1)   NOT NULL DEFAULT 1,
+  created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  
+  CONSTRAINT pk_users PRIMARY KEY (id),
+  CONSTRAINT uq_users_email UNIQUE (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Tabel users
-CREATE TABLE users (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name          VARCHAR(100) NOT NULL,
-  email         VARCHAR(150) NOT NULL UNIQUE,
-  password_hash TEXT NOT NULL,
-  role          VARCHAR(20) NOT NULL CHECK (role IN ('buyer', 'seller', 'superadmin')),
-  is_active     BOOLEAN NOT NULL DEFAULT true,
-  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- Tabel products
-CREATE TABLE products (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  seller_id   UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  name        VARCHAR(200) NOT NULL,
-  description TEXT,
-  category    VARCHAR(100) NOT NULL,
-  price       INTEGER NOT NULL CHECK (price > 0),
-  stock       INTEGER NOT NULL DEFAULT 0 CHECK (stock >= 0),
-  is_active   BOOLEAN NOT NULL DEFAULT true,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- Tabel orders
-CREATE TABLE orders (
-  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  buyer_id         UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-  status           VARCHAR(20) NOT NULL DEFAULT 'pending'
-                   CHECK (status IN ('pending', 'paid', 'shipped', 'delivered', 'payment_failed')),
-  subtotal         INTEGER NOT NULL CHECK (subtotal > 0),
-  fee_marketplace  INTEGER NOT NULL DEFAULT 0,
-  total            INTEGER NOT NULL CHECK (total > 0),
-  shipping_address TEXT NOT NULL,
-  transaction_id   VARCHAR(100),
-  tracking_id      VARCHAR(100),
-  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- Tabel order_items
-CREATE TABLE order_items (
-  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  order_id          UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-  product_id        UUID NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
-  qty               INTEGER NOT NULL CHECK (qty > 0),
-  price_at_purchase INTEGER NOT NULL CHECK (price_at_purchase > 0)
-);
+-- Products table
+CREATE TABLE IF NOT EXISTS products (
+  id              CHAR(36)     NOT NULL,
+  seller_id       CHAR(36)     NOT NULL,
+  name            VARCHAR(255) NOT NULL,
+  description     TEXT         DEFAULT NULL,
+  category        VARCHAR(100) NOT NULL,
+  price           INT          NOT NULL CHECK (price > 0),
+  stock           INT          NOT NULL DEFAULT 0 CHECK (stock >= 0),
+  is_active       TINYINT(1)   NOT NULL DEFAULT 1,
+  created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  
+  CONSTRAINT pk_products PRIMARY KEY (id),
+  CONSTRAINT fk_products_seller FOREIGN KEY (seller_id) REFERENCES users(id) ON DELETE RESTRICT,
+  INDEX idx_products_seller (seller_id),
+  INDEX idx_products_active_category (is_active, category)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
+
+**Key Differences from PostgreSQL:**
+- UUID type → `CHAR(36)`, generated via `crypto.randomUUID()` in Node.js
+- BOOLEAN → `TINYINT(1)`
+- TIMESTAMPTZ → `DATETIME`
+- Triggers use MySQL syntax, bukan PL/pgSQL
+- Auto-update timestamps via `ON UPDATE CURRENT_TIMESTAMP`
+- Stored procedures untuk operasi atomik (checkout, stock management)
+
+Lihat `backend/database/README.md` untuk dokumentasi lengkap schema dan migration guide.
 
 ---
 
-#### Indexes
+## 14. Testing & Seed Data
 
-```sql
--- Index untuk query produk berdasarkan seller
-CREATE INDEX idx_products_seller_id ON products(seller_id);
+**Seed Demo Data:**
 
--- Index untuk query produk aktif berdasarkan kategori
-CREATE INDEX idx_products_category ON products(category) WHERE is_active = true;
-
--- Index untuk query order berdasarkan buyer
-CREATE INDEX idx_orders_buyer_id ON orders(buyer_id);
-
--- Index untuk query order berdasarkan status
-CREATE INDEX idx_orders_status ON orders(status);
-
--- Index untuk query order_items berdasarkan order
-CREATE INDEX idx_order_items_order_id ON order_items(order_id);
-
--- Index untuk validasi limit transaksi harian (query by buyer + created_at)
-CREATE INDEX idx_orders_buyer_created ON orders(buyer_id, created_at);
+```bash
+cd backend
+npm run seed:demo  # Populate database dengan data contoh produk dan users
 ```
 
----
-
-#### Trigger: Auto-update `updated_at`
+**Insert Manual Superadmin (jika diperlukan):**
 
 ```sql
--- Fungsi trigger
-CREATE OR REPLACE FUNCTION update_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Attach ke tabel products
-CREATE TRIGGER trigger_products_updated_at
-BEFORE UPDATE ON products
-FOR EACH ROW EXECUTE FUNCTION update_updated_at();
-
--- Attach ke tabel orders
-CREATE TRIGGER trigger_orders_updated_at
-BEFORE UPDATE ON orders
-FOR EACH ROW EXECUTE FUNCTION update_updated_at();
-```
-
----
-
-#### Stored Procedure: Increment Stok (untuk Rollback)
-
-```sql
--- Digunakan saat payment gagal untuk rollback stok
-CREATE OR REPLACE FUNCTION increment_stock(product_id UUID, amount INTEGER)
-RETURNS VOID AS $$
-BEGIN
-  UPDATE products
-  SET stock = stock + amount
-  WHERE id = product_id;
-END;
-$$ LANGUAGE plpgsql;
-```
-
----
-
-#### Stored Procedure: Decrement Stok dengan Lock
-
-```sql
--- Digunakan saat checkout untuk kurangi stok dengan race condition protection
-CREATE OR REPLACE FUNCTION decrement_stock(product_id UUID, amount INTEGER)
-RETURNS BOOLEAN AS $$
-DECLARE
-  current_stock INTEGER;
-BEGIN
-  SELECT stock INTO current_stock
-  FROM products
-  WHERE id = product_id
-  FOR UPDATE;  -- Row-level lock
-
-  IF current_stock < amount THEN
-    RETURN FALSE;
-  END IF;
-
-  UPDATE products
-  SET stock = stock - amount
-  WHERE id = product_id;
-
-  RETURN TRUE;
-END;
-$$ LANGUAGE plpgsql;
-```
-
----
-
-#### Seed Data: Setup Awal
-
-```sql
--- Insert superadmin (password di-hash sebelum di-insert via aplikasi)
-INSERT INTO users (name, email, password_hash, role, is_active)
+-- Generate UUID dan hash password terlebih dahulu di aplikasi
+INSERT INTO users (id, name, email, password_hash, role, is_active, created_at)
 VALUES (
-  'Super Admin',
+  UUID(),
+  'Super Admin', 
   'admin@pasarkita.com',
-  '$2b$10$hash_hasil_bcrypt_disini',
+  '$2b$10$hash_hasil_bcrypt_disini',  -- gunakan bcrypt.hash() di Node.js
   'superadmin',
-  true
+  1,
+  NOW()
 );
+```
 
--- Insert seller contoh
-INSERT INTO users (name, email, password_hash, role, is_active)
+---
+
+## 15. Query Examples (MySQL)
+
+**Browse produk aktif dengan filter:**
+
+```sql
+-- Catatan: MySQL menggunakan ? untuk parameter binding, bukan $1, $2
+SELECT
+  p.id, p.name, p.description, p.category, p.price, p.stock,
+  u.id AS seller_id, u.name AS seller_name
+FROM products p
+JOIN users u ON p.seller_id = u.id
+WHERE p.is_active = 1
+  AND u.is_active = 1
+  AND (p.category = ? OR ? IS NULL)
+  AND (p.name LIKE CONCAT('%', ?, '%') OR ? IS NULL)
+ORDER BY p.created_at DESC
+LIMIT ? OFFSET ?;
+```
+
+**Cek cooldown transaksi:**
+
+```sql
+SELECT created_at
+FROM orders
+WHERE buyer_id = ?
+ORDER BY created_at DESC
+LIMIT 1;
+```
+
+**Hitung transaksi harian:**
+
+```sql
+SELECT COUNT(*) AS total
+FROM orders
+WHERE buyer_id = ?
+  AND DATE(created_at) = CURDATE();
+```
+
+**Analytics summary (superadmin):**
+
+```sql
+SELECT
+  COUNT(*) AS total_orders,
+  SUM(total) AS total_revenue,
+  SUM(fee_marketplace) AS total_fee_marketplace
+FROM orders
+WHERE status = 'paid'
+  AND created_at BETWEEN ? AND ?;
+```
+
+**Top 5 produk terlaris:**
+
+```sql
+SELECT
+  p.id, p.name,
+  SUM(oi.qty) AS total_sold
+FROM order_items oi
+JOIN products p ON oi.product_id = p.id
+JOIN orders o ON oi.order_id = o.id
+WHERE o.status = 'paid'
+  AND o.created_at BETWEEN ? AND ?
+GROUP BY p.id, p.name
+ORDER BY total_sold DESC
+LIMIT 5;
+```
+
+---
+
+## 16. Seed Data Legacy Reference
+
+**Insert seller contoh (legacy reference):**
+
+```sql
+INSERT INTO users (id, name, email, password_hash, role, is_active, created_at)
 VALUES (
+  UUID(),
   'Toko Batik Indah',
   'batik@pasarkita.com',
   '$2b$10$hash_hasil_bcrypt_disini',
@@ -1384,19 +1345,17 @@ cp .env.integration .env && npm run dev
 | 1 | POST /checkout | Stok cukup, saldo cukup | 201, order paid |
 | 2 | POST /checkout | Stok habis | 400, INSUFFICIENT_STOCK |
 | 3 | POST /checkout | Saldo tidak cukup (mock SmartBank gagal) | 402, PAYMENT_FAILED + stok rollback |
-| 4 | POST /checkout | Cooldown aktif | 429, TRANSACTION_COOLDOWN |
-| 5 | POST /checkout | Limit harian tercapai | 429, DAILY_LIMIT_EXCEEDED |
-| 6 | PUT /products/:id | Edit produk milik sendiri (seller) | 200, produk terupdate |
-| 7 | PUT /products/:id | Edit produk orang lain (seller) | 403, FORBIDDEN |
-| 8 | PUT /products/:id | Edit produk orang lain (superadmin) | 200, produk terupdate |
-| 9 | DELETE /products/:id | Hapus produk dengan order aktif | 409, PRODUCT_HAS_ACTIVE_ORDER |
-| 10 | GET /orders/:id | Lihat order milik sendiri | 200, detail order |
-| 11 | GET /orders/:id | Lihat order orang lain (buyer/seller) | 403, FORBIDDEN |
-| 12 | GET /orders/:id | Lihat order orang lain (superadmin) | 200, detail order |
-| 13 | GET /admin/users | Akses sebagai buyer/seller | 403, FORBIDDEN |
-| 14 | GET /admin/users | Akses sebagai superadmin | 200, daftar semua user |
-| 15 | PATCH /admin/users/:id/status | Ban user aktif | 200, is_active: false |
-| 16 | GET /admin/analytics | Akses sebagai superadmin | 200, data analytics |
+| 4 | PUT /products/:id | Edit produk milik sendiri (seller) | 200, produk terupdate |
+| 5 | PUT /products/:id | Edit produk orang lain (seller) | 403, FORBIDDEN |
+| 6 | PUT /products/:id | Edit produk orang lain (superadmin) | 200, produk terupdate |
+| 7 | DELETE /products/:id | Hapus produk dengan order aktif | 409, PRODUCT_HAS_ACTIVE_ORDER |
+| 8 | GET /orders/:id | Lihat order milik sendiri | 200, detail order |
+| 9 | GET /orders/:id | Lihat order orang lain (buyer/seller) | 403, FORBIDDEN |
+| 10 | GET /orders/:id | Lihat order orang lain (superadmin) | 200, detail order |
+| 11 | GET /admin/users | Akses sebagai buyer/seller | 403, FORBIDDEN |
+| 12 | GET /admin/users | Akses sebagai superadmin | 200, daftar semua user |
+| 13 | PATCH /admin/users/:id/status | Ban user aktif | 200, is_active: false |
+| 14 | GET /admin/analytics | Akses sebagai superadmin | 200, data analytics |
 
 ---
 
@@ -1408,4 +1367,4 @@ cp .env.integration .env && npm run dev
 | Timeout 10 detik Vercel | Request checkout yang lambat bisa terpotong | Pastikan semua operasi DB + request eksternal selesai di bawah 8 detik |
 | SmartBank belum ready | Tidak bisa test payment flow asli | Gunakan mock server selama development |
 | Kontrak API Gateway berubah | Semua integrasi bisa rusak | Simpan kontrak API versi yang sudah disepakati, update terkoordinasi |
-| Race condition stok | Dua user checkout produk sama di saat bersamaan | Gunakan Supabase RPC dengan database-level lock untuk update stok |
+| Race condition stok | Dua user checkout produk sama di saat bersamaan | Gunakan MySQL stored procedures dengan database-level lock atau transactions untuk update stok atomik |
